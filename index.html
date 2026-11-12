@@ -334,8 +334,8 @@ renderer.toneMappingExposure = 1.15;
 $('game').appendChild(renderer.domElement);
 const canvas = renderer.domElement;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x9fd0f0);
-scene.fog = new THREE.Fog(0x9fd0f0, 40, 140);
+scene.background = new THREE.Color(0x6a9fe0);   // [1단계] 호수 반사의 기본 하늘색으로도 쓰임
+scene.fog = new THREE.Fog(0xbdd6ed, 40, 140);   // [1단계] 하늘 지평선색과 동일하게 맞춤
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 300);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
@@ -343,6 +343,47 @@ scene.add(new THREE.HemisphereLight(0xcfe4ff, 0x4a5240, 0.55)); // 하늘빛 + �
 const sun = new THREE.DirectionalLight(0xfff0d8, 1.05);        // 따뜻한 햇빛
 const SHADOW_RES = isTouch ? 1024 : 2048, SHADOW_R = isTouch ? 38 : 50;
 const SUN_DIR = new THREE.Vector3(0.62, 0.62, 0.38).normalize(); // y를 줄이면 그림자가 길어져요
+
+/* ---------- [1단계] 하늘 돔 (그라데이션 + 태양 + 구름) ---------- */
+const skyU = { uSun: { value: SUN_DIR }, uT: { value: 0 } };
+const sky = new THREE.Mesh(new THREE.SphereGeometry(200, 32, 16), new THREE.ShaderMaterial({
+  uniforms: skyU, side: THREE.BackSide, depthWrite: false, depthTest: false,
+  vertexShader: `varying vec3 vDir;
+void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `uniform vec3 uSun; uniform float uT; varying vec3 vDir;
+float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+  return mix(mix(hash(i), hash(i + vec2(1., 0.)), f.x), mix(hash(i + vec2(0., 1.)), hash(i + vec2(1., 1.)), f.x), f.y); }
+float fbm(vec2 p){ float v = 0., a = .5; for (int i = 0; i < 5; i++){ v += a * noise(p); p = p * 2.03 + vec2(17.1, 9.7); a *= .5; } return v; }
+void main(){
+  vec3 d = normalize(vDir);
+  float h = clamp(d.y, 0., 1.);
+  vec3 hor = vec3(.74, .84, .93), mid = vec3(.38, .62, .92), zen = vec3(.16, .38, .78);
+  vec3 col = mix(hor, mid, smoothstep(0., .25, h));
+  col = mix(col, zen, smoothstep(.2, .9, h));
+  float sd = max(dot(d, uSun), 0.);
+  col += vec3(1., .80, .55) * pow(sd, 6.) * .25;          // 넓은 빛무리
+  col += vec3(1., .90, .70) * pow(sd, 64.) * .6;          // 태양 주변 광채
+  float disc = smoothstep(.9990, .9996, sd);              // 태양 원반
+  float cov = 0.;
+  vec3 cc = vec3(1.);
+  if (d.y > 0.){
+    vec2 uv = (d.xz / (d.y + .12)) * 1.2 + vec2(uT * .012, uT * .006);
+    float c = fbm(uv);
+    cov = smoothstep(.48, .78, c) * smoothstep(0., .22, d.y);
+    float c2 = fbm(uv + uSun.xz * .1);                     // 태양쪽으로 살짝 옮겨 읽어서 명암 계산
+    float light = clamp(.55 + (c - c2) * 2.5, 0., 1.);
+    cc = mix(vec3(.60, .66, .76), vec3(1., .98, .95), light);
+    cc += vec3(1., .85, .6) * pow(sd, 8.) * .35 * cov;     // 태양 쪽 구름 가장자리 빛
+  }
+  col += vec3(1., .97, .90) * disc * 3. * (1. - cov);      // 구름 뒤의 태양은 가려짐
+  col = mix(col, cc, cov * .92);
+  gl_FragColor = vec4(col, 1.);
+}`
+}));
+sky.renderOrder = -1000; sky.frustumCulled = false;
+scene.add(sky);
+
 sun.castShadow = true;
 sun.shadow.mapSize.set(SHADOW_RES, SHADOW_RES);
 { const c = sun.shadow.camera; c.near = 1; c.far = 220; c.left = c.bottom = -SHADOW_R; c.right = c.top = SHADOW_R; c.updateProjectionMatrix(); }
@@ -492,7 +533,8 @@ scene.add(water); worldMeshes.push(water);
 const _fr = new THREE.Frustum(), _fm = new THREE.Matrix4(), _fs = new THREE.Sphere(new THREE.Vector3(LAKE.x, WATER_Y, LAKE.z), LAKE.r + 1);
 function renderFrame(){
   let refl = false;
-  wu.uT.value = now();
+  wu.uT.value = skyU.uT.value = now();
+  sky.position.copy(camera.position);                    // [1단계] 하늘은 항상 카메라를 따라다님
   if (reflFx && camera.position.y > WATER_Y + .05){      // 호수가 화면에 보일 때만 반사를 그림
     camera.updateMatrixWorld();
     _fr.setFromProjectionMatrix(_fm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
@@ -505,7 +547,9 @@ function renderFrame(){
     reflCam.rotation.set(-camera.rotation.x, camera.rotation.y, 0);
     reflCam.fov = camera.fov; reflCam.aspect = camera.aspect; reflCam.updateProjectionMatrix(); reflCam.updateMatrixWorld();
     wu.uTex.value.set(.5,0,0,.5, 0,.5,0,.5, 0,0,.5,.5, 0,0,0,1).multiply(reflCam.projectionMatrix).multiply(reflCam.matrixWorldInverse);
+    sky.position.copy(reflCam.position);                 // [1단계] 반사 렌더 때는 하늘을 반사 카메라로 이동
     renderer.setRenderTarget(reflRT); renderer.render(scene, reflCam); renderer.setRenderTarget(null);
+    sky.position.copy(camera.position);
     water.visible = bed.visible = true; if (gunGroup) gunGroup.visible = gv;
   }
   wu.uUse.value = refl ? 1 : 0;
