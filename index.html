@@ -210,10 +210,15 @@ body.touch #shopBtn small{display:none}
 .si small{display:block;opacity:.7;font-size:12px;margin-top:2px}
 .si button{min-width:96px;padding:9px 10px;border:0;border-radius:8px;background:linear-gradient(90deg,#f59e0b,#ef4444);color:#fff;font-weight:800;cursor:pointer}
 .si button:disabled{background:rgba(255,255,255,.15);color:#aaa}
+
+/* ===== [대기] 태양 빛번짐 ===== */
+#sunGlow{position:fixed;left:0;top:0;width:130vmin;height:130vmin;margin:-65vmin 0 0 -65vmin;z-index:3;pointer-events:none;opacity:0;mix-blend-mode:screen;will-change:transform,opacity;
+background:radial-gradient(circle,rgba(255,246,222,.95) 0,rgba(255,230,180,.55) 5%,rgba(255,212,152,.24) 16%,rgba(255,200,140,.09) 36%,rgba(255,200,140,0) 62%)}
 </style>
 </head>
 <body>
 <div id="game"></div>
+<div id="sunGlow"></div>
 
 <div id="online" class="hud off"><div id="onlineCount">접속자 -</div><div id="onlineList"></div></div>
 <div id="feed" class="hud"></div>
@@ -335,7 +340,7 @@ $('game').appendChild(renderer.domElement);
 const canvas = renderer.domElement;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x86a9cc);   // [1단계] 호수 반사의 기본 하늘색으로도 쓰임 (차분한 톤)
-scene.fog = new THREE.Fog(0xc7d9e6, 40, 140);   // [1단계] 하늘 지평선색과 동일하게 맞춤
+scene.fog = new THREE.Fog(0xc7d9e6, 30, 150);   // [1단계] 하늘 지평선색과 동일하게 맞춤 / [대기] 더 길고 부드럽게
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 300);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
@@ -343,6 +348,42 @@ scene.add(new THREE.HemisphereLight(0xcfe4ff, 0x4a5240, 0.55)); // 하늘빛 + �
 const sun = new THREE.DirectionalLight(0xfff0d8, 1.05);        // 따뜻한 햇빛
 const SHADOW_RES = isTouch ? 1024 : 2048, SHADOW_R = isTouch ? 38 : 50;
 const SUN_DIR = new THREE.Vector3(0.62, 0.62, 0.38).normalize(); // y를 줄이면 그림자가 길어져요
+
+/* ---------- [대기] 안개: 거리 안개 + 낮은 곳에 더 짙은 높이 안개 + 태양 쪽은 하늘처럼 따뜻하게 빛남 ---------- */
+{
+  const SC = THREE.ShaderChunk, sd = SUN_DIR.toArray().map(v => v.toFixed(4)).join(',');
+  SC.fog_pars_vertex = `#ifdef USE_FOG
+varying float vFogDepth;
+varying vec3 vFogV;
+#endif`;
+  SC.fog_vertex = `#ifdef USE_FOG
+vFogDepth = -mvPosition.z;
+vFogV = mvPosition.xyz;
+#endif`;
+  SC.fog_pars_fragment = `#ifdef USE_FOG
+uniform vec3 fogColor;
+varying float vFogDepth;
+varying vec3 vFogV;
+#ifdef FOG_EXP2
+uniform float fogDensity;
+#else
+uniform float fogNear;
+uniform float fogFar;
+#endif
+#endif`;
+  SC.fog_fragment = `#ifdef USE_FOG
+{
+  vec3 fgR = vec3(dot(viewMatrix[0].xyz, vFogV), dot(viewMatrix[1].xyz, vFogV), dot(viewMatrix[2].xyz, vFogV)); // 카메라→픽셀 방향(월드)
+  float fgY = cameraPosition.y + fgR.y;                                    // 픽셀의 월드 높이
+  float fgS = max(dot(normalize(fgR), vec3(${sd})), 0.);                   // 태양 방향과의 일치도
+  float fgB = smoothstep(fogNear, fogFar, vFogDepth);                      // 기본 거리 안개
+  float fgX = (1. - exp(-vFogDepth * .012)) * exp(-max(fgY, 0.) * .12) * .35; // 높이 안개 (땅 가까이 + 멀수록 짙음)
+  float fgF = clamp(fgB + fgX * (1. - fgB), 0., 1.);
+  vec3 fgC = fogColor + vec3(1., .86, .64) * pow(fgS, 5.) * .12 + vec3(1., .92, .76) * pow(fgS, 48.) * .30; // 하늘의 태양 빛무리와 동일
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, fgC, fgF);
+}
+#endif`;
+}
 
 /* ---------- [1단계] 하늘 돔 (그라데이션 + 태양 + 구름) ---------- */
 const skyU = { uSun: { value: SUN_DIR }, uT: { value: 0 } };
@@ -511,38 +552,94 @@ bed.rotation.x = -Math.PI / 2; bed.position.set(LAKE.x, LAKE_FLOOR - .05, LAKE.z
 scene.add(bed);
 const reflRT = new THREE.WebGLRenderTarget(isTouch ? 384 : 768, isTouch ? 216 : 432);
 const reflCam = new THREE.PerspectiveCamera(75, 1, .05, 300); reflCam.rotation.order = 'YXZ';
+
+/* ---------- [2단계] 물: 다중 파도 + 프레넬 + 수심 색 + 햇빛 반짝임 + 호숫가 물거품 ---------- */
 const wu = {
   uRefl: { value: reflRT.texture }, uTex: { value: new THREE.Matrix4() }, uT: { value: 0 }, uUse: { value: 0 },
   uFogN: { value: scene.fog.near }, uFogF: { value: scene.fog.far }, uSun: { value: SUN_DIR }, uFog: { value: scene.fog.color },
-  uDeep: { value: new THREE.Color(0x1f5568) }, uSky: { value: scene.background }
+  uDeep: { value: new THREE.Color(0x0d3a4a) }, uShallow: { value: new THREE.Color(0x5d8f84) }, uSky: { value: scene.background },
+  uC: { value: new THREE.Vector2(LAKE.x, LAKE.z) }, uR: { value: LAKE.r }
 };
 const water = new THREE.Mesh(new THREE.CircleGeometry(LAKE.r + .6, 64), new THREE.ShaderMaterial({
   uniforms: wu, transparent: true, depthWrite: false,
   vertexShader: `uniform mat4 uTex; varying vec3 vW; varying vec4 vP; varying float vD;
 void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vP = uTex * w; vec4 mv = viewMatrix * w; vD = -mv.z; gl_Position = projectionMatrix * mv; }`,
-  fragmentShader: `uniform sampler2D uRefl; uniform float uT, uUse, uFogN, uFogF; uniform vec3 uSun, uFog, uDeep, uSky;
+  fragmentShader: `uniform sampler2D uRefl; uniform float uT, uUse, uFogN, uFogF, uR; uniform vec3 uSun, uFog, uDeep, uShallow, uSky; uniform vec2 uC;
 varying vec3 vW; varying vec4 vP; varying float vD;
+float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+  return mix(mix(hash(i), hash(i + vec2(1., 0.)), f.x), mix(hash(i + vec2(0., 1.)), hash(i + vec2(1., 1.)), f.x), f.y); }
+vec2 gw(vec2 p, vec2 d, float k, float s, float a){ return d * (cos(dot(p, d) * k + uT * s) * a * k); }
 void main(){
   vec2 p = vW.xz;
-  vec2 n = vec2(sin(p.x*.9+uT*1.1) + sin(p.y*1.3-uT*.9) + sin((p.x+p.y)*.5+uT*.6), cos(p.y*.8+uT*1.0) + cos(p.x*1.1-uT*.7) + cos((p.x-p.y)*.6-uT*.5)) * .012;
-  vec3 N = normalize(vec3(n.x*8., 1., n.y*8.));
+  // 방향이 다른 4겹의 큰 물결 + 잔물결
+  vec2 n = gw(p, vec2(.8, .6), .9, 1.1, .05) + gw(p, vec2(-.6, .8), 1.3, 1.4, .035)
+         + gw(p, vec2(.3, -.95), 2.1, 1.8, .02) + gw(p, vec2(-.9, -.4), 3.4, 2.3, .012);
+  n += (vec2(noise(p * 4. + uT * .35), noise(p * 4. + 31. - uT * .3)) - .5) * .05;
+  n *= 1. - smoothstep(30., 90., vD) * .7;                    // 멀리서는 물결을 줄여 반짝임(깜빡임) 방지
+  vec3 N = normalize(vec3(-n.x, 1., -n.y));
   vec3 V = normalize(cameraPosition - vW);
-  float fr = pow(1. - clamp(V.y, 0., 1.), 3.);
-  vec3 refl = mix(uSky, texture2D(uRefl, vP.xy / vP.w + n * .5).rgb, uUse);
-  vec3 col = mix(uDeep, refl, clamp(.25 + .75 * fr, 0., 1.));
-  col += pow(max(dot(reflect(-uSun, N), V), 0.), 140.) * .9;
-  col = mix(col, uFog, clamp((vD - uFogN) / (uFogF - uFogN), 0., 1.));
-  gl_FragColor = vec4(col, mix(.72, 1., fr));
+  float cosT = clamp(dot(N, V), 0., 1.);
+  float fr = clamp(.04 + .96 * pow(1. - cosT, 4.), 0., 1.);   // 프레넬: 낮은 각도일수록 반사 강해짐
+  // 호숫가는 얕고 밝게, 가운데는 깊고 어둡게
+  float rd = length(p - uC) / uR;
+  float depth = 1. - smoothstep(.5, 1., rd);
+  vec3 body = mix(uShallow, uDeep, depth);
+  body *= .85 + .3 * noise(p * .6 + uT * .05);                // 물속의 은은한 명암 변화
+  // 하늘/주변 반사 (물결로 일그러짐)
+  vec2 ruv = clamp(vP.xy / vP.w + n * .12, .002, .998);
+  vec3 refl = mix(uSky, texture2D(uRefl, ruv).rgb, uUse);
+  vec3 col = mix(body, refl, clamp(.16 + .84 * fr, 0., 1.));
+  // 햇빛 반짝임: 넓은 광택 + 날카로운 점광
+  vec3 H = normalize(uSun + V);
+  float nh = max(dot(N, H), 0.);
+  col += vec3(1., .93, .78) * (pow(nh, 220.) * 1.6 + pow(nh, 40.) * .10);
+  // 호숫가 물거품
+  float edge = smoothstep(.90, .985, rd) * (1. - smoothstep(.995, 1.04, rd));
+  float fm = smoothstep(.55, .85, noise(p * 2.6 + vec2(uT * .35, -uT * .2)) * .75 + .25 * sin(rd * 70. - uT * 2.2) * .5 + .25);
+  float foam = edge * fm;
+  col = mix(col, vec3(.95, .97, .98), foam * .75);
+  float fb = smoothstep(uFogN, uFogF, vD);                    // [대기] 땅과 같은 안개 공식
+  float fx = (1. - exp(-vD * .012)) * exp(-max(vW.y, 0.) * .12) * .35;
+  float ff = clamp(fb + fx * (1. - fb), 0., 1.);
+  float fs = max(dot(-V, uSun), 0.);
+  vec3 fc = uFog + vec3(1., .86, .64) * pow(fs, 5.) * .12 + vec3(1., .92, .76) * pow(fs, 48.) * .30;
+  col = mix(col, fc, ff);
+  float alpha = clamp(mix(.50, .96, depth * .65 + fr * .5) + foam * .4, 0., 1.);
+  gl_FragColor = vec4(col, alpha);
 }`
 }));
 water.rotation.x = -Math.PI / 2; water.position.set(LAKE.x, WATER_Y, LAKE.z);
 water.userData = { kind: 'world' };
 scene.add(water); worldMeshes.push(water);
 const _fr = new THREE.Frustum(), _fm = new THREE.Matrix4(), _fs = new THREE.Sphere(new THREE.Vector3(LAKE.x, WATER_Y, LAKE.z), LAKE.r + 1);
+/* [대기] 태양 빛번짐: 해가 화면에 보이면 따뜻한 빛이 번지고, 나무·바위·절벽에 가려지면 사라짐 */
+const sunGlowEl = $('sunGlow'), _sg = new THREE.Vector3(), _sgf = new THREE.Vector3();
+let sgVis = 0, sgTick = 0, sgOcc = 1;
+function updateSunGlow(){
+  let target = 0;
+  if (joined && !player.dead){
+    camera.updateMatrixWorld();
+    camera.getWorldDirection(_sgf);
+    if (_sgf.dot(SUN_DIR) > .05){
+      if ((sgTick++ & 7) === 0){
+        raycaster.set(camera.position, SUN_DIR); raycaster.far = 300;
+        sgOcc = raycaster.intersectObjects(worldMeshes, false).length ? 0 : 1;
+      }
+      _sg.copy(camera.position).addScaledVector(SUN_DIR, 500).project(camera);
+      const ex = Math.max(Math.abs(_sg.x), Math.abs(_sg.y));
+      target = sgOcc * clamp((1.7 - ex) / .7, 0, 1);
+      sunGlowEl.style.transform = 'translate(' + ((_sg.x * .5 + .5) * innerWidth).toFixed(1) + 'px,' + ((-_sg.y * .5 + .5) * innerHeight).toFixed(1) + 'px)';
+    }
+  }
+  sgVis += (target - sgVis) * .15;
+  sunGlowEl.style.opacity = sgVis < .004 ? 0 : (sgVis * .9).toFixed(3);
+}
 function renderFrame(){
   let refl = false;
   wu.uT.value = skyU.uT.value = now();
   sky.position.copy(camera.position);                    // [1단계] 하늘은 항상 카메라를 따라다님
+  updateSunGlow();
   if (reflFx && camera.position.y > WATER_Y + .05){      // 호수가 화면에 보일 때만 반사를 그림
     camera.updateMatrixWorld();
     _fr.setFromProjectionMatrix(_fm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
