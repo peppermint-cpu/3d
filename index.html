@@ -187,6 +187,29 @@ body.editing #touchui{display:block!important}
 body.editing #tlook,body.editing .tb,body.editing #joy,body.editing #bPause{pointer-events:none}
 body.editing .tb,body.editing #joy,body.editing #bPause{outline:2px dashed rgba(255,255,255,.55);outline-offset:2px}
 body.editing .sel{outline:3px solid #fde047!important}
+
+/* ===== 코인 / 상점 ===== */
+#feed{top:56px}
+#wallet{display:none;top:10px;right:12px;align-items:center;gap:10px;background:rgba(0,0,0,.6);padding:6px 12px;border-radius:10px;border:1px solid rgba(250,204,21,.45);font-size:14px;font-weight:700;pointer-events:auto;cursor:pointer}
+#wallet .xp{display:block;width:44px;height:4px;background:rgba(255,255,255,.25);border-radius:2px;margin-top:3px}
+#wallet .xp i{display:block;height:100%;width:0;background:#60a5fa;border-radius:2px}
+#coin{color:#fde047}
+#shopBtn{background:linear-gradient(90deg,#f59e0b,#ef4444);padding:4px 10px;border-radius:8px}
+#shopBtn small{opacity:.8;font-weight:600}
+body.touch #wallet{top:6px;right:52px;gap:7px;padding:3px 8px;font-size:11px}
+body.touch #shopBtn small{display:none}
+#rbReward{font-size:15px;font-weight:800;color:#86efac;margin:0 0 10px}
+#shop{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(5,8,12,.8)}
+#shop.on{display:flex}
+.shopbox{width:min(560px,94vw);max-height:92vh;overflow:auto;touch-action:pan-y;background:rgba(20,26,34,.97);border:1px solid rgba(250,204,21,.4);border-radius:16px;padding:16px}
+.shophead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;font-size:18px}
+#shopCoin{color:#fde047;font-weight:800}
+#shopClose{width:36px;height:36px;border:0;border-radius:8px;background:rgba(255,255,255,.15);color:#fff;font-size:16px}
+.si{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border-radius:10px;background:rgba(255,255,255,.06);margin-bottom:8px}
+.si .nm{font-weight:800}
+.si small{display:block;opacity:.7;font-size:12px;margin-top:2px}
+.si button{min-width:96px;padding:9px 10px;border:0;border-radius:8px;background:linear-gradient(90deg,#f59e0b,#ef4444);color:#fff;font-weight:800;cursor:pointer}
+.si button:disabled{background:rgba(255,255,255,.15);color:#aaa}
 </style>
 </head>
 <body>
@@ -194,8 +217,9 @@ body.editing .sel{outline:3px solid #fde047!important}
 
 <div id="online" class="hud off"><div id="onlineCount">접속자 -</div><div id="onlineList"></div></div>
 <div id="feed" class="hud"></div>
+<div id="wallet" class="hud"><div><span id="lvl">Lv.1</span><span class="xp"><i id="xpFill"></i></span></div><span id="coin">🪙 0</span><span id="shopBtn">🛒 상점<small> (B)</small></span></div>
 <div id="hpwrap" class="hud"><div id="hptext">100</div><div id="hpbar"><div id="hpfill"></div></div><div id="kd">K 0 / D 0</div></div>
-<div id="weaponbox" class="hud"><div id="reloadmsg"></div><div id="wname">M416</div><div id="ammo">30<small> / 120</small></div><div id="slots"></div></div>
+<div id="weaponbox" class="hud"><div id="reloadmsg"></div><div id="wname">AK47</div><div id="ammo">30<small> / 120</small></div><div id="slots"></div></div>
 <div id="cross" class="hud"><i></i><i></i><i></i><i></i><i class="dot"></i></div>
 <div id="hitm" class="hud"></div>
 <div id="scope" class="hud"></div>
@@ -205,10 +229,12 @@ body.editing .sel{outline:3px solid #fde047!important}
 <div id="death"><h2>사망</h2><p id="deathInfo"></p></div>
 
 <div id="round" class="hud"><div id="roundTime">⏱ 4:00</div><div id="roundLead"></div></div>
-<div id="roundBoard" class="hud"><h3>⏱ 라운드 종료</h3><div id="rbWin"></div><div id="rbSub"></div><table><thead><tr><th>#</th><th>닉네임</th><th>킬</th><th>데스</th></tr></thead><tbody id="rbBody"></tbody></table><div id="rbNext">새 라운드가 시작되었어요!</div></div>
+<div id="roundBoard" class="hud"><h3>⏱ 라운드 종료</h3><div id="rbWin"></div><div id="rbSub"></div><div id="rbReward"></div><table><thead><tr><th>#</th><th>닉네임</th><th>킬</th><th>데스</th></tr></thead><tbody id="rbBody"></tbody></table><div id="rbNext">새 라운드가 시작되었어요!</div></div>
 
 <div id="chat" class="hud"></div>
 <div id="chatBar"><input id="chatIn" maxlength="100" placeholder="전체 채팅 (Enter 전송)" autocomplete="off"><button id="chatSend">전송</button><button id="chatClose" class="x">✕</button></div>
+
+<div id="shop"><div class="shopbox"><div class="shophead"><b>🛒 무기 상점</b><span id="shopCoin"></span><button id="shopClose">✕</button></div><div id="shopList"></div></div></div>
 
 <div id="editLayer"></div>
 <div id="editbar"><b id="editName">버튼을 눌러 선택하세요</b><input type="range" id="editSize" min="0.5" max="2" step="0.05" value="1" disabled><button id="editReset" class="eb">초기화</button><button id="editDone" class="eb ok">완료</button></div>
@@ -241,6 +267,7 @@ body.editing .sel{outline:3px solid #fde047!important}
     <div class="set touchset"><label><span>자이로 조준 (폰을 돌려 조준)</span><input type="checkbox" id="gyro" style="width:auto;margin:0;padding:0"></label></div>
     <div class="set touchset"><label><span>자이로 감도</span><b id="gyroSVal">1.0</b></label><input type="range" id="gyroS" min="0.3" max="3" step="0.1" value="1"></div>
     <button id="editUI" class="sec">🎮 버튼 위치·크기 편집</button>
+    <button id="shopOpen" class="sec" style="display:none">🛒 상점 / 코인</button>
     <button id="play">게임 시작</button>
     <div id="netstat"></div>
     <div class="tkeys">
@@ -249,12 +276,14 @@ body.editing .sel{outline:3px solid #fde047!important}
       <div><b>⤒</b> 점프</div><div><b>RUN</b> 누르는 동안 달리기</div>
       <div><b>R</b> 재장전</div><div><b>상단 무기 버튼</b> 무기 교체</div>
       <div><b>접속자 표시 탭</b> 리더보드</div><div><b>⏸</b> 감도·닉네임 설정</div><div><b>앉기</b> 버튼으로 켜기/끄기</div><div><b>💬</b> 전체 채팅</div>
+      <div><b>우측 상단 🛒</b> 상점</div><div></div>
     </div>
     <div class="keys">
       <div><b>WASD</b> 이동</div><div><b>Shift</b> 달리기</div>
       <div><b>Space</b> 점프</div><div><b>R</b> 재장전</div>
       <div><b>좌클릭</b> 발사</div><div><b>우클릭</b> 조준(줌)</div>
       <div><b>1~6 / 휠</b> 무기 교체</div><div><b>Tab</b> 리더보드</div><div><b>C</b> 앉기(누르는 동안)</div><div><b>Enter</b> 전체 채팅</div>
+      <div><b>B</b> 상점</div><div></div>
     </div>
   </div>
 </div>
@@ -506,10 +535,10 @@ function randomSpawn(){
   return { x: 0, z: 0 };
 }
 
-/* ---------- 무기 ---------- */
+/* ---------- 무기 (1번 AK47 = 기본 지급, 나머지는 상점에서 구매) ---------- */
 const WEAPONS = [
+  { id:'akm',    name:'AK47',         short:'AK47',   dmg:29, delay:0.10, mag:30, res:120, reload:2.5, auto:true,  spread:0.013,  recoil:0.017, pellets:1, range:250, zoom:1.5 },
   { id:'m416',   name:'M416',         short:'M416',   dmg:21, delay:0.085,mag:30, res:120, reload:2.2, auto:true,  spread:0.010,  recoil:0.011, pellets:1, range:250, zoom:1.5 },
-  { id:'akm',    name:'AKM',          short:'AKM',    dmg:29, delay:0.10, mag:30, res:120, reload:2.5, auto:true,  spread:0.013,  recoil:0.017, pellets:1, range:250, zoom:1.5 },
   { id:'awm',    name:'AWM',          short:'AWM',    dmg:100,delay:1.40, mag:5,  res:25,  reload:3.2, auto:false, spread:0.0008, recoil:0.07,  pellets:1, range:400, zoom:4.5 },
   { id:'s12k',   name:'S12K',         short:'S12K',   dmg:13, delay:0.24, mag:5,  res:35,  reload:3.0, auto:true,  spread:0.05,   recoil:0.035, pellets:8, range:60,  zoom:1.2 },
   { id:'m249',   name:'M249',         short:'M249',   dmg:19, delay:0.075,mag:100,res:200, reload:4.5, auto:true,  spread:0.016,  recoil:0.012, pellets:1, range:250, zoom:1.4 },
@@ -561,6 +590,7 @@ let crouch = false, crouchT = false;   // 앉기 (키보드 C 누르는 동안 /
 const raycaster = new THREE.Raycaster();
 
 function equip(i){
+  if (!isOwned(i)){ showMsg('상점에서 먼저 구매하세요', 1000); return; }
   if (gunGroup) camera.remove(gunGroup);
   cur = i; reloading = false; semiReady = false;
   gunGroup = buildGun(i);
@@ -570,6 +600,7 @@ function equip(i){
 function buildSlots(){
   const s = $('slots'); s.innerHTML = '';
   WEAPONS.forEach((w, i) => {
+    if (!isOwned(i)) return;
     const d = document.createElement('div');
     d.textContent = (i+1) + ' ' + w.short;
     if (i === cur) d.className = 'on';
@@ -903,10 +934,7 @@ async function joinNet(){
   try {
     sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { realtime: { params: { eventsPerSecond: 40 } } });
   } catch(e){ return setNet(false); }
-  try {
-    const { data } = await sb.from('scores').select('kills,deaths').eq('nickname', myName).maybeSingle();
-    if (data){ kills = data.kills | 0; deaths = data.deaths | 0; }
-  } catch(e){}
+  await loadProfile(myName);
   channel = sb.channel(ROOM, { config: { broadcast: { self: false }, presence: { key: myId } } });
   channel
     .on('presence', { event: 'sync' }, () => {
@@ -931,9 +959,11 @@ async function joinNet(){
   setTimeout(() => { if (!netReady && !bots.length){ startBots(); setNet(false); } }, 8000);
 }
 async function saveScore(){
+  saveLocalProf();
   if (!sb) return;
   try {
-    await sb.from('scores').upsert({ nickname: myName, kills, deaths, updated_at: new Date().toISOString() }, { onConflict: 'nickname' });
+    const r = await sb.from('scores').upsert({ nickname: myName, kills, deaths, coins: prof.coins, xp: prof.xp, owned: prof.owned.join(','), updated_at: new Date().toISOString() }, { onConflict: 'nickname' });
+    if (r.error) await sb.from('scores').upsert({ nickname: myName, kills, deaths, updated_at: new Date().toISOString() }, { onConflict: 'nickname' });
   } catch(e){}
 }
 /* 리더보드: 지금 접속 중인 플레이어만 킬 순으로 표시 */
@@ -1081,11 +1111,12 @@ function checkRound(){
   bots.forEach(b => { b.rk = 0; b.rd = 0; });
   trackMe();
   showMsg('⏱ 라운드 종료! 집계 중…', 1400);
-  // 다른 사람의 마지막 킬 정보가 도착할 시간을 1.2초 준 뒤 집계
-  setTimeout(() => showRoundBoard(roundResults(old, sk, sd, bsnap)), 1200);
+  // 다른 사람의 마지막 킬 정보가 도착할 시간을 1.2초 준 뒤 집계 → 결과 표시 + 코인/경험치 지급
+  setTimeout(() => { const res = roundResults(old, sk, sd, bsnap); showRoundBoard(res, giveRewards(res)); }, 1200);
 }
-function showRoundBoard(res){
+function showRoundBoard(res, reward){
   const top = res[0], body = $('rbBody'); body.innerHTML = '';
+  $('rbReward').textContent = reward || '';
   if (!top || top.k <= 0){
     $('rbWin').textContent = '무승부';
     $('rbSub').textContent = '이번 라운드는 킬 기록이 없어요';
@@ -1411,8 +1442,10 @@ function updatePlayer(dt){
 /* ---------- 입력 ---------- */
 addEventListener('keydown', e => {
   if (chatting) return;
+  if (shopOpen){ if (e.code === 'Escape' || e.code === 'KeyB') closeShop(); return; }
   if (e.code === 'Tab'){ e.preventDefault(); if (joined && !e.repeat){ $('board').style.display = 'block'; loadBoard(); } return; }
   if (!locked) return;
+  if (e.code === 'KeyB' && joined && !e.repeat){ e.preventDefault(); openShop(); return; }
   if (e.code === 'Enter' && joined && !e.repeat){ e.preventDefault(); openChat(); return; }
   if (noLock && (e.code === 'Escape' || e.code === 'KeyP')){
     locked = false; noLock = false; firing = false; mouseR = false;
@@ -1450,8 +1483,91 @@ document.addEventListener('mouseup', e => {
 document.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('wheel', e => {
   if (!locked) return;
-  equip((cur + (e.deltaY > 0 ? 1 : WEAPONS.length - 1)) % WEAPONS.length);
+  const n = WEAPONS.length, dir = e.deltaY > 0 ? 1 : -1;
+  for (let k = 1; k <= n; k++){ const i = (cur + dir * k + n) % n; if (isOwned(i)){ equip(i); break; } }   // 가진 무기끼리만 교체
 }, { passive: true });
+
+/* ---------- 코인 / 경험치 / 상점 ---------- */
+const PRICE = { akm: 0, m416: 800, awm: 2500, s12k: 1500, m249: 2200, katana: 600 };   // 무기 가격은 여기서 조절
+const prof = { coins: 0, xp: 0, owned: ['akm'] };
+const levelOf = xp => Math.floor(Math.sqrt(xp / 100)) + 1;
+const lvStart = lv => (lv - 1) * (lv - 1) * 100;
+const isOwned = i => prof.owned.indexOf(WEAPONS[i].id) !== -1;
+let shopOpen = false;
+
+function applyProf(o){
+  prof.coins = Math.max(0, (o && +o.coins) || 0);
+  prof.xp = Math.max(0, (o && +o.xp) || 0);
+  const raw = o ? (typeof o.owned === 'string' ? o.owned.split(',') : (Array.isArray(o.owned) ? o.owned : [])) : [];
+  const ow = raw.filter(id => id in PRICE);
+  if (ow.indexOf('akm') === -1) ow.push('akm');   // AK47은 항상 기본 지급
+  prof.owned = ow;
+}
+function loadLocalProf(n){ try { applyProf(JSON.parse(localStorage.getItem('is_prof_' + n) || 'null')); } catch(e){ applyProf(null); } }
+function saveLocalProf(){ try { localStorage.setItem('is_prof_' + myName, JSON.stringify({ coins: prof.coins, xp: prof.xp, owned: prof.owned })); } catch(e){} }
+async function loadProfile(n){
+  loadLocalProf(n);
+  if (sb){
+    try { const { data } = await sb.from('scores').select('kills,deaths').eq('nickname', n).maybeSingle(); if (data){ kills = data.kills | 0; deaths = data.deaths | 0; } } catch(e){}
+    try { const { data } = await sb.from('scores').select('coins,xp,owned').eq('nickname', n).maybeSingle(); if (data && data.coins != null) applyProf(data); } catch(e){}
+  }
+  buildSlots(); updateWallet(); renderOnline();
+}
+function updateWallet(){
+  const lv = levelOf(prof.xp), a = lvStart(lv), b = lvStart(lv + 1);
+  $('lvl').textContent = 'Lv.' + lv;
+  $('xpFill').style.width = clamp((prof.xp - a) / (b - a) * 100, 0, 100) + '%';
+  $('coin').textContent = '🪙 ' + prof.coins.toLocaleString();
+  $('wallet').style.display = joined ? 'flex' : 'none';
+  $('shopOpen').style.display = joined ? 'block' : 'none';
+}
+/* 라운드 보상: 참가 30🪙/40XP + 킬당 15🪙/20XP + 승자 보너스 150🪙/100XP, 레벨업마다 +100🪙 */
+function giveRewards(res){
+  const mi = res.findIndex(r => r.me); if (mi < 0) return '';
+  const r = res[mi], win = mi === 0 && r.k > 0;
+  const coins = 30 + r.k * 15 + (win ? 150 : 0), xp = 40 + r.k * 20 + (win ? 100 : 0);
+  const lv0 = levelOf(prof.xp);
+  prof.coins += coins; prof.xp += xp;
+  const up = levelOf(prof.xp) - lv0;
+  if (up > 0) prof.coins += up * 100;
+  saveScore(); updateWallet(); renderShop();
+  return '🪙 +' + coins + '  ✨ XP +' + xp + (up > 0 ? '  ⬆ 레벨업! (+' + up * 100 + '🪙)' : '');
+}
+function renderShop(){
+  $('shopCoin').textContent = '🪙 ' + prof.coins.toLocaleString();
+  const box = $('shopList'); box.innerHTML = '';
+  WEAPONS.forEach((w, i) => {
+    const own = isOwned(i), row = document.createElement('div'); row.className = 'si';
+    const info = document.createElement('div');
+    const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = w.name;
+    const sm = document.createElement('small');
+    sm.textContent = w.melee ? '근접 · 피해 ' + w.dmg : '피해 ' + w.dmg + ' · 탄창 ' + w.mag + ' · 예비 ' + w.res;
+    info.append(nm, sm);
+    const btn = document.createElement('button');
+    if (own){ btn.textContent = i === cur ? '장착중' : '장착'; btn.disabled = i === cur; btn.onclick = () => { equip(i); renderShop(); }; }
+    else { btn.textContent = '🪙 ' + PRICE[w.id]; btn.disabled = prof.coins < PRICE[w.id]; btn.onclick = () => buyWeapon(i); }
+    row.append(info, btn); box.appendChild(row);
+  });
+}
+function buyWeapon(i){
+  const id = WEAPONS[i].id, p = PRICE[id];
+  if (isOwned(i) || prof.coins < p) return;
+  prof.coins -= p; prof.owned.push(id);
+  saveScore(); updateWallet(); equip(i); renderShop(); beep(880, .12, .08);
+}
+function openShop(){
+  if (!joined || shopOpen) return;
+  shopOpen = true;
+  if (isTouch){ if (locked) pauseTouch(); }
+  else if (noLock && locked){ locked = false; noLock = false; firing = false; mouseR = false; for (const k in keys) keys[k] = false; $('overlay').style.display = 'flex'; }
+  else if (document.pointerLockElement) document.exitPointerLock();
+  renderShop(); $('shop').classList.add('on');
+}
+function closeShop(){ shopOpen = false; $('shop').classList.remove('on'); }
+$('wallet').addEventListener('touchstart', e => { e.preventDefault(); openShop(); }, { passive: false });
+$('wallet').addEventListener('click', openShop);
+$('shopOpen').addEventListener('click', openShop);
+$('shopClose').addEventListener('click', closeShop);
 
 /* ---------- 시작 / 일시정지 ---------- */
 try { $('nick').value = localStorage.getItem('is_nick') || ''; } catch(e){}
@@ -1529,12 +1645,8 @@ async function applyName(n){
   myName = n;
   try { localStorage.setItem('is_nick', n); } catch(e){}
   kills = 0; deaths = 0;
-  if (sb){
-    try {
-      const { data } = await sb.from('scores').select('kills,deaths').eq('nickname', n).maybeSingle();
-      if (data){ kills = data.kills | 0; deaths = data.deaths | 0; }
-    } catch(e){}
-  }
+  await loadProfile(n);
+  if (!isOwned(cur)) equip(0);
   trackMe(); renderOnline(); showMsg('닉네임: ' + n, 1200);
 }
 $('netstat').textContent = configured
@@ -1545,6 +1657,7 @@ $('play').addEventListener('click', () => {
     let n = cleanName($('nick').value);
     if (!n) n = 'Player' + Math.floor(Math.random() * 900 + 100);
     myName = n; try { localStorage.setItem('is_nick', n); } catch(e){}
+    loadLocalProf(n);
     $('nick').value = n;
     joined = true; initAudio(); rnd.n = roundNow();
     const s = randomSpawn(); player.pos.set(s.x, 0, s.z);
@@ -1552,6 +1665,7 @@ $('play').addEventListener('click', () => {
     if (!configured) startBots();
     joinNet();
     renderOnline();
+    updateWallet();
   } else {
     // 일시정지 화면에서 닉네임을 바꿨다면 적용
     const n2 = cleanName($('nick').value);
@@ -1904,7 +2018,7 @@ function loop(){
     // 재장전: 총을 기울이고 → 탄창 분리·낙하 → 새 탄창 장착
     const mg = gunGroup.userData.mag, mp = gunGroup.userData.mp, pr = reloading ? 1 - rp : 0;
     gunGroup.rotation.z = reloading ? -Math.sin(Math.min(1, pr / 0.85) * Math.PI) * 0.45 : 0;
-    if (w.melee){ swing = Math.max(0, swing - dt * 3.2); const q = 1 - swing, sw = swing > 0 ? Math.sin(q * Math.PI) : 0; gunGroup.rotation.z = swing > 0 ? (1 - q * 2) * 1.2 : 0; gunGroup.rotation.y = -sw * 0.8; gunGroup.rotation.z = swing > 0 ? (1 - q * 2) * 1.2 : 0; gunGroup.rotation.y = -sw * 0.8; gunGroup.rotation.x -= sw * 0.5; }
+    if (w.melee){ swing = Math.max(0, swing - dt * 3.2); const q = 1 - swing, sw = swing > 0 ? Math.sin(q * Math.PI) : 0; gunGroup.rotation.z = swing > 0 ? (1 - q * 2) * 1.2 : 0; gunGroup.rotation.y = -sw * 0.8; gunGroup.rotation.x -= sw * 0.5; }
     if (mg){
       if (!reloading || pr >= 0.8){ mg.visible = true; mg.position.copy(mp); }
       else if (pr < 0.3){ mg.visible = true; mg.position.set(mp.x, mp.y - pr / 0.3 * 0.35, mp.z); }
@@ -1933,4 +2047,3 @@ loop();
 </script>
 </body>
 </html>
-
