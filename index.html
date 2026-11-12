@@ -1904,4 +1904,33 @@ function loop(){
     // 재장전: 총을 기울이고 → 탄창 분리·낙하 → 새 탄창 장착
     const mg = gunGroup.userData.mag, mp = gunGroup.userData.mp, pr = reloading ? 1 - rp : 0;
     gunGroup.rotation.z = reloading ? -Math.sin(Math.min(1, pr / 0.85) * Math.PI) * 0.45 : 0;
-    if (w.melee){ swing = Math.max(0, swing - dt * 3.2); const q = 1 - swing, sw = swing > 0 ? Math.sin(q * Math.PI) : 0; gunGroup.rotation.z = swing > 0 ? (1 - q * 2) * 1.2 : 0; gunGroup.rotation.y = -sw * 0.8; gunGroup.rot
+    if (w.melee){ swing = Math.max(0, swing - dt * 3.2); const q = 1 - swing, sw = swing > 0 ? Math.sin(q * Math.PI) : 0; gunGroup.rotation.z = swing > 0 ? (1 - q * 2) * 1.2 : 0; gunGroup.rotation.y = -sw * 0.8; gunGroup.rotation.z = swing > 0 ? (1 - q * 2) * 1.2 : 0; gunGroup.rotation.y = -sw * 0.8; gunGroup.rotation.x -= sw * 0.5; }
+    if (mg){
+      if (!reloading || pr >= 0.8){ mg.visible = true; mg.position.copy(mp); }
+      else if (pr < 0.3){ mg.visible = true; mg.position.set(mp.x, mp.y - pr / 0.3 * 0.35, mp.z); }
+      else if (pr < 0.5){ if (mg.visible){ mg.visible = false; dropMag(mg); } }
+      else { mg.visible = true; mg.position.set(mp.x, mp.y - (0.8 - pr) / 0.3 * 0.35, mp.z); }
+    }
+  }
+  const spread = armPen() * w.spread * (ads ? 0.35 : 1) * (Math.hypot(player.vel.x, player.vel.z) > 1 ? 1.8 : 1) * (player.onGround ? 1 : 2.5);
+  $('cross').style.setProperty('--g', (5 + spread * 900) + 'px');
+
+  // 네트워크 전송
+  sendT += dt;
+  if (sendT >= 0.1){ sendT = 0; sendPos(); }
+
+  updateHud();
+  renderFrame();
+}
+equip(0);
+// 내 그림자 전용 몸체 (화면에는 안 보이고 그림자만 드리움)
+const selfAv = makeAvatar('', 0x3b82f6, {});
+selfAv.label.visible = false; selfAv.group.visible = false;
+selfAv.group.traverse(o => { if (o.material){ o.material.colorWrite = false; o.material.depthWrite = false; } });
+if (gunGroup) gunGroup.visible = false;
+loop();
+})();
+</script>
+</body>
+</html>
+
