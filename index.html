@@ -218,6 +218,7 @@ body.editing .sel{outline:3px solid #fde047!important}
     <div class="set"><label><span>시점 감도</span><b id="sensVal">1.0</b></label><input type="range" id="sens" min="0.3" max="3" step="0.1" value="1"></div>
     <div class="set"><label><span>피 효과 (끄면 더 가벼워요)</span><input type="checkbox" id="gorefx" checked style="width:auto;margin:0;padding:0"></label></div>
     <div class="set"><label><span>그림자 (끄면 더 가벼워요)</span><input type="checkbox" id="shadowfx" checked style="width:auto;margin:0;padding:0"></label></div>
+    <div class="set"><label><span>물 반사 (끄면 더 가벼워요)</span><input type="checkbox" id="reflfx" checked style="width:auto;margin:0;padding:0"></label></div>
     <div class="set touchset"><label><span>버튼 크기 (전체)</span><b id="uiGVal">100%</b></label><input type="range" id="uiG" min="0.6" max="1.6" step="0.05" value="1"></div>
     <div class="set touchset"><label><span>버튼 투명도</span><b id="uiOVal">100%</b></label><input type="range" id="uiO" min="0.3" max="1" step="0.05" value="1"></div>
     <div class="set touchset"><label><span>자이로 조준 (폰을 돌려 조준)</span><input type="checkbox" id="gyro" style="width:auto;margin:0;padding:0"></label></div>
@@ -319,19 +320,31 @@ addEventListener('resize', () => {
 });
 
 /* ---------- 맵 (시드 고정 → 모든 접속자가 같은 맵) ---------- */
+const LAKE = { x: 22, z: -16, r: 16 }, WATER_Y = -0.12, LAKE_FLOOR = -0.45;   // 원형 호수
+const inLake = (x, z) => Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r;
 const boxes = [];        // 충돌용 AABB
 const worldMeshes = [];  // 총알 충돌용 메쉬
 (function buildMap(){
+  // 풀밭 텍스처 (점점이 색을 흩뿌려 자연스럽게)
   const c = document.createElement('canvas'); c.width = c.height = 128;
   const g = c.getContext('2d');
-  g.fillStyle = '#6a8a56'; g.fillRect(0,0,128,128);
-  g.fillStyle = '#5f7f4d'; g.fillRect(0,0,64,64); g.fillRect(64,64,64,64);
+  g.fillStyle = '#5c8a3e'; g.fillRect(0,0,128,128);
+  const r0 = mulberry32(7);
+  for (let i = 0; i < 700; i++){ g.fillStyle = r0() < .5 ? 'rgba(40,90,30,.35)' : 'rgba(150,190,80,.30)'; g.fillRect(r0()*128, r0()*128, 2 + r0()*3, 2 + r0()*3); }
   const tex = new THREE.CanvasTexture(c);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(30,30);
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(124,124), new THREE.MeshLambertMaterial({ map: tex }));
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(.24, .24);
+  // 땅: 호수 자리가 뚫린 판 (판의 y축 = 월드 -z)
+  const shape = new THREE.Shape();
+  shape.moveTo(-62,-62); shape.lineTo(62,-62); shape.lineTo(62,62); shape.lineTo(-62,62);
+  const hole = new THREE.Path(); hole.absarc(LAKE.x, -LAKE.z, LAKE.r, 0, Math.PI * 2, false); shape.holes.push(hole);
+  const ground = new THREE.Mesh(new THREE.ShapeGeometry(shape, 64), new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }));
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
   ground.userData = { kind: 'world' };
   scene.add(ground); worldMeshes.push(ground);
+  // 호숫가 모래
+  const sand = new THREE.Mesh(new THREE.RingGeometry(LAKE.r, LAKE.r + 3, 64), new THREE.MeshLambertMaterial({ color: 0xd9c48f, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+  sand.rotation.x = -Math.PI / 2; sand.position.set(LAKE.x, .015, LAKE.z); sand.receiveShadow = true;
+  scene.add(sand);
 
   function addBox(cx, cz, w, h, d, color){
     const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), new THREE.MeshLambertMaterial({ color }));
@@ -340,18 +353,119 @@ const worldMeshes = [];  // 총알 충돌용 메쉬
     scene.add(m); worldMeshes.push(m);
     boxes.push({ minX: cx-w/2, maxX: cx+w/2, minZ: cz-d/2, maxZ: cz+d/2, top: h });
   }
-  addBox(0,-62,128,8,2,0x4a5568); addBox(0,62,128,8,2,0x4a5568);
-  addBox(-62,0,2,8,128,0x4a5568); addBox(62,0,2,8,128,0x4a5568);
-  const rng = mulberry32(20240607);
-  const palette = [0x8b6f47,0x7a8591,0x9c6b5a,0x5d7a8c,0xa38b5c,0x6d6d78];
-  const hs = [1.2,1.2,2,2.5,3.5,5];
-  for (let i = 0; i < 48; i++){
-    const w = 2 + rng()*6, d = 2 + rng()*6, h = hs[Math.floor(rng()*hs.length)];
-    const cx = (rng()-.5)*108, cz = (rng()-.5)*108, col = palette[Math.floor(rng()*palette.length)];
-    if (Math.hypot(cx, cz) < 8) continue;
-    addBox(cx, cz, w, h, d, col);
+  // 맵 가장자리: 절벽
+  addBox(0,-62,128,10,2,0x6f6a60); addBox(0,62,128,10,2,0x6f6a60);
+  addBox(-62,0,2,10,128,0x6f6a60); addBox(62,0,2,10,128,0x6f6a60);
+  const rng = mulberry32(20240607);   // 시드 고정 → 모든 접속자가 같은 맵
+
+  // 바위 (충돌은 상자, 겉모습은 울퉁불퉁한 돌)
+  const rockCol = [0x7b776f, 0x8a8579, 0x6a6862];
+  for (let i = 0; i < 22; i++){
+    const w = 1.6 + rng()*3, d = 1.6 + rng()*3, h = .9 + rng()*1.4;
+    const cx = (rng()-.5)*108, cz = (rng()-.5)*108, col = rockCol[Math.floor(rng()*3)], ry = rng()*6.28;
+    if (Math.hypot(cx, cz) < 8 || Math.hypot(cx - LAKE.x, cz - LAKE.z) < LAKE.r + 2) continue;
+    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(1, 0), new THREE.MeshPhongMaterial({ color: col, flatShading: true, shininess: 4 }));
+    m.scale.set(w*.62, h*.78, d*.62); m.position.set(cx, h*.42, cz); m.rotation.y = ry;
+    m.castShadow = m.receiveShadow = true; m.userData = { kind: 'world' };
+    scene.add(m); worldMeshes.push(m);
+    boxes.push({ minX: cx-w/2, maxX: cx+w/2, minZ: cz-d/2, maxZ: cz+d/2, top: h });
   }
+
+  // 숲: 소나무(원뿔 3단) + 활엽수(둥근 잎). 인스턴싱으로 가볍게 그림
+  const spots = [];
+  const okSpot = (x, z) => Math.hypot(x - LAKE.x, z - LAKE.z) > LAKE.r + 4 && Math.hypot(x, z) > 7;
+  for (let i = 0; i < 160 && spots.length < 85; i++){
+    const x = (rng()-.5)*112, z = (rng()-.5)*112, s = .8 + rng()*.7, t = rng() < .65 ? 0 : 1, cc = rng();
+    if (okSpot(x, z)) spots.push({ x, z, s, t, c: cc });
+  }
+  for (let i = 0; i < 48; i++){   // 가장자리 숲
+    const e = (rng()*2-1)*57, k = i % 4, j = (rng()-.5)*3;
+    spots.push({ x: k < 2 ? e : (k === 2 ? -57 : 57) + j, z: k < 2 ? (k === 0 ? -57 : 57) + j : e, s: 1 + rng()*.8, t: rng() < .7 ? 0 : 1, c: rng() });
+  }
+  const pines = spots.filter(p => !p.t).length, oaks = spots.length - pines;
+  const mkInst = (geo, n, mat) => { const m = new THREE.InstancedMesh(geo, mat, n); m.castShadow = m.receiveShadow = true; m.frustumCulled = false; m.userData = { kind: 'world' }; scene.add(m); worldMeshes.push(m); return m; };
+  const trunkG = new THREE.CylinderGeometry(.2, .32, 1, 7); trunkG.translate(0, .5, 0);
+  const coneG = new THREE.ConeGeometry(1, 1, 8); coneG.translate(0, .5, 0);
+  const leafMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const trunks = mkInst(trunkG, spots.length, new THREE.MeshLambertMaterial({ color: 0x5a3d26 }));
+  const cones = [0, 1, 2].map(() => mkInst(coneG, pines, leafMat));
+  const blobs = mkInst(new THREE.IcosahedronGeometry(1, 1), oaks, leafMat);
+  const dm = new THREE.Object3D(), lc = new THREE.Color();
+  const put = (mesh, i, x, y, z, sx, sy, sz) => { dm.position.set(x, y, z); dm.scale.set(sx, sy, sz); dm.updateMatrix(); mesh.setMatrixAt(i, dm.matrix); };
+  let pi = 0, oi = 0;
+  spots.forEach((p, i) => {
+    const s = p.s;
+    put(trunks, i, p.x, 0, p.z, s, (p.t ? 2.4 : 2.6) * s, s);
+    if (!p.t){
+      for (let k = 0; k < 3; k++){
+        put(cones[k], pi, p.x, (1.2 + k*1.2) * s, p.z, (1.9 - k*.5) * s, (2.6 - k*.3) * s, (1.9 - k*.5) * s);
+        cones[k].setColorAt(pi, lc.setHSL(.33 + .03*p.c, .5, .17 + .08*p.c));
+      }
+      pi++;
+    } else {
+      put(blobs, oi, p.x, 3.3 * s, p.z, 2.1 * s, 1.7 * s, 2.1 * s);
+      blobs.setColorAt(oi, lc.setHSL(.24 + .05*p.c, .5, .26 + .08*p.c)); oi++;
+    }
+    boxes.push({ minX: p.x - .35*s, maxX: p.x + .35*s, minZ: p.z - .35*s, maxZ: p.z + .35*s, top: 4 });   // 나무 기둥 충돌
+  });
 })();
+
+/* ---------- 호수: 바닥 + 실시간 반사 물 ---------- */
+const bed = new THREE.Mesh(new THREE.CircleGeometry(LAKE.r + 1, 48), new THREE.MeshLambertMaterial({ color: 0x7d8a6a }));
+bed.rotation.x = -Math.PI / 2; bed.position.set(LAKE.x, LAKE_FLOOR - .05, LAKE.z);
+scene.add(bed);
+const reflRT = new THREE.WebGLRenderTarget(isTouch ? 384 : 768, isTouch ? 216 : 432);
+const reflCam = new THREE.PerspectiveCamera(75, 1, .05, 300); reflCam.rotation.order = 'YXZ';
+const wu = {
+  uRefl: { value: reflRT.texture }, uTex: { value: new THREE.Matrix4() }, uT: { value: 0 }, uUse: { value: 0 },
+  uFogN: { value: scene.fog.near }, uFogF: { value: scene.fog.far }, uSun: { value: SUN_DIR }, uFog: { value: scene.fog.color },
+  uDeep: { value: new THREE.Color(0x1f5568) }, uSky: { value: scene.background }
+};
+const water = new THREE.Mesh(new THREE.CircleGeometry(LAKE.r + .6, 64), new THREE.ShaderMaterial({
+  uniforms: wu, transparent: true, depthWrite: false,
+  vertexShader: `uniform mat4 uTex; varying vec3 vW; varying vec4 vP; varying float vD;
+void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vP = uTex * w; vec4 mv = viewMatrix * w; vD = -mv.z; gl_Position = projectionMatrix * mv; }`,
+  fragmentShader: `uniform sampler2D uRefl; uniform float uT, uUse, uFogN, uFogF; uniform vec3 uSun, uFog, uDeep, uSky;
+varying vec3 vW; varying vec4 vP; varying float vD;
+void main(){
+  vec2 p = vW.xz;
+  vec2 n = vec2(sin(p.x*.9+uT*1.1) + sin(p.y*1.3-uT*.9) + sin((p.x+p.y)*.5+uT*.6), cos(p.y*.8+uT*1.0) + cos(p.x*1.1-uT*.7) + cos((p.x-p.y)*.6-uT*.5)) * .012;
+  vec3 N = normalize(vec3(n.x*8., 1., n.y*8.));
+  vec3 V = normalize(cameraPosition - vW);
+  float fr = pow(1. - clamp(V.y, 0., 1.), 3.);
+  vec3 refl = mix(uSky, texture2D(uRefl, vP.xy / vP.w + n * .5).rgb, uUse);
+  vec3 col = mix(uDeep, refl, clamp(.25 + .75 * fr, 0., 1.));
+  col += pow(max(dot(reflect(-uSun, N), V), 0.), 140.) * .9;
+  col = mix(col, uFog, clamp((vD - uFogN) / (uFogF - uFogN), 0., 1.));
+  gl_FragColor = vec4(col, mix(.72, 1., fr));
+}`
+}));
+water.rotation.x = -Math.PI / 2; water.position.set(LAKE.x, WATER_Y, LAKE.z);
+water.userData = { kind: 'world' };
+scene.add(water); worldMeshes.push(water);
+const _fr = new THREE.Frustum(), _fm = new THREE.Matrix4(), _fs = new THREE.Sphere(new THREE.Vector3(LAKE.x, WATER_Y, LAKE.z), LAKE.r + 1);
+function renderFrame(){
+  let refl = false;
+  wu.uT.value = now();
+  if (reflFx && camera.position.y > WATER_Y + .05){      // 호수가 화면에 보일 때만 반사를 그림
+    camera.updateMatrixWorld();
+    _fr.setFromProjectionMatrix(_fm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    refl = _fr.intersectsSphere(_fs);
+  }
+  if (refl){
+    const gv = gunGroup ? gunGroup.visible : false; if (gunGroup) gunGroup.visible = false;
+    water.visible = bed.visible = false;
+    reflCam.position.set(camera.position.x, 2 * WATER_Y - camera.position.y, camera.position.z);   // 수면 아래로 뒤집은 카메라
+    reflCam.rotation.set(-camera.rotation.x, camera.rotation.y, 0);
+    reflCam.fov = camera.fov; reflCam.aspect = camera.aspect; reflCam.updateProjectionMatrix(); reflCam.updateMatrixWorld();
+    wu.uTex.value.set(.5,0,0,.5, 0,.5,0,.5, 0,0,.5,.5, 0,0,0,1).multiply(reflCam.projectionMatrix).multiply(reflCam.matrixWorldInverse);
+    renderer.setRenderTarget(reflRT); renderer.render(scene, reflCam); renderer.setRenderTarget(null);
+    water.visible = bed.visible = true; if (gunGroup) gunGroup.visible = gv;
+  }
+  wu.uUse.value = refl ? 1 : 0;
+  renderer.shadowMap.autoUpdate = !refl;   // 그림자 맵은 반사 렌더에서 이미 갱신됨
+  renderer.render(scene, camera);
+}
 
 const R = 0.4; // 플레이어 반경
 function collides(x, y, z){
@@ -361,7 +475,7 @@ function collides(x, y, z){
   return false;
 }
 function groundAt(x, z, prevY){
-  let gy = 0;
+  let gy = inLake(x, z) ? LAKE_FLOOR : 0;
   for (const b of boxes){
     if (x+R > b.minX && x-R < b.maxX && z+R > b.minZ && z-R < b.maxZ && b.top <= prevY + 0.05) gy = Math.max(gy, b.top);
   }
@@ -370,7 +484,7 @@ function groundAt(x, z, prevY){
 function randomSpawn(){
   for (let i = 0; i < 80; i++){
     const x = (Math.random()-.5)*100, z = (Math.random()-.5)*100;
-    if (!collides(x, 0, z)) return { x, z };
+    if (!collides(x, 0, z) && !inLake(x, z)) return { x, z };
   }
   return { x: 0, z: 0 };
 }
@@ -782,6 +896,7 @@ async function joinNet(){
       const st = channel.presenceState();
       onlineList = Object.keys(st).map(id => Object.assign({ id }, (st[id] && st[id][0]) || {}));
       for (const id in remotes) if (!st[id]) removeRemote(id);
+      syncBots();
       renderOnline();
     })
     .on('broadcast', { event: 'pos' },  ({ payload }) => onPos(payload))
@@ -790,7 +905,7 @@ async function joinNet(){
     .on('broadcast', { event: 'kill' }, ({ payload }) => onKill(payload))
     .subscribe(status => {
       if (status === 'SUBSCRIBED'){
-        netReady = true; channel.track(me()); removeBots(); setNet(true);
+        netReady = true; channel.track(me()); setNet(true);
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED'){
         netReady = false; setNet(false);
       }
@@ -808,7 +923,8 @@ function loadBoard(){
   const body = $('boardBody'); body.innerHTML = '';
   let arr = netReady
     ? onlineList.map(p => p.id === myId ? { name: myName, k: kills, d: deaths, me: true } : { name: p.name || 'Player', k: p.k | 0, d: p.d | 0 })
-    : [{ name: myName, k: kills, d: deaths, me: true }].concat(bots.map(b => ({ name: b.name, k: b.rk | 0, d: b.rd | 0 })));
+    : [{ name: myName, k: kills, d: deaths, me: true }];
+  arr = arr.concat(bots.map(b => ({ name: b.name, k: b.rk | 0, d: b.rd | 0 })));
   if (!arr.some(r => r.me)) arr.push({ name: myName, k: kills, d: deaths, me: true });
   arr.sort((a, b) => b.k - a.k || a.d - b.d);
   arr.slice(0, 10).forEach((r, i) => {
@@ -816,7 +932,7 @@ function loadBoard(){
     [i + 1, r.name, r.k, r.d].forEach(v => { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
     body.appendChild(tr);
   });
-  $('boardNote').textContent = netReady ? '지금 접속 중인 플레이어만 표시돼요' : '오프라인 연습 모드 (봇 기록은 이번 라운드 기준)';
+  $('boardNote').textContent = netReady ? (bots.length ? '혼자라서 봇과 함께해요 (다른 플레이어가 들어오면 봇이 사라져요)' : '지금 접속 중인 플레이어만 표시돼요') : '오프라인 연습 모드 (봇 기록은 이번 라운드 기준)';
 }
 
 /* ---------- 접속자 표시 ---------- */
@@ -830,7 +946,7 @@ function renderOnline(){
   let arr = onlineList;
   if (!netReady) arr = [{ id: myId, name: myName, k: kills, d: deaths }];
   $('onlineCount').textContent = netReady
-    ? '🟢 접속자 ' + arr.length + '명'
+    ? '🟢 접속자 ' + arr.length + '명' + (bots.length ? ' + 봇 ' + bots.length : '')
     : '🔴 오프라인(연습) · 접속자 1명 + 봇 ' + bots.length;
   arr = arr.slice().sort((a, b) => (b.id === myId ? kills : b.k | 0) - (a.id === myId ? kills : a.k | 0));
   arr.slice(0, 12).forEach(p => {
@@ -859,6 +975,12 @@ function removeBots(){
   while (bots.length){ const b = bots.pop(); scene.remove(b.avatar.group); }
   renderOnline();
 }
+// 서버에 연결돼 있어도 혼자라면 봇과 함께, 다른 플레이어가 들어오면 봇은 사라짐
+function syncBots(){
+  if (!netReady) return;
+  const others = onlineList.filter(p => p.id !== myId).length;
+  if (others === 0) startBots(); else if (bots.length) removeBots();
+}
 function reviveBot(b){
   const s = randomSpawn(); b.x = s.x; b.z = s.z; b.y = 0; b.hp = 100; b.dead = false;
   b.tx = b.x; b.tz = b.z; b.nextTurn = 0; b.nextShot = now() + 2;
@@ -876,8 +998,8 @@ function updateBots(dt){
       const lgB = ((b.mask & 8) ? 1 : 0) + ((b.mask & 16) ? 1 : 0);
       const bsp = lgB === 2 ? 0.8 : lgB === 1 ? 2 : 3;     // 다리가 잘리면 느려지고, 둘 다 잘리면 기어다님
       const sx = dx / dist * bsp * dt, sz = dz / dist * bsp * dt;
-      if (!collides(b.x + sx, 0, b.z)) b.x += sx; else b.nextTurn = 0;
-      if (!collides(b.x, 0, b.z + sz)) b.z += sz; else b.nextTurn = 0;
+      if (!collides(b.x + sx, 0, b.z) && !inLake(b.x + sx, b.z)) b.x += sx; else b.nextTurn = 0;
+      if (!collides(b.x, 0, b.z + sz) && !inLake(b.x, b.z + sz)) b.z += sz; else b.nextTurn = 0;
     }
     const px = player.pos.x - b.x, pz = player.pos.z - b.z, pd = Math.hypot(px, pz);
     b.yaw = Math.atan2(-px, -pz);
@@ -927,8 +1049,8 @@ function roundResults(n, sk, sd, bsnap){
     out.push({ name: myName, k: sk, d: sd, me: true });
   } else {
     out.push({ name: myName, k: sk, d: sd, me: true });
-    bsnap.forEach(b => out.push({ name: b.name, k: b.k, d: b.d, me: false }));
   }
+  bsnap.forEach(b => out.push({ name: b.name, k: b.k, d: b.d, me: false }));
   out.sort((a, b) => b.k - a.k || a.d - b.d);
   return out;
 }
@@ -1204,7 +1326,7 @@ function updatePlayer(dt){
   const r = clamp((keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + stick.x, -1, 1);
   const lg = ((lm.mask & 8) ? 1 : 0) + ((lm.mask & 16) ? 1 : 0);   // 잘린 다리 수
   const sprint = ((keys.ShiftLeft || keys.ShiftRight || runHeld) && f > 0) && !ads && lg === 0 && !crouch;
-  const speed = (sprint ? 8.5 : 5.5) * (ads ? 0.6 : 1) * (lg === 2 ? 0.28 : lg === 1 ? 0.65 : 1) * (crouch ? 0.55 : 1) * (WEAPONS[cur].melee ? 1.15 : 1);
+  const speed = (sprint ? 8.5 : 5.5) * (ads ? 0.6 : 1) * (lg === 2 ? 0.28 : lg === 1 ? 0.65 : 1) * (crouch ? 0.55 : 1) * (WEAPONS[cur].melee ? 1.15 : 1) * (inLake(player.pos.x, player.pos.z) && player.pos.y < -.1 ? .65 : 1);
   let dx = -Math.sin(player.yaw) * f + Math.cos(player.yaw) * r;
   let dz = -Math.cos(player.yaw) * f - Math.sin(player.yaw) * r;
   const len = Math.hypot(dx, dz); if (len > 1){ dx /= len; dz /= len; }
@@ -1296,6 +1418,13 @@ $('shadowfx').checked = shadowFx; applyShadow();
 $('shadowfx').addEventListener('change', () => {
   shadowFx = $('shadowfx').checked; applyShadow();
   try { localStorage.setItem('is_shadow', shadowFx ? '1' : '0'); } catch(e){}
+});
+let reflFx = true;
+try { if (localStorage.getItem('is_refl') === '0') reflFx = false; } catch(e){}
+$('reflfx').checked = reflFx;
+$('reflfx').addEventListener('change', () => {
+  reflFx = $('reflfx').checked;
+  try { localStorage.setItem('is_refl', reflFx ? '1' : '0'); } catch(e){}
 });
 /* 자이로 조준 (모바일): 폰을 돌리는 만큼 시점이 회전 */
 let gyroOn = false, gyroLive = false, gyroS = 1, gyroLast = 0;
@@ -1649,7 +1778,7 @@ function loop(){
     camera.position.set(0, 14, 0);
     camera.rotation.set(-0.25, camera.rotation.y + dt * 0.12, 0);
     if (gunGroup) gunGroup.visible = false;
-    renderer.render(scene, camera);
+    renderFrame();
     return;
   }
 
@@ -1727,7 +1856,7 @@ function loop(){
   if (sendT >= 0.1){ sendT = 0; sendPos(); }
 
   updateHud();
-  renderer.render(scene, camera);
+  renderFrame();
 }
 equip(0);
 // 내 그림자 전용 몸체 (화면에는 안 보이고 그림자만 드리움)
