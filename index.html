@@ -65,6 +65,7 @@ canvas{display:block}
 #board th,#board td{padding:4px 6px;text-align:left}
 #board th{opacity:.6;font-weight:600;font-size:12px}
 #board td:nth-child(n+3),#board th:nth-child(n+3){text-align:right}
+#board tr.me{color:#fde047;font-weight:700}
 
 /* 시작 / 일시정지 / 사망 */
 #overlay{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:rgba(5,8,12,.72);backdrop-filter:blur(3px)}
@@ -186,7 +187,7 @@ body.editing .sel{outline:3px solid #fde047!important}
 <div id="scope" class="hud"></div>
 <div id="hurt" class="hud"></div>
 <div id="msg" class="hud"></div>
-<div id="board" class="hud"><h3>🏆 리더보드 (Supabase DB 기준 TOP 10)</h3><table><thead><tr><th>#</th><th>닉네임</th><th>킬</th><th>데스</th></tr></thead><tbody id="boardBody"></tbody></table><div id="boardNote" style="margin-top:8px;font-size:12px;opacity:.7"></div></div>
+<div id="board" class="hud"><h3>🏆 리더보드 (현재 접속 중인 플레이어)</h3><table><thead><tr><th>#</th><th>닉네임</th><th>킬</th><th>데스</th></tr></thead><tbody id="boardBody"></tbody></table><div id="boardNote" style="margin-top:8px;font-size:12px;opacity:.7"></div></div>
 <div id="death"><h2>사망</h2><p id="deathInfo"></p></div>
 
 <div id="round" class="hud"><div id="roundTime">⏱ 4:00</div><div id="roundLead"></div></div>
@@ -230,7 +231,7 @@ body.editing .sel{outline:3px solid #fde047!important}
       <div><b>WASD</b> 이동</div><div><b>Shift</b> 달리기</div>
       <div><b>Space</b> 점프</div><div><b>R</b> 재장전</div>
       <div><b>좌클릭</b> 발사</div><div><b>우클릭</b> 조준(줌)</div>
-      <div><b>1~5 / 휠</b> 무기 교체</div><div><b>Tab</b> 리더보드</div>
+      <div><b>1~4 / 휠</b> 무기 교체</div><div><b>Tab</b> 리더보드</div>
     </div>
   </div>
 </div>
@@ -351,7 +352,6 @@ function randomSpawn(){
 
 /* ---------- 무기 ---------- */
 const WEAPONS = [
-  { id:'deagle', name:'DESERT EAGLE', short:'DEAGLE', dmg:55, delay:0.38, mag:7,  res:49,  reload:1.7, auto:false, spread:0.004,  recoil:0.035, pellets:1, range:250, zoom:1.25 },
   { id:'m416',   name:'M416',         short:'M416',   dmg:21, delay:0.085,mag:30, res:120, reload:2.2, auto:true,  spread:0.010,  recoil:0.011, pellets:1, range:250, zoom:1.5 },
   { id:'akm',    name:'AKM',          short:'AKM',    dmg:29, delay:0.10, mag:30, res:120, reload:2.5, auto:true,  spread:0.013,  recoil:0.017, pellets:1, range:250, zoom:1.5 },
   { id:'awm',    name:'AWM',          short:'AWM',    dmg:100,delay:1.40, mag:5,  res:25,  reload:3.2, auto:false, spread:0.0008, recoil:0.07,  pellets:1, range:400, zoom:4.5 },
@@ -360,12 +360,12 @@ const WEAPONS = [
 const SKIN = 0xd9a98a;
 // [w,h,d,x,y,z,color]  (총구 방향 = -z)
 const GUNS = {
-  deagle:{ tip:-0.26, parts:[[.05,.07,.30,0,.02,-.10,0xb9bec5],[.052,.03,.30,0,.065,-.10,0x8a8f96],[.045,.13,.07,0,-.07,.02,0x1c1c1c],[.05,.05,.09,0,-.07,.02,SKIN]] },
   m416:  { tip:-0.62, parts:[[.06,.09,.40,0,0,-.05,0x2b2b2b],[.025,.025,.28,0,.012,-.42,0x111111],[.05,.06,.22,0,0,-.30,0x3a3a3a],[.04,.15,.07,0,-.12,-.02,0x1a1a1a],[.05,.08,.20,0,-.01,.25,0x2b2b2b],[.04,.10,.05,0,-.10,.10,0x222222],[.03,.04,.07,0,.07,-.10,0x111111],[.06,.05,.10,0,-.06,-.28,SKIN]] },
   akm:   { tip:-0.64, parts:[[.06,.08,.38,0,0,-.05,0x2f2f2f],[.025,.025,.30,0,.012,-.44,0x111111],[.055,.06,.24,0,-.005,-.30,0x7a4a21],[.04,.14,.07,0,-.12,-.05,0x1a1a1a],[.05,.09,.22,0,-.015,.26,0x7a4a21],[.04,.10,.05,0,-.10,.10,0x222222],[.06,.05,.10,0,-.06,-.28,SKIN]] },
   awm:   { tip:-1.00, parts:[[.055,.09,.45,0,0,-.05,0x3d4a2f],[.03,.03,.70,0,.012,-.62,0x1b1b1b],[.045,.05,.22,0,.10,-.05,0x111111],[.055,.10,.30,0,-.01,.32,0x3d4a2f],[.04,.10,.05,0,-.10,.10,0x222222],[.06,.05,.10,0,-.06,-.30,SKIN]] },
   s12k:  { tip:-0.55, parts:[[.07,.09,.42,0,0,-.05,0x1f1f1f],[.045,.045,.26,0,.012,-.38,0x111111],[.06,.12,.14,0,-.10,-.02,0x2a2a2a],[.05,.08,.18,0,-.01,.24,0x1f1f1f],[.04,.10,.05,0,-.10,.10,0x222222],[.06,.05,.10,0,-.06,-.26,SKIN]] }
 };
+const MAGIDX = { m416:3, akm:3, awm:4, s12k:2 };   // 재장전 때 빠지는 탄창 파츠 번호
 let gunGroup = null;
 function buildGun(i){
   const spec = GUNS[WEAPONS[i].id];
@@ -374,6 +374,7 @@ function buildGun(i){
     const m = new THREE.Mesh(new THREE.BoxGeometry(p[0],p[1],p[2]), new THREE.MeshLambertMaterial({ color: p[6], depthTest: false }));
     m.position.set(p[3],p[4],p[5]); m.renderOrder = 999; g.add(m);
   }
+  const mg = g.children[MAGIDX[WEAPONS[i].id]]; if (mg){ g.userData.mag = mg; g.userData.mp = mg.position.clone(); }
   const mf = new THREE.Mesh(new THREE.BoxGeometry(.13,.13,.05), new THREE.MeshBasicMaterial({ color: 0xffd27a, depthTest: false, transparent: true, opacity: .9 }));
   mf.position.set(0,.015,spec.tip - .04); mf.renderOrder = 1000; mf.visible = false;
   g.add(mf); g.userData.flash = mf;
@@ -385,7 +386,7 @@ function buildGun(i){
 /* ---------- 상태 ---------- */
 const player = { pos: new THREE.Vector3(0,0,0), vel: new THREE.Vector3(), yaw: 0, pitch: 0, onGround: true, hp: 100, dead: false };
 const ammo = WEAPONS.map(w => ({ mag: w.mag, res: w.res }));
-let cur = 1;
+let cur = 0;
 let joined = false, locked = false;
 let firing = false, semiReady = false, mouseR = false, ads = false;
 let lastShot = 0, reloading = false, reloadEnd = 0;
@@ -427,7 +428,7 @@ function initAudio(){
     for (let i = 0; i < d.length; i++) d[i] = Math.random()*2 - 1;
   } catch(e){ ac = null; }
 }
-const SND = { deagle:[1800,.35,80], m416:[3200,.13,110], akm:[2400,.16,95], awm:[1500,.7,60], s12k:[1300,.3,70] };
+const SND = { m416:[3200,.13,110], akm:[2400,.16,95], awm:[1500,.7,60], s12k:[1300,.3,70] };
 function playShot(idx, vol){
   if (!ac || vol <= 0.01) return;
   const s = SND[WEAPONS[idx].id]; const t = ac.currentTime;
@@ -524,7 +525,6 @@ function updateGore(dt){
     const b = bloodP[i];
     b.v.y -= 14 * dt; b.m.position.addScaledVector(b.v, dt); b.life -= dt;
     if (b.m.position.y <= .03 || b.life <= 0){
-      if (b.m.position.y <= .25 && Math.random() < .5) splat(b.m.position.x, b.m.position.z);
       scene.remove(b.m); bloodP.splice(i, 1);
     }
   }
@@ -710,7 +710,7 @@ function onPos(p){
   const m = p.m | 0, first = r.mask === undefined;
   if (first || m !== r.mask){ r.mask = m; setLimbs(r.avatar, m, !first); }
   const nd = !!p.d;
-  if (nd && !r.dead) spawnBlood(new THREE.Vector3(r.tx, r.ty + 1.1, r.tz), 40, 5);
+  if (nd && !r.dead){ spawnBlood(new THREE.Vector3(r.tx, r.ty + 1.1, r.tz), 40, 5); if (!first){ const g = r.avatar.group; spawnCorpse(r.avatar, g.position.x, g.position.y, g.position.z, g.rotation.y, Math.sin(g.rotation.y), Math.cos(g.rotation.y)); } }
   r.dead = nd; r.avatar.group.visible = !r.dead;
 }
 function onShot(p){
@@ -771,19 +771,20 @@ async function saveScore(){
     await sb.from('scores').upsert({ nickname: myName, kills, deaths, updated_at: new Date().toISOString() }, { onConflict: 'nickname' });
   } catch(e){}
 }
-async function loadBoard(){
+/* 리더보드: 지금 접속 중인 플레이어만 킬 순으로 표시 */
+function loadBoard(){
   const body = $('boardBody'); body.innerHTML = '';
-  if (!sb){ $('boardNote').textContent = 'Supabase 미설정 – 리더보드를 불러올 수 없습니다.'; return; }
-  try {
-    const { data, error } = await sb.from('scores').select('nickname,kills,deaths').order('kills', { ascending: false }).limit(10);
-    if (error) throw error;
-    $('boardNote').textContent = '';
-    (data || []).forEach((r, i) => {
-      const tr = document.createElement('tr');
-      [i + 1, r.nickname, r.kills, r.deaths].forEach(v => { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
-      body.appendChild(tr);
-    });
-  } catch(e){ $('boardNote').textContent = '리더보드를 불러오지 못했어요 (scores 테이블을 확인하세요).'; }
+  let arr = netReady
+    ? onlineList.map(p => p.id === myId ? { name: myName, k: kills, d: deaths, me: true } : { name: p.name || 'Player', k: p.k | 0, d: p.d | 0 })
+    : [{ name: myName, k: kills, d: deaths, me: true }].concat(bots.map(b => ({ name: b.name, k: b.rk | 0, d: b.rd | 0 })));
+  if (!arr.some(r => r.me)) arr.push({ name: myName, k: kills, d: deaths, me: true });
+  arr.sort((a, b) => b.k - a.k || a.d - b.d);
+  arr.slice(0, 10).forEach((r, i) => {
+    const tr = document.createElement('tr'); if (r.me) tr.className = 'me';
+    [i + 1, r.name, r.k, r.d].forEach(v => { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
+    body.appendChild(tr);
+  });
+  $('boardNote').textContent = netReady ? '지금 접속 중인 플레이어만 표시돼요' : '오프라인 연습 모드 (봇 기록은 이번 라운드 기준)';
 }
 
 /* ---------- 접속자 표시 ---------- */
@@ -793,11 +794,13 @@ function setNet(ok){
 }
 function renderOnline(){
   const list = $('onlineList'); list.innerHTML = '';
+  if ($('board').style.display === 'block') loadBoard();
   let arr = onlineList;
   if (!netReady) arr = [{ id: myId, name: myName, k: kills, d: deaths }];
   $('onlineCount').textContent = netReady
     ? '🟢 접속자 ' + arr.length + '명'
     : '🔴 오프라인(연습) · 접속자 1명 + 봇 ' + bots.length;
+  arr = arr.slice().sort((a, b) => (b.id === myId ? kills : b.k | 0) - (a.id === myId ? kills : a.k | 0));
   arr.slice(0, 12).forEach(p => {
     const row = document.createElement('div');
     if (p.id === myId) row.className = 'me';
@@ -859,11 +862,11 @@ function updateBots(dt){
         const end = hit ? to : to.clone().add(new THREE.Vector3((Math.random()-.5)*3, (Math.random()-.5)*2, (Math.random()-.5)*3));
         tracer(from, end, 0xff9a9a);
         b.avatar.kick = 1;
-        playShot(1, clamp(1 - pd / 70, 0, 1) * 0.4);
+        playShot(0, clamp(1 - pd / 70, 0, 1) * 0.4);
         if (hit && locked){
           const bp = BOT_PARTS[(Math.random() * BOT_PARTS.length) | 0], bd = 9 * PART_MUL[bp];
           const pr = {}; pr[bp] = bd;
-          takeDamage(bd, 'bot', b.name, 1, bp === 'head', pr);
+          takeDamage(bd, 'bot', b.name, 0, bp === 'head', pr);
         }
       }
       b.nextShot = t + 0.25 + Math.random() * 0.5;
@@ -970,6 +973,63 @@ function collectTargets(){
   for (const b of bots) if (!b.dead) for (const m of b.hit) if (!m.userData.gone) t.push(m);
   return t;
 }
+
+/* 재장전: 탄창이 빠져 떨어지는 연출 */
+function dropMag(mg){
+  const pos = mg.getWorldPosition(new THREE.Vector3()), q = mg.getWorldQuaternion(new THREE.Quaternion());
+  spawnGib(mg.geometry, new THREE.MeshLambertMaterial({ color: mg.material.color }), pos, q, new THREE.Vector3((Math.random() - .5) * 1.5, -1, (Math.random() - .5) * 1.5));
+  beep(260, .05, .04);
+}
+/* 시체: 넘어지고 나뒹굴다가 7초 뒤 사라짐 */
+const corpses = [], _cq = new THREE.Quaternion(), _cu = new THREE.Vector3(), _cUp = new THREE.Vector3(0, 1, 0);
+function spawnCorpse(av, x, y, z, yaw, dx, dz){
+  const root = new THREE.Group(), inner = new THREE.Group();
+  // three.js의 clone()은 userData를 JSON으로 복사하는데, 봇 userData는 순환 참조라 오류가 남 → 복제 동안만 비워둠
+  const saved = []; av.pivot.traverse(o => { saved.push([o, o.userData]); o.userData = {}; });
+  const cl = av.pivot.clone(true);
+  saved.forEach(s => { s[0].userData = s[1]; });
+  inner.position.y = -.9; inner.add(cl); root.add(inner);
+  root.position.set(x, y + .9, z); root.quaternion.setFromAxisAngle(_cUp, yaw);
+  scene.add(root);
+  const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+  const sp = 2 + Math.random() * 3, ws = 3 + Math.random() * 3;
+  const c = { root, t0: now(), v: new THREE.Vector3(dx * sp, 2 + Math.random() * 2, dz * sp),
+    w: new THREE.Vector3(dz * ws + (Math.random() - .5) * 2, (Math.random() - .5) * 6, -dx * ws + (Math.random() - .5) * 2) };
+  if (av.prone){ c.w.set(0, (Math.random() - .5) * 2, 0); c.v.y = 0; }
+  corpses.push(c);
+  if (corpses.length > 10) scene.remove(corpses.shift().root);
+}
+function selfCorpse(){
+  const av = makeAvatar(myName, 0x3b82f6, {});
+  setLimbs(av, lm.mask, false); animateAvatar(av, .016, 0, 0, 0);
+  spawnCorpse(av, player.pos.x, player.pos.y, player.pos.z, player.yaw, Math.sin(player.yaw), Math.cos(player.yaw));
+  scene.remove(av.group);
+}
+function updateCorpses(dt){
+  const t = now();
+  for (let i = corpses.length - 1; i >= 0; i--){
+    const c = corpses[i], r = c.root, p = r.position, age = t - c.t0;
+    if (age > 7){ scene.remove(r); corpses.splice(i, 1); continue; }
+    if (age > 6) r.scale.setScalar(Math.max(.02, 7 - age));
+    const wl = c.w.length();
+    if (wl > 1e-4){ _cq.setFromAxisAngle(_cu.copy(c.w).divideScalar(wl), wl * dt); r.quaternion.premultiply(_cq); }
+    _cu.set(0, 1, 0).applyQuaternion(r.quaternion);
+    const uy = _cu.y, au = Math.abs(uy);
+    c.v.y -= 22 * dt;
+    const fy = Math.max(0, p.y - .9), nx = clamp(p.x + c.v.x * dt, -59, 59), nz = clamp(p.z + c.v.z * dt, -59, 59);
+    if (!collides(nx, fy, p.z)) p.x = nx; else c.v.x *= -.3;
+    if (!collides(p.x, fy, nz)) p.z = nz; else c.v.z *= -.3;
+    p.y += c.v.y * dt;
+    const h = groundAt(p.x, p.z, p.y - .5) + .2 + .7 * au;
+    if (p.y <= h){
+      p.y = h; c.v.y = c.v.y < -1.5 ? -c.v.y * .3 : 0;
+      const f = Math.exp(-4 * dt); c.v.x *= f; c.v.z *= f;
+      c.w.multiplyScalar(Math.exp((au > .12 ? -2.5 : -8) * dt));
+      if (au > .12){ const k = (uy > 0 ? 1 : -1) * 20 * dt; c.w.x += _cu.z * k; c.w.z -= _cu.x * k; }
+    }
+  }
+}
+
 function startReload(){
   const w = WEAPONS[cur], a = ammo[cur];
   if (reloading || a.mag === w.mag || a.res <= 0 || player.dead) return;
@@ -1036,6 +1096,7 @@ function damageBot(b, d, part){
     if (part === 'head' && d >= 80) b.mask |= LIMB_BITS.head;   // 강한 헤드샷은 머리가 날아감
     setLimbs(b.avatar, b.mask, true);
     spawnBlood(new THREE.Vector3(b.x, 1.2, b.z), 40, 5);
+    spawnCorpse(b.avatar, b.x, 0, b.z, b.yaw, b.x - player.pos.x, b.z - player.pos.z);
     b.avatar.group.visible = false;
     kills++; rnd.k++; b.rd++; addFeed(myName, b.name, cur, part === 'head');
     showMsg(part === 'head' ? '헤드샷 킬!' : 'KILL +1', 1200); renderOnline();
@@ -1059,6 +1120,7 @@ function die(killerId, killerName, w, head){
   player.dead = true; deaths++; rnd.d++; firing = false; mouseR = false; reloading = false;
   if (killerId === 'bot'){ const kb = bots.find(x => x.name === killerName); if (kb) kb.rk++; }
   spawnBlood(new THREE.Vector3(player.pos.x, player.pos.y + 1, player.pos.z), 40, 5);
+  selfCorpse();
   send('kill', { killer: killerId, killerName: killerName, victim: myId, victimName: myName, w: w, head: !!head });
   addFeed(killerName, myName, w, head);
   $('death').style.display = 'flex';
@@ -1118,7 +1180,7 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'Space' || e.code.indexOf('Arrow') === 0) e.preventDefault();
   if (e.code === 'KeyR') startReload();
-  if (/^Digit[1-5]$/.test(e.code)) equip(parseInt(e.code.slice(5), 10) - 1);
+  if (/^Digit[1-4]$/.test(e.code)) equip(parseInt(e.code.slice(5), 10) - 1);
 });
 addEventListener('keyup', e => {
   keys[e.code] = false;
@@ -1189,7 +1251,7 @@ $('play').addEventListener('click', () => {
     $('nick').value = n;
     joined = true; initAudio(); rnd.n = roundNow();
     const s = randomSpawn(); player.pos.set(s.x, 0, s.z);
-    equip(1);
+    equip(0);
     if (!configured) startBots();
     joinNet();
     renderOnline();
@@ -1501,6 +1563,7 @@ function loop(){
   updateBots(dt);
   updateEffects();
   updateGore(dt);
+  updateCorpses(dt);
   checkRound();
   updateRoundHud(dt);
 
@@ -1531,6 +1594,15 @@ function loop(){
     gp.y += (ty + Math.sin(bobT) * bob - dip * 0.18 - gp.y) * k2;
     gp.z += (tz + kick * 0.06 - gp.z) * k2;
     gunGroup.rotation.x = kick * 0.12 - dip * 0.7;
+    // 재장전: 총을 기울이고 → 탄창 분리·낙하 → 새 탄창 장착
+    const mg = gunGroup.userData.mag, mp = gunGroup.userData.mp, pr = reloading ? 1 - rp : 0;
+    gunGroup.rotation.z = reloading ? -Math.sin(Math.min(1, pr / 0.85) * Math.PI) * 0.45 : 0;
+    if (mg){
+      if (!reloading || pr >= 0.8){ mg.visible = true; mg.position.copy(mp); }
+      else if (pr < 0.3){ mg.visible = true; mg.position.set(mp.x, mp.y - pr / 0.3 * 0.35, mp.z); }
+      else if (pr < 0.5){ if (mg.visible){ mg.visible = false; dropMag(mg); } }
+      else { mg.visible = true; mg.position.set(mp.x, mp.y - (0.8 - pr) / 0.3 * 0.35, mp.z); }
+    }
   }
   const spread = armPen() * w.spread * (ads ? 0.35 : 1) * (Math.hypot(player.vel.x, player.vel.z) > 1 ? 1.8 : 1) * (player.onGround ? 1 : 2.5);
   $('cross').style.setProperty('--g', (5 + spread * 900) + 'px');
@@ -1542,7 +1614,7 @@ function loop(){
   updateHud();
   renderer.render(scene, camera);
 }
-equip(1);
+equip(0);
 if (gunGroup) gunGroup.visible = false;
 loop();
 })();
