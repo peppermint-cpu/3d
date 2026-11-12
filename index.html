@@ -334,8 +334,8 @@ renderer.toneMappingExposure = 1.15;
 $('game').appendChild(renderer.domElement);
 const canvas = renderer.domElement;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x6a9fe0);   // [1단계] 호수 반사의 기본 하늘색으로도 쓰임
-scene.fog = new THREE.Fog(0xbdd6ed, 40, 140);   // [1단계] 하늘 지평선색과 동일하게 맞춤
+scene.background = new THREE.Color(0x86a9cc);   // [1단계] 호수 반사의 기본 하늘색으로도 쓰임 (차분한 톤)
+scene.fog = new THREE.Fog(0xc7d9e6, 40, 140);   // [1단계] 하늘 지평선색과 동일하게 맞춤
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 300);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
@@ -358,26 +358,34 @@ float fbm(vec2 p){ float v = 0., a = .5; for (int i = 0; i < 5; i++){ v += a * n
 void main(){
   vec3 d = normalize(vDir);
   float h = clamp(d.y, 0., 1.);
-  vec3 hor = vec3(.74, .84, .93), mid = vec3(.38, .62, .92), zen = vec3(.16, .38, .78);
-  vec3 col = mix(hor, mid, smoothstep(0., .25, h));
-  col = mix(col, zen, smoothstep(.2, .9, h));
+  // 채도를 낮춘 부드러운 하늘색 (지평선은 뿌옇게, 위로 갈수록 차분한 푸른색)
+  vec3 hor = vec3(.78, .85, .90), mid = vec3(.52, .69, .87), zen = vec3(.30, .50, .78);
+  vec3 col = mix(hor, mid, smoothstep(0., .30, h));
+  col = mix(col, zen, smoothstep(.25, 1., h));
   float sd = max(dot(d, uSun), 0.);
-  col += vec3(1., .80, .55) * pow(sd, 6.) * .25;          // 넓은 빛무리
-  col += vec3(1., .90, .70) * pow(sd, 64.) * .6;          // 태양 주변 광채
-  float disc = smoothstep(.9990, .9996, sd);              // 태양 원반
+  col += vec3(1., .86, .64) * pow(sd, 5.) * .12;          // 넓은 빛무리 (은은하게)
+  col += vec3(1., .92, .76) * pow(sd, 48.) * .30;         // 태양 주변 광채
+  float disc = smoothstep(.9994, .9998, sd);              // 태양 원반 (작게)
   float cov = 0.;
   vec3 cc = vec3(1.);
   if (d.y > 0.){
-    vec2 uv = (d.xz / (d.y + .12)) * 1.2 + vec2(uT * .012, uT * .006);
+    // 하늘을 평면에 투영해서 구름을 그림 (큰 덩어리 + 모양을 살짝 일그러뜨려 자연스럽게)
+    vec2 uv = (d.xz / (d.y * .9 + .22)) * .55 + vec2(uT * .006, uT * .003);
+    vec2 w = vec2(noise(uv * .7 + 3.1), noise(uv * .7 + 8.7)) - .5;
+    uv += w * 1.4;
     float c = fbm(uv);
-    cov = smoothstep(.48, .78, c) * smoothstep(0., .22, d.y);
-    float c2 = fbm(uv + uSun.xz * .1);                     // 태양쪽으로 살짝 옮겨 읽어서 명암 계산
-    float light = clamp(.55 + (c - c2) * 2.5, 0., 1.);
-    cc = mix(vec3(.60, .66, .76), vec3(1., .98, .95), light);
-    cc += vec3(1., .85, .6) * pow(sd, 8.) * .35 * cov;     // 태양 쪽 구름 가장자리 빛
+    float shape = smoothstep(.50, .86, c);                 // 부드러운 경계, 하늘 대부분은 맑게
+    cov = shape * smoothstep(.02, .30, d.y);
+    float c2 = fbm(uv + uSun.xz * .12);                    // 태양쪽으로 옮겨 읽어서 명암 계산
+    float light = clamp(.62 + (c - c2) * 3., 0., 1.);
+    vec3 lit = vec3(1., .99, .96), shade = vec3(.70, .75, .83);
+    cc = mix(lit, shade, shape * (1. - light) * .85);     // 두꺼운 부분의 그늘진 쪽이 어두워짐
+    cc += vec3(1., .88, .66) * pow(sd, 10.) * .18;         // 태양 쪽 가장자리 빛
+    cc = mix(hor, cc, smoothstep(0., .35, d.y));           // 멀리 있는 구름은 지평선색으로 흐려짐
   }
-  col += vec3(1., .97, .90) * disc * 3. * (1. - cov);      // 구름 뒤의 태양은 가려짐
-  col = mix(col, cc, cov * .92);
+  col += vec3(1., .97, .90) * disc * 2. * (1. - cov);      // 구름 뒤의 태양은 가려짐
+  col = mix(col, cc, cov * .88);
+  col = mix(col, vec3(dot(col, vec3(.333))), .08);        // 살짝 탈색해서 덜 쨍하게
   gl_FragColor = vec4(col, 1.);
 }`
 }));
