@@ -135,6 +135,7 @@ body.touch #board{font-size:12px}
 .set label{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
 .panel input[type=range]{padding:0;margin:0;border:0;background:transparent;height:24px}
 #bRun{right:224px;bottom:62px;width:62px;height:62px;font-size:14px}
+#bCrouch{right:224px;bottom:132px;width:58px;height:58px;font-size:13px}
 
 /* ===== 라운드 ===== */
 #round{top:10px;left:50%;transform:translateX(-50%);text-align:center;text-shadow:0 1px 4px #000;display:none}
@@ -204,6 +205,7 @@ body.editing .sel{outline:3px solid #fde047!important}
   <div class="tb" id="bJump">⤒</div>
   <div class="tb" id="bReload">R</div>
   <div class="tb" id="bRun">RUN</div>
+  <div class="tb" id="bCrouch">앉기</div>
   <div id="bPause">⏸</div>
 </div>
 <div id="rotate"><div>📱<br>화면을 가로로 돌려주세요</div></div>
@@ -217,6 +219,8 @@ body.editing .sel{outline:3px solid #fde047!important}
     <div class="set"><label><span>피 효과 (끄면 더 가벼워요)</span><input type="checkbox" id="gorefx" checked style="width:auto;margin:0;padding:0"></label></div>
     <div class="set touchset"><label><span>버튼 크기 (전체)</span><b id="uiGVal">100%</b></label><input type="range" id="uiG" min="0.6" max="1.6" step="0.05" value="1"></div>
     <div class="set touchset"><label><span>버튼 투명도</span><b id="uiOVal">100%</b></label><input type="range" id="uiO" min="0.3" max="1" step="0.05" value="1"></div>
+    <div class="set touchset"><label><span>자이로 조준 (폰을 돌려 조준)</span><input type="checkbox" id="gyro" style="width:auto;margin:0;padding:0"></label></div>
+    <div class="set touchset"><label><span>자이로 감도</span><b id="gyroSVal">1.0</b></label><input type="range" id="gyroS" min="0.3" max="3" step="0.1" value="1"></div>
     <button id="editUI" class="sec">🎮 버튼 위치·크기 편집</button>
     <button id="play">게임 시작</button>
     <div id="netstat"></div>
@@ -225,13 +229,13 @@ body.editing .sel{outline:3px solid #fde047!important}
       <div><b>FIRE</b> 발사(누른 채 드래그 가능)</div><div><b>◎</b> 조준 켜기/끄기</div>
       <div><b>⤒</b> 점프</div><div><b>RUN</b> 누르는 동안 달리기</div>
       <div><b>R</b> 재장전</div><div><b>상단 무기 버튼</b> 무기 교체</div>
-      <div><b>접속자 표시 탭</b> 리더보드</div><div><b>⏸</b> 감도·닉네임 설정</div>
+      <div><b>접속자 표시 탭</b> 리더보드</div><div><b>⏸</b> 감도·닉네임 설정</div><div><b>앉기</b> 버튼으로 켜기/끄기</div>
     </div>
     <div class="keys">
       <div><b>WASD</b> 이동</div><div><b>Shift</b> 달리기</div>
       <div><b>Space</b> 점프</div><div><b>R</b> 재장전</div>
       <div><b>좌클릭</b> 발사</div><div><b>우클릭</b> 조준(줌)</div>
-      <div><b>1~4 / 휠</b> 무기 교체</div><div><b>Tab</b> 리더보드</div>
+      <div><b>1~6 / 휠</b> 무기 교체</div><div><b>Tab</b> 리더보드</div><div><b>C</b> 앉기(누르는 동안)</div>
     </div>
   </div>
 </div>
@@ -355,7 +359,9 @@ const WEAPONS = [
   { id:'m416',   name:'M416',         short:'M416',   dmg:21, delay:0.085,mag:30, res:120, reload:2.2, auto:true,  spread:0.010,  recoil:0.011, pellets:1, range:250, zoom:1.5 },
   { id:'akm',    name:'AKM',          short:'AKM',    dmg:29, delay:0.10, mag:30, res:120, reload:2.5, auto:true,  spread:0.013,  recoil:0.017, pellets:1, range:250, zoom:1.5 },
   { id:'awm',    name:'AWM',          short:'AWM',    dmg:100,delay:1.40, mag:5,  res:25,  reload:3.2, auto:false, spread:0.0008, recoil:0.07,  pellets:1, range:400, zoom:4.5 },
-  { id:'s12k',   name:'S12K',         short:'S12K',   dmg:13, delay:0.24, mag:5,  res:35,  reload:3.0, auto:true,  spread:0.05,   recoil:0.035, pellets:8, range:60,  zoom:1.2 }
+  { id:'s12k',   name:'S12K',         short:'S12K',   dmg:13, delay:0.24, mag:5,  res:35,  reload:3.0, auto:true,  spread:0.05,   recoil:0.035, pellets:8, range:60,  zoom:1.2 },
+  { id:'m249',   name:'M249',         short:'M249',   dmg:19, delay:0.075,mag:100,res:200, reload:4.5, auto:true,  spread:0.016,  recoil:0.012, pellets:1, range:250, zoom:1.4 },
+  { id:'katana', name:'KATANA',       short:'KATANA', dmg:55, delay:0.55, mag:1,  res:0,   reload:0,   auto:true,  spread:0,      recoil:0,     pellets:1, range:2.8, zoom:1,   melee:true }
 ];
 const SKIN = 0xd9a98a;
 // [w,h,d,x,y,z,color]  (총구 방향 = -z)
@@ -363,9 +369,11 @@ const GUNS = {
   m416:  { tip:-0.62, parts:[[.06,.09,.40,0,0,-.05,0x2b2b2b],[.025,.025,.28,0,.012,-.42,0x111111],[.05,.06,.22,0,0,-.30,0x3a3a3a],[.04,.15,.07,0,-.12,-.02,0x1a1a1a],[.05,.08,.20,0,-.01,.25,0x2b2b2b],[.04,.10,.05,0,-.10,.10,0x222222],[.03,.04,.07,0,.07,-.10,0x111111],[.06,.05,.10,0,-.06,-.28,SKIN]] },
   akm:   { tip:-0.64, parts:[[.06,.08,.38,0,0,-.05,0x2f2f2f],[.025,.025,.30,0,.012,-.44,0x111111],[.055,.06,.24,0,-.005,-.30,0x7a4a21],[.04,.14,.07,0,-.12,-.05,0x1a1a1a],[.05,.09,.22,0,-.015,.26,0x7a4a21],[.04,.10,.05,0,-.10,.10,0x222222],[.06,.05,.10,0,-.06,-.28,SKIN]] },
   awm:   { tip:-1.00, parts:[[.055,.09,.45,0,0,-.05,0x3d4a2f],[.03,.03,.70,0,.012,-.62,0x1b1b1b],[.045,.05,.22,0,.10,-.05,0x111111],[.055,.10,.30,0,-.01,.32,0x3d4a2f],[.04,.10,.05,0,-.10,.10,0x222222],[.06,.05,.10,0,-.06,-.30,SKIN]] },
-  s12k:  { tip:-0.55, parts:[[.07,.09,.42,0,0,-.05,0x1f1f1f],[.045,.045,.26,0,.012,-.38,0x111111],[.06,.12,.14,0,-.10,-.02,0x2a2a2a],[.05,.08,.18,0,-.01,.24,0x1f1f1f],[.04,.10,.05,0,-.10,.10,0x222222],[.06,.05,.10,0,-.06,-.26,SKIN]] }
+  s12k:  { tip:-0.55, parts:[[.07,.09,.42,0,0,-.05,0x1f1f1f],[.045,.045,.26,0,.012,-.38,0x111111],[.06,.12,.14,0,-.10,-.02,0x2a2a2a],[.05,.08,.18,0,-.01,.24,0x1f1f1f],[.04,.10,.05,0,-.10,.10,0x222222],[.06,.05,.10,0,-.06,-.26,SKIN]] },
+  m249:  { tip:-0.72, parts:[[.07,.10,.42,0,0,-.05,0x2a2f25],[.03,.03,.36,0,.012,-.50,0x111111],[.09,.12,.14,0,-.11,-.02,0x3d4a2f],[.05,.08,.22,0,-.01,.28,0x2a2f25],[.04,.10,.05,0,-.10,.12,0x222222],[.06,.05,.10,0,-.06,-.30,SKIN]] },
+  katana:{ tip:-0.9,  parts:[[.012,.05,.80,0,0,-.55,0xdfe6ee],[.07,.07,.02,0,0,-.14,0x222222],[.03,.04,.22,0,0,-.02,0x3b2417],[.06,.05,.10,0,-.01,0,SKIN]] }
 };
-const MAGIDX = { m416:3, akm:3, awm:4, s12k:2 };   // 재장전 때 빠지는 탄창 파츠 번호
+const MAGIDX = { m416:3, akm:3, awm:4, s12k:2, m249:2 };   // 재장전 때 빠지는 탄창 파츠 번호
 let gunGroup = null;
 function buildGun(i){
   const spec = GUNS[WEAPONS[i].id];
@@ -397,6 +405,7 @@ const mpos = { x: innerWidth / 2, y: innerHeight / 2 };  // 마우스 위치 (�
 let noLock = false;                        // 포인터 잠금을 못 쓰는 환경
 const lm = { mask: 0, limbDmg: {} };       // 내 몸의 절단 상태 (비트마스크) / 부위별 누적 피해
 let sens = 1, goreFx = true, runHeld = false, eyeH = 1.6;
+let crouch = false, crouchT = false;   // 앉기 (키보드 C 누르는 동안 / 모바일 버튼 토글)
 const raycaster = new THREE.Raycaster();
 
 function equip(i){
@@ -428,7 +437,7 @@ function initAudio(){
     for (let i = 0; i < d.length; i++) d[i] = Math.random()*2 - 1;
   } catch(e){ ac = null; }
 }
-const SND = { m416:[3200,.13,110], akm:[2400,.16,95], awm:[1500,.7,60], s12k:[1300,.3,70] };
+const SND = { m416:[3200,.13,110], akm:[2400,.16,95], awm:[1500,.7,60], s12k:[1300,.3,70], m249:[2600,.12,85], katana:[1000,.1,60] };
 function playShot(idx, vol){
   if (!ac || vol <= 0.01) return;
   const s = SND[WEAPONS[idx].id]; const t = ac.currentTime;
@@ -642,6 +651,8 @@ function makeAvatar(name, color, userData){
 // 걷기·달리기·점프·기어가기·숨쉬기·사격 반동 모션
 function animateAvatar(av, dt, speed, vy, pitch){
   if (!av.group.visible) return;
+  const cs = (av.crouch && !av.prone) ? .78 : 1; av.pivot.scale.y += (cs - av.pivot.scale.y) * Math.min(1, dt * 12);
+  if (!av.prone) av.label.position.y = av.crouch ? 1.85 : 2.25;
   speed = Math.min(speed, 12);
   av.spd += (speed - av.spd) * Math.min(1, dt * 8);
   av.breath += dt;
@@ -706,7 +717,7 @@ function onPos(p){
     r = remotes[p.id] = { id: p.id, name: p.n, avatar: av, hit: av.hit, tx: p.x, ty: p.y, tz: p.z, tr: p.r, dead: false, last: now(), w: p.w };
     av.group.position.set(p.x, p.y, p.z);
   }
-  r.tx = p.x; r.ty = p.y; r.tz = p.z; r.tr = p.r; r.tp = +p.p || 0; r.w = p.w; r.last = now();
+  r.tx = p.x; r.ty = p.y; r.tz = p.z; r.tr = p.r; r.tp = +p.p || 0; r.avatar.crouch = !!p.c; r.w = p.w; r.last = now();
   const m = p.m | 0, first = r.mask === undefined;
   if (first || m !== r.mask){ r.mask = m; setLimbs(r.avatar, m, !first); }
   const nd = !!p.d;
@@ -1030,6 +1041,31 @@ function updateCorpses(dt){
   }
 }
 
+/* 카타나: 앞쪽 3갈래 판정, 한 번에 한 명씩 (팔다리 절단·헤드 즉사) */
+let swing = 0;
+function meleeAttack(w){
+  lastShot = now(); swing = 1; beep(420, .09, .05);
+  scene.updateMatrixWorld(true);
+  const origin = camera.getWorldPosition(new THREE.Vector3());
+  const targets = collectTargets(), done = new Set(), agg = {};
+  let hit = false, head = false;
+  for (const off of [-.3, 0, .3]){
+    const dir = new THREE.Vector3(off, 0, -1).applyQuaternion(camera.quaternion).normalize();
+    raycaster.set(origin, dir); raycaster.far = w.range;
+    const h = raycaster.intersectObjects(targets, false)[0]; if (!h) continue;
+    const ud = h.object.userData;
+    if (ud.kind !== 'player' && ud.kind !== 'bot') continue;
+    const key = ud.kind === 'bot' ? ud.bot : ud.id;
+    if (done.has(key)) continue; done.add(key);
+    const part = ud.part, d = w.dmg * (PART_MUL[part] || 1);
+    hit = true; head = head || part === 'head';
+    spawnBlood(h.point, bloodCount(part), 3.2, dir);
+    if (ud.kind === 'player'){ agg[ud.id] = { dmg: d, head: part === 'head', parts: { [part]: d } }; }
+    else if (!ud.bot.dead) damageBot(ud.bot, d, part);
+  }
+  if (hit) hitMarker(head);
+  for (const id in agg){ const e = agg[id], pr = {}; for (const k in e.parts) pr[k] = Math.round(e.parts[k]); send('hit', { to: id, dmg: Math.round(e.dmg), parts: pr, from: myId, fromName: myName, w: cur, head: e.head }); }
+}
 function startReload(){
   const w = WEAPONS[cur], a = ammo[cur];
   if (reloading || a.mag === w.mag || a.res <= 0 || player.dead) return;
@@ -1037,9 +1073,10 @@ function startReload(){
 }
 function fire(){
   const w = WEAPONS[cur], a = ammo[cur];
+  if (w.melee){ meleeAttack(w); return; }
   a.mag--; lastShot = now();
   const moving = Math.hypot(player.vel.x, player.vel.z) > 1;
-  const sp = armPen() * w.spread * (ads ? 0.35 : 1) * (moving ? 1.8 : 1) * (player.onGround ? 1 : 2.5);
+  const sp = armPen() * w.spread * (crouch ? 0.7 : 1) * (ads ? 0.35 : 1) * (moving ? 1.8 : 1) * (player.onGround ? 1 : 2.5);
   scene.updateMatrixWorld(true);
   const origin = camera.getWorldPosition(new THREE.Vector3());
   const muzzle = gunGroup.userData.tip.getWorldPosition(new THREE.Vector3());
@@ -1141,18 +1178,19 @@ function respawn(){
 
 /* ---------- 플레이어 이동 ---------- */
 function updatePlayer(dt){
+  crouch = !!(keys.KeyC || crouchT) && !player.dead;
   const f = clamp((keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) + stick.y, -1, 1);
   const r = clamp((keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + stick.x, -1, 1);
   const lg = ((lm.mask & 8) ? 1 : 0) + ((lm.mask & 16) ? 1 : 0);   // 잘린 다리 수
-  const sprint = ((keys.ShiftLeft || keys.ShiftRight || runHeld) && f > 0) && !ads && lg === 0;
-  const speed = (sprint ? 8.5 : 5.5) * (ads ? 0.6 : 1) * (lg === 2 ? 0.28 : lg === 1 ? 0.65 : 1);
+  const sprint = ((keys.ShiftLeft || keys.ShiftRight || runHeld) && f > 0) && !ads && lg === 0 && !crouch;
+  const speed = (sprint ? 8.5 : 5.5) * (ads ? 0.6 : 1) * (lg === 2 ? 0.28 : lg === 1 ? 0.65 : 1) * (crouch ? 0.55 : 1) * (WEAPONS[cur].melee ? 1.15 : 1);
   let dx = -Math.sin(player.yaw) * f + Math.cos(player.yaw) * r;
   let dz = -Math.cos(player.yaw) * f - Math.sin(player.yaw) * r;
   const len = Math.hypot(dx, dz); if (len > 1){ dx /= len; dz /= len; }
   const k = clamp((player.onGround ? 12 : 3) * dt, 0, 1);
   player.vel.x += (dx * speed - player.vel.x) * k;
   player.vel.z += (dz * speed - player.vel.z) * k;
-  if (keys.Space && player.onGround && lg < 2){ player.vel.y = lg === 1 ? 5.5 : 8; player.onGround = false; }
+  if (keys.Space && player.onGround && lg < 2 && !crouch){ player.vel.y = lg === 1 ? 5.5 : 8; player.onGround = false; }
 
   const p = player.pos;
   const nx = clamp(p.x + player.vel.x * dt, -59, 59), nz = clamp(p.z + player.vel.z * dt, -59, 59);
@@ -1180,7 +1218,7 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'Space' || e.code.indexOf('Arrow') === 0) e.preventDefault();
   if (e.code === 'KeyR') startReload();
-  if (/^Digit[1-4]$/.test(e.code)) equip(parseInt(e.code.slice(5), 10) - 1);
+  if (/^Digit[1-6]$/.test(e.code)) equip(parseInt(e.code.slice(5), 10) - 1);
 });
 addEventListener('keyup', e => {
   keys[e.code] = false;
@@ -1227,6 +1265,42 @@ $('gorefx').addEventListener('change', () => {
   goreFx = $('gorefx').checked;
   try { localStorage.setItem('is_gore', goreFx ? '1' : '0'); } catch(e){}
 });
+/* 자이로 조준 (모바일): 폰을 돌리는 만큼 시점이 회전 */
+let gyroOn = false, gyroLive = false, gyroS = 1, gyroLast = 0;
+function onMotion(e){
+  const tn = performance.now(), dt = clamp((tn - gyroLast) / 1000, 0, .05); gyroLast = tn;
+  const r = e.rotationRate;
+  if (!gyroOn || !r || !locked || player.dead) return;
+  const a = (screen.orientation && screen.orientation.angle != null) ? screen.orientation.angle : (window.orientation || 0);
+  const al = ((a % 360) + 360) % 360, b = r.beta || 0, g = r.gamma || 0;
+  let yr, pr;
+  if (al === 90){ yr = b; pr = -g; } else if (al === 270){ yr = -b; pr = g; } else if (al === 180){ yr = -g; pr = -b; } else { yr = g; pr = b; }
+  const k = Math.PI / 180 * dt * gyroS * (camera.fov / 75);
+  player.yaw += yr * k; player.pitch = clamp(player.pitch + pr * k, -1.5, 1.5);
+}
+async function enableGyro(){
+  try {
+    if (!gyroLive){
+      if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function'){
+        if (await DeviceMotionEvent.requestPermission() !== 'granted') throw 0;
+      }
+      addEventListener('devicemotion', onMotion); gyroLive = true;
+    }
+    gyroOn = true;
+  } catch(e){ gyroOn = false; $('gyro').checked = false; showMsg('자이로 권한이 거부되었어요', 1500); }
+  try { localStorage.setItem('is_gyro', gyroOn ? '1' : '0'); } catch(e){}
+}
+try { const v = parseFloat(localStorage.getItem('is_gyros')); if (v >= 0.3 && v <= 3) gyroS = v; } catch(e){}
+$('gyroS').value = gyroS; $('gyroSVal').textContent = gyroS.toFixed(1);
+$('gyroS').addEventListener('input', () => {
+  gyroS = parseFloat($('gyroS').value) || 1; $('gyroSVal').textContent = gyroS.toFixed(1);
+  try { localStorage.setItem('is_gyros', String(gyroS)); } catch(e){}
+});
+$('gyro').addEventListener('change', () => {
+  if ($('gyro').checked) enableGyro();
+  else { gyroOn = false; try { localStorage.setItem('is_gyro', '0'); } catch(e){} }
+});
+try { if (localStorage.getItem('is_gyro') === '1'){ $('gyro').checked = true; if (!window.DeviceMotionEvent || typeof DeviceMotionEvent.requestPermission !== 'function') enableGyro(); } } catch(e){}
 function cleanName(v){ return (v || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 12); }
 async function applyName(n){
   myName = n;
@@ -1261,6 +1335,7 @@ $('play').addEventListener('click', () => {
     if (n2 && n2 !== myName) applyName(n2); else $('nick').value = myName;
   }
   if (ac && ac.state === 'suspended') ac.resume();
+  if ($('gyro').checked && !gyroLive) enableGyro();   // iOS는 버튼을 누른 순간에만 권한 요청 가능
   if (isTouch){ enterTouch(); return; }
   try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(lockFail); } catch(e){ lockFail(); }
 });
@@ -1364,6 +1439,7 @@ if (isTouch){
   $('bRun').addEventListener('touchstart', e => { e.preventDefault(); runHeld = true; $('bRun').classList.add('on'); }, opt);
   $('bRun').addEventListener('touchend', runUp, opt);
   $('bRun').addEventListener('touchcancel', runUp, opt);
+  $('bCrouch').addEventListener('touchstart', e => { e.preventDefault(); crouchT = !crouchT; $('bCrouch').classList.toggle('on', crouchT); }, opt);
   $('bPause').addEventListener('touchstart', e => { e.preventDefault(); pauseTouch(); }, opt);
   $('online').addEventListener('touchstart', e => {
     if (!joined) return;
@@ -1394,9 +1470,9 @@ if (isTouch){
 }
 
 /* ---------- 버튼 크기·위치 설정 (모바일) ---------- */
-const UI_IDS = ['joy', 'bFire', 'bAds', 'bJump', 'bReload', 'bRun', 'bPause'];
-const UI_NAMES = { joy: '이동 조이스틱', bFire: '발사', bAds: '조준', bJump: '점프', bReload: '재장전', bRun: '달리기', bPause: '일시정지' };
-const UI_BASE = { joy: 130, bFire: 100, bAds: 62, bJump: 62, bReload: 58, bRun: 62, bPause: 40 };   // CSS 기본 크기(px)
+const UI_IDS = ['joy', 'bFire', 'bAds', 'bJump', 'bReload', 'bRun', 'bCrouch', 'bPause'];
+const UI_NAMES = { joy: '이동 조이스틱', bFire: '발사', bAds: '조준', bJump: '점프', bReload: '재장전', bRun: '달리기', bCrouch: '앉기', bPause: '일시정지' };
+const UI_BASE = { joy: 130, bFire: 100, bAds: 62, bJump: 62, bReload: 58, bRun: 62, bCrouch: 58, bPause: 40 };   // CSS 기본 크기(px)
 let ui = { g: 1, o: 1, pos: {} };   // g:전체 크기 배율 o:투명도 pos:{버튼id:{x,y(화면 비율 0~1),s(개별 배율)}}
 try {
   const u = JSON.parse(localStorage.getItem('is_ui') || 'null');
@@ -1500,7 +1576,7 @@ $('editSize').addEventListener('input', () => {
 let sendT = 0;
 function sendPos(force){
   if (!netReady) return;
-  send('pos', { id: myId, n: myName, x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2), z: +player.pos.z.toFixed(2), r: +player.yaw.toFixed(3), w: cur, d: player.dead ? 1 : 0, m: lm.mask, p: +player.pitch.toFixed(2) });
+  send('pos', { id: myId, n: myName, x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2), z: +player.pos.z.toFixed(2), r: +player.yaw.toFixed(3), w: cur, d: player.dead ? 1 : 0, m: lm.mask, p: +player.pitch.toFixed(2), c: crouch ? 1 : 0 });
 }
 
 /* ---------- HUD ---------- */
@@ -1512,7 +1588,7 @@ function updateHud(){
   if (isTouch) $('bAds').classList.toggle('on', mouseR);
   const w = WEAPONS[cur], a = ammo[cur];
   $('wname').textContent = w.name;
-  $('ammo').innerHTML = a.mag + '<small> / ' + a.res + '</small>';
+  $('ammo').innerHTML = w.melee ? '∞' : a.mag + '<small> / ' + a.res + '</small>';
   $('reloadmsg').textContent = reloading ? '재장전 중…' : (a.mag === 0 && a.res === 0 ? '탄약 없음' : '');
 }
 
@@ -1545,7 +1621,7 @@ function loop(){
   }
 
   const w = WEAPONS[cur], a = ammo[cur];
-  ads = mouseR && locked && !player.dead && !reloading;
+  ads = mouseR && locked && !player.dead && !reloading && !w.melee;
 
   if (locked && !player.dead){
     if (noLock) edgeLook(dt);
@@ -1569,7 +1645,7 @@ function loop(){
 
   // 카메라
   const crawling = (lm.mask & 24) === 24;
-  eyeH += ((player.dead ? 0.4 : crawling ? 0.55 : 1.6) - eyeH) * clamp(10 * dt, 0, 1);
+  eyeH += ((player.dead ? 0.4 : crawling ? 0.55 : crouch ? 1.05 : 1.6) - eyeH) * clamp(10 * dt, 0, 1);
   const eye = eyeH;
   camera.position.set(player.pos.x, player.pos.y + eye, player.pos.z);
   camera.rotation.set(player.pitch, player.yaw, player.dead ? 0.9 : 0);
@@ -1597,6 +1673,7 @@ function loop(){
     // 재장전: 총을 기울이고 → 탄창 분리·낙하 → 새 탄창 장착
     const mg = gunGroup.userData.mag, mp = gunGroup.userData.mp, pr = reloading ? 1 - rp : 0;
     gunGroup.rotation.z = reloading ? -Math.sin(Math.min(1, pr / 0.85) * Math.PI) * 0.45 : 0;
+    if (w.melee){ swing = Math.max(0, swing - dt * 3.2); const q = 1 - swing, sw = swing > 0 ? Math.sin(q * Math.PI) : 0; gunGroup.rotation.z = swing > 0 ? (1 - q * 2) * 1.2 : 0; gunGroup.rotation.y = -sw * 0.8; gunGroup.rotation.x -= sw * 0.5; }
     if (mg){
       if (!reloading || pr >= 0.8){ mg.visible = true; mg.position.copy(mp); }
       else if (pr < 0.3){ mg.visible = true; mg.position.set(mp.x, mp.y - pr / 0.3 * 0.35, mp.z); }
