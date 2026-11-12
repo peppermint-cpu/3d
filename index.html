@@ -335,7 +335,7 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = isTouch ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.15;
+renderer.toneMappingExposure = 1.08;   // [광원] 햇빛이 강해진 만큼 살짝 낮춤
 $('game').appendChild(renderer.domElement);
 const canvas = renderer.domElement;
 const scene = new THREE.Scene();
@@ -344,8 +344,8 @@ scene.fog = new THREE.Fog(0xc7d9e6, 30, 150);   // [1단계] 하늘 지평선색
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 300);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
-scene.add(new THREE.HemisphereLight(0xcfe4ff, 0x4a5240, 0.55)); // 하늘빛 + 땅 반사광
-const sun = new THREE.DirectionalLight(0xfff0d8, 1.05);        // 따뜻한 햇빛
+scene.add(new THREE.HemisphereLight(0xbcd6f2, 0x5a5a3c, 0.60)); // [광원] 푸른 하늘빛(그림자 안쪽) + 풀밭에서 올라오는 따뜻한 반사광
+const sun = new THREE.DirectionalLight(0xffe9c8, 1.20);        // [광원] 더 따뜻하고 강한 햇빛
 const SHADOW_RES = isTouch ? 1024 : 2048, SHADOW_R = isTouch ? 38 : 50;
 const SUN_DIR = new THREE.Vector3(0.62, 0.62, 0.38).normalize(); // y를 줄이면 그림자가 길어져요
 
@@ -438,7 +438,11 @@ sun.shadow.mapSize.set(SHADOW_RES, SHADOW_RES);
 { const c = sun.shadow.camera; c.near = 1; c.far = 220; c.left = c.bottom = -SHADOW_R; c.right = c.top = SHADOW_R; c.updateProjectionMatrix(); }
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.04;
+sun.shadow.radius = 2;   // [광원] 그림자 가장자리 번짐 (모바일 PCF 모드에서 적용)
 scene.add(sun, sun.target);
+const fill = new THREE.DirectionalLight(0x9fbbe0, 0.20);   // [광원] 해 반대편의 은은한 푸른 보조광 (그림자 없음) – 그늘이 시커멓게 죽지 않게
+fill.position.set(-0.62, 0.35, -0.38);
+scene.add(fill);
 const _sr = new THREE.Vector3(0,1,0).cross(SUN_DIR).normalize();
 const _su = new THREE.Vector3().crossVectors(SUN_DIR, _sr), _st = new THREE.Vector3();
 function updateSun(){ // 그림자 영역이 플레이어를 따라가되, 텍셀 단위로 맞춰서 깜빡임 방지
@@ -494,6 +498,7 @@ const worldMeshes = [];  // 총알 충돌용 메쉬
   addBox(-62,0,2,10,128,0x6f6a60); addBox(62,0,2,10,128,0x6f6a60);
   const rng = mulberry32(20240607);   // 시드 고정 → 모든 접속자가 같은 맵
 
+  const aoList = [];   // [광원] 접지 그림자 위치 [x, z, 반지름]
   // 바위 (충돌은 상자, 겉모습은 울퉁불퉁한 돌)
   const rockCol = [0x7b776f, 0x8a8579, 0x6a6862];
   for (let i = 0; i < 22; i++){
@@ -502,7 +507,7 @@ const worldMeshes = [];  // 총알 충돌용 메쉬
     if (Math.hypot(cx, cz) < 8 || Math.hypot(cx - LAKE.x, cz - LAKE.z) < LAKE.r + 2) continue;
     const m = new THREE.Mesh(new THREE.DodecahedronGeometry(1, 0), new THREE.MeshPhongMaterial({ color: col, flatShading: true, shininess: 4 }));
     m.scale.set(w*.62, h*.78, d*.62); m.position.set(cx, h*.42, cz); m.rotation.y = ry;
-    m.castShadow = m.receiveShadow = true; m.userData = { kind: 'world' };
+    m.castShadow = m.receiveShadow = true; m.userData = { kind: 'world' }; aoList.push([cx, cz, Math.max(w, d) * .85]);
     scene.add(m); worldMeshes.push(m);
     boxes.push({ minX: cx-w/2, maxX: cx+w/2, minZ: cz-d/2, maxZ: cz+d/2, top: h });
   }
@@ -531,7 +536,7 @@ const worldMeshes = [];  // 총알 충돌용 메쉬
   let pi = 0, oi = 0;
   spots.forEach((p, i) => {
     const s = p.s;
-    put(trunks, i, p.x, 0, p.z, s, (p.t ? 2.4 : 2.6) * s, s);
+    put(trunks, i, p.x, 0, p.z, s, (p.t ? 2.4 : 2.6) * s, s); aoList.push([p.x, p.z, 1.5 * s]);
     if (!p.t){
       for (let k = 0; k < 3; k++){
         put(cones[k], pi, p.x, (1.2 + k*1.2) * s, p.z, (1.9 - k*.5) * s, (2.6 - k*.3) * s, (1.9 - k*.5) * s);
@@ -544,6 +549,18 @@ const worldMeshes = [];  // 총알 충돌용 메쉬
     }
     boxes.push({ minX: p.x - .35*s, maxX: p.x + .35*s, minZ: p.z - .35*s, maxZ: p.z + .35*s, top: 4 });   // 나무 기둥 충돌
   });
+  // [광원] 접지 그림자: 부드러운 원형 어둠을 나무·바위 밑에 깔아 둥둥 떠 보이는 느낌을 없앰
+  {
+    const ac = document.createElement('canvas'); ac.width = ac.height = 64;
+    const ag = ac.getContext('2d'), gr = ag.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(0,0,0,.55)'); gr.addColorStop(.5, 'rgba(0,0,0,.28)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    ag.fillStyle = gr; ag.fillRect(0, 0, 64, 64);
+    const aoG = new THREE.CircleGeometry(1, 20); aoG.rotateX(-Math.PI / 2);
+    const aoM = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(ac), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const ao = new THREE.InstancedMesh(aoG, aoM, aoList.length); ao.frustumCulled = false;
+    aoList.forEach((a, i) => { dm.position.set(a[0], .03, a[1]); dm.rotation.set(0, 0, 0); dm.scale.set(a[2], 1, a[2]); dm.updateMatrix(); ao.setMatrixAt(i, dm.matrix); });
+    scene.add(ao);
+  }
 })();
 
 /* ---------- 호수: 바닥 + 실시간 반사 물 ---------- */
