@@ -217,6 +217,7 @@ body.editing .sel{outline:3px solid #fde047!important}
     <div id="nickrow"><input id="nick" maxlength="12" placeholder="닉네임 입력 (최대 12자)" autocomplete="off"></div>
     <div class="set"><label><span>시점 감도</span><b id="sensVal">1.0</b></label><input type="range" id="sens" min="0.3" max="3" step="0.1" value="1"></div>
     <div class="set"><label><span>피 효과 (끄면 더 가벼워요)</span><input type="checkbox" id="gorefx" checked style="width:auto;margin:0;padding:0"></label></div>
+    <div class="set"><label><span>그림자 (끄면 더 가벼워요)</span><input type="checkbox" id="shadowfx" checked style="width:auto;margin:0;padding:0"></label></div>
     <div class="set touchset"><label><span>버튼 크기 (전체)</span><b id="uiGVal">100%</b></label><input type="range" id="uiG" min="0.6" max="1.6" step="0.05" value="1"></div>
     <div class="set touchset"><label><span>버튼 투명도</span><b id="uiOVal">100%</b></label><input type="range" id="uiO" min="0.3" max="1" step="0.05" value="1"></div>
     <div class="set touchset"><label><span>자이로 조준 (폰을 돌려 조준)</span><input type="checkbox" id="gyro" style="width:auto;margin:0;padding:0"></label></div>
@@ -279,6 +280,10 @@ let kills = 0, deaths = 0;
 const renderer = new THREE.WebGLRenderer({ antialias: !isTouch, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, isTouch ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = isTouch ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
 $('game').appendChild(renderer.domElement);
 const canvas = renderer.domElement;
 const scene = new THREE.Scene();
@@ -287,10 +292,26 @@ scene.fog = new THREE.Fog(0x9fd0f0, 40, 140);
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 300);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
-scene.add(new THREE.HemisphereLight(0xffffff, 0x556070, 0.9));
-const sun = new THREE.DirectionalLight(0xffffff, 0.7);
-sun.position.set(30, 60, 20);
-scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xcfe4ff, 0x4a5240, 0.55)); // 하늘빛 + 땅 반사광
+const sun = new THREE.DirectionalLight(0xfff0d8, 1.05);        // 따뜻한 햇빛
+const SHADOW_RES = isTouch ? 1024 : 2048, SHADOW_R = isTouch ? 38 : 50;
+const SUN_DIR = new THREE.Vector3(0.62, 0.62, 0.38).normalize(); // y를 줄이면 그림자가 길어져요
+sun.castShadow = true;
+sun.shadow.mapSize.set(SHADOW_RES, SHADOW_RES);
+{ const c = sun.shadow.camera; c.near = 1; c.far = 220; c.left = c.bottom = -SHADOW_R; c.right = c.top = SHADOW_R; c.updateProjectionMatrix(); }
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.04;
+scene.add(sun, sun.target);
+const _sr = new THREE.Vector3(0,1,0).cross(SUN_DIR).normalize();
+const _su = new THREE.Vector3().crossVectors(SUN_DIR, _sr), _st = new THREE.Vector3();
+function updateSun(){ // 그림자 영역이 플레이어를 따라가되, 텍셀 단위로 맞춰서 깜빡임 방지
+  _st.set(player.pos.x, 0, player.pos.z);
+  const tx = SHADOW_R * 2 / SHADOW_RES;
+  const a = Math.round(_st.dot(_sr) / tx) * tx, b = Math.round(_st.dot(_su) / tx) * tx, c = _st.dot(SUN_DIR);
+  _st.copy(_sr).multiplyScalar(a).addScaledVector(_su, b).addScaledVector(SUN_DIR, c);
+  sun.target.position.copy(_st);
+  sun.position.copy(_st).addScaledVector(SUN_DIR, 100);
+}
 addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight;
@@ -308,13 +329,13 @@ const worldMeshes = [];  // 총알 충돌용 메쉬
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(30,30);
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(124,124), new THREE.MeshLambertMaterial({ map: tex }));
-  ground.rotation.x = -Math.PI / 2;
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
   ground.userData = { kind: 'world' };
   scene.add(ground); worldMeshes.push(ground);
 
   function addBox(cx, cz, w, h, d, color){
     const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), new THREE.MeshLambertMaterial({ color }));
-    m.position.set(cx, h/2, cz);
+    m.position.set(cx, h/2, cz); m.castShadow = m.receiveShadow = true;
     m.userData = { kind: 'world' };
     scene.add(m); worldMeshes.push(m);
     boxes.push({ minX: cx-w/2, maxX: cx+w/2, minZ: cz-d/2, maxZ: cz+d/2, top: h });
@@ -524,7 +545,7 @@ function splat(x, z){
 }
 function spawnGib(geo, mat, pos, quat, vel){
   const m = new THREE.Mesh(geo, mat);
-  m.position.copy(pos); m.quaternion.copy(quat); scene.add(m);
+  m.position.copy(pos); m.quaternion.copy(quat); m.castShadow = true; scene.add(m);
   gibs.push({ m, v: vel, w: new THREE.Vector3((Math.random() - .5) * 10, (Math.random() - .5) * 10, (Math.random() - .5) * 10), until: now() + 10 });
   if (gibs.length > 40) scene.remove(gibs.shift().m);
 }
@@ -622,14 +643,14 @@ function makeAvatar(name, color, userData){
     const m = new THREE.Mesh(geo, mat);
     m.position.set(x, y, z);
     m.userData = Object.assign({ part }, userData);
-    pivot.add(m); return m;
+    m.castShadow = true; pivot.add(m); return m;
   };
   // 어깨·고관절을 축으로 흔들 수 있는 팔다리 (피벗 그룹 안에 메쉬를 아래로 오프셋)
   const mkLimb = (geo, mat, x, y, z, part, off) => {
     const piv = new THREE.Group(); piv.position.set(x, y, z);
     const m = new THREE.Mesh(geo, mat); m.position.y = off;
     m.userData = Object.assign({ part }, userData);
-    piv.add(m); pivot.add(piv); limbs[part] = piv; return m;
+    m.castShadow = true; piv.add(m); pivot.add(piv); limbs[part] = piv; return m;
   };
   const parts = {
     legL: mkLimb(GEO.leg, pants, -.14, .8, 0, 'legL', -.4),
@@ -643,7 +664,7 @@ function makeAvatar(name, color, userData){
   const visor = new THREE.Mesh(new THREE.BoxGeometry(.26, .07, .06), new THREE.MeshLambertMaterial({ color: 0x111827 }));
   visor.position.set(0, .03, -.19); parts.head.add(visor);
   const gun = new THREE.Mesh(new THREE.BoxGeometry(.07, .1, .55), new THREE.MeshLambertMaterial({ color: 0x222222 }));
-  gun.position.set(.16, 1.22, -.42); pivot.add(gun); parts.gun = gun;
+  gun.position.set(.16, 1.22, -.42); gun.castShadow = true; pivot.add(gun); parts.gun = gun;
   const label = makeLabel(name); grp.add(label);
   scene.add(grp);
   return { group: grp, pivot, parts, limbs, label, prone: false, phase: 0, spd: 0, breath: Math.random() * 6, kick: 0, hit: [parts.legL, parts.legR, parts.torso, parts.armL, parts.armR, parts.head] };
@@ -1251,7 +1272,7 @@ document.addEventListener('wheel', e => {
 /* ---------- 시작 / 일시정지 ---------- */
 try { $('nick').value = localStorage.getItem('is_nick') || ''; } catch(e){}
 
-/* 설정 (감도 / 피 효과) – 브라우저에 저장 */
+/* 설정 (감도 / 피 효과 / 그림자) – 브라우저에 저장 */
 const SENS_KEY = 'is_sens_' + (isTouch ? 't' : 'm');
 try { const v = parseFloat(localStorage.getItem(SENS_KEY)); if (v >= 0.3 && v <= 3) sens = v; } catch(e){}
 try { if (localStorage.getItem('is_gore') === '0') goreFx = false; } catch(e){}
@@ -1264,6 +1285,17 @@ $('sens').addEventListener('input', () => {
 $('gorefx').addEventListener('change', () => {
   goreFx = $('gorefx').checked;
   try { localStorage.setItem('is_gore', goreFx ? '1' : '0'); } catch(e){}
+});
+let shadowFx = true;
+try { if (localStorage.getItem('is_shadow') === '0') shadowFx = false; } catch(e){}
+function applyShadow(){
+  renderer.shadowMap.enabled = shadowFx; sun.castShadow = shadowFx;
+  scene.traverse(o => { if (o.material) o.material.needsUpdate = true; });
+}
+$('shadowfx').checked = shadowFx; applyShadow();
+$('shadowfx').addEventListener('change', () => {
+  shadowFx = $('shadowfx').checked; applyShadow();
+  try { localStorage.setItem('is_shadow', shadowFx ? '1' : '0'); } catch(e){}
 });
 /* 자이로 조준 (모바일): 폰을 돌리는 만큼 시점이 회전 */
 let gyroOn = false, gyroLive = false, gyroS = 1, gyroLast = 0;
@@ -1612,6 +1644,7 @@ function loop(){
     animateAvatar(r.avatar, dt, Math.hypot(g.position.x - ox, g.position.z - oz) / dt, (g.position.y - oy) / dt, r.tp);
   }
 
+  updateSun();
   if (!joined){
     camera.position.set(0, 14, 0);
     camera.rotation.set(-0.25, camera.rotation.y + dt * 0.12, 0);
@@ -1640,6 +1673,11 @@ function loop(){
   updateEffects();
   updateGore(dt);
   updateCorpses(dt);
+  // 내 그림자 전용 몸체 갱신
+  selfAv.group.visible = !player.dead && shadowFx;
+  selfAv.group.position.copy(player.pos); selfAv.group.rotation.y = player.yaw; selfAv.crouch = crouch;
+  setLimbs(selfAv, lm.mask, false);
+  animateAvatar(selfAv, dt, Math.hypot(player.vel.x, player.vel.z), player.vel.y, player.pitch);
   checkRound();
   updateRoundHud(dt);
 
@@ -1692,6 +1730,10 @@ function loop(){
   renderer.render(scene, camera);
 }
 equip(0);
+// 내 그림자 전용 몸체 (화면에는 안 보이고 그림자만 드리움)
+const selfAv = makeAvatar('', 0x3b82f6, {});
+selfAv.label.visible = false; selfAv.group.visible = false;
+selfAv.group.traverse(o => { if (o.material){ o.material.colorWrite = false; o.material.depthWrite = false; } });
 if (gunGroup) gunGroup.visible = false;
 loop();
 })();
