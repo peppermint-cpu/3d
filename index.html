@@ -1198,6 +1198,58 @@ function updateEffects(){
   }
 }
 
+/* ---------- 탄피 ---------- */
+const casings = [];
+const CAS_GEO = new THREE.CylinderGeometry(.0042, .0042, .02, 6);
+const CAS_MAT = new THREE.MeshPhongMaterial({ color: 0xc9a227, specular: 0xffe9a0, shininess: 90 });
+const SHELL_GEO = new THREE.CylinderGeometry(.009, .009, .045, 8);
+const SHELL_MAT = new THREE.MeshPhongMaterial({ color: 0xb91c1c, specular: 0x555555, shininess: 40 });
+const LINK_GEO = new THREE.BoxGeometry(.008, .006, .012);
+const LINK_MAT = new THREE.MeshPhongMaterial({ color: 0x6b6b6b, specular: 0x999999, shininess: 50 });
+const _cf = new THREE.Vector3(), _cr = new THREE.Vector3(), _cu2 = new THREE.Vector3();
+let lastTink = 0;
+function ejectCasing(id){
+  if (id === 'awm'){ setTimeout(() => ejectCasing('awm_'), 520); return; }   // 볼트액션: 노리쇠를 당길 때 배출
+  const kind = id === 's12k' ? 1 : id === 'awm_' ? 2 : 0, a = ads;
+  _cf.set(0, 0, -1).applyQuaternion(camera.quaternion);
+  _cr.set(1, 0, 0).applyQuaternion(camera.quaternion);
+  _cu2.set(0, 1, 0).applyQuaternion(camera.quaternion);
+  const mk = (geo, mat, sc, rad, dx) => {
+    if (casings.length > 70) scene.remove(casings.shift().m);
+    const m = new THREE.Mesh(geo, mat); m.scale.setScalar(sc);
+    m.position.copy(camera.position).addScaledVector(_cr, (a ? .04 : .27) + dx).addScaledVector(_cu2, a ? -.1 : -.2).addScaledVector(_cf, a ? .33 : .42);
+    m.rotation.set(Math.random() * 6.28, Math.random() * 6.28, Math.random() * 6.28);
+    const v = new THREE.Vector3().addScaledVector(_cr, 1.5 + Math.random() * 1.3).addScaledVector(_cu2, 1.2 + Math.random() * 1.1).addScaledVector(_cf, Math.random() * .6 - .1);
+    v.x += player.vel.x * .6; v.z += player.vel.z * .6;
+    scene.add(m);
+    casings.push({ m, v, w: new THREE.Vector3((Math.random() - .5) * 40, (Math.random() - .5) * 40, (Math.random() - .5) * 40), t0: now(), rest: false, r: rad });
+  };
+  if (kind === 1) mk(SHELL_GEO, SHELL_MAT, 1, .009, 0);
+  else mk(CAS_GEO, CAS_MAT, kind === 2 ? 2.4 : 1, kind === 2 ? .01 : .0042, 0);
+  if (id === 'm249') mk(LINK_GEO, LINK_MAT, 1, .005, -.012);   // M249는 탄피와 함께 탄띠 연결쇠도 떨어져요
+}
+function updateCasings(dt){
+  const t = now();
+  for (let i = casings.length - 1; i >= 0; i--){
+    const c = casings[i], m = c.m, p = m.position, age = t - c.t0;
+    if (age > 12){ scene.remove(m); casings.splice(i, 1); continue; }
+    if (age > 11) m.scale.multiplyScalar(Math.max(.01, 1 - dt * 6));
+    if (c.rest) continue;
+    c.v.y -= 16 * dt;
+    p.addScaledVector(c.v, dt);
+    m.rotation.x += c.w.x * dt; m.rotation.y += c.w.y * dt; m.rotation.z += c.w.z * dt;
+    if (inLake(p.x, p.z) && p.y < WATER_Y){ scene.remove(m); casings.splice(i, 1); continue; }   // 물에 빠지면 사라짐
+    const gy = groundAt(p.x, p.z, p.y + .3) + c.r;
+    if (p.y <= gy){
+      p.y = gy;
+      if (c.v.y < -1.4){
+        if (t - lastTink > .05){ lastTink = t; beep(3000 + Math.random() * 1500, .03, .012); }
+        c.v.y = -c.v.y * .38; c.v.x *= .55; c.v.z *= .55; c.w.multiplyScalar(.55);
+      } else { c.rest = true; m.rotation.set(0, m.rotation.y, Math.PI / 2); }
+    }
+  }
+}
+
 /* ---------- 피 / 절단 이펙트 ---------- */
 const GEO = {
   head: new THREE.SphereGeometry(.2, 12, 10),
@@ -1897,6 +1949,7 @@ function fire(){
   player.yaw += (Math.random() - .5) * rc * 0.7;
   kick = 1;
   if (gunGroup.userData.belt) gunGroup.userData.belt.tg++;
+  ejectCasing(w.id);
   if (a.mag === 0) startReload();
 }
 function damageBot(b, d, part){
@@ -2529,6 +2582,7 @@ function loop(){
   updateEffects();
   updateGore(dt);
   updateCorpses(dt);
+  updateCasings(dt);
   // 내 그림자 전용 몸체 갱신
   selfAv.group.visible = !player.dead && shadowFx;
   selfAv.group.position.copy(player.pos); selfAv.group.rotation.y = player.yaw; selfAv.crouch = crouch;
