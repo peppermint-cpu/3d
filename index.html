@@ -1740,16 +1740,37 @@ function onKill(p){
   }
 }
 
-async function joinNet(){
-  if (!configured) return setNet(false);
-  try {
-    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { realtime: { params: { eventsPerSecond: 40 } } });
-  } catch(e){ return setNet(false); }
-  await loadProfile(myName);
-  channel = sb.channel(zmode ? ROOM + '-zombie' : ROOM, { config: { broadcast: { self: false }, presence: { key: myId } } });
-  channel
+/* 연결이 끊겨도 자동으로 다시 붙는 네트워크 (재접속: 1·2·4·8·10초 간격) */
+let netTry = 0, netTimer = 0, netGen = 0, netAt = 0, netWatch = false;
+function netWanted(){ return joined && configured && zmode !== 1; }
+function mkClient(){
+  if (sb) return true;
+  const base = { params: { eventsPerSecond: 40 }, heartbeatIntervalMs: 15000 };
+  try { sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { realtime: Object.assign({ worker: true }, base) }); return true; } catch(e){}   // worker: 탭이 백그라운드여도 연결 유지 신호를 계속 보냄
+  try { sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { realtime: base }); return true; } catch(e){}
+  return false;
+}
+function netRetry(ms){
+  if (netTimer || !netWanted()) return;
+  const d = ms != null ? ms : Math.min(10000, 1000 * Math.pow(2, Math.min(netTry++, 4)));
+  netTimer = setTimeout(() => { netTimer = 0; openChannel(); }, d);
+}
+async function openChannel(){
+  clearTimeout(netTimer); netTimer = 0;
+  if (!netWanted() || !sb) return;
+  const gen = ++netGen;   // 이전 채널에서 오는 상태 알림은 무시하기 위한 번호
+  if (channel){
+    const old = channel; channel = null;
+    try { await Promise.race([Promise.resolve(sb.removeChannel(old)), new Promise(r => setTimeout(r, 1500))]); } catch(e){}
+    if (gen !== netGen) return;
+  }
+  netAt = now();
+  const ch = sb.channel(zmode ? ROOM + '-zombie' : ROOM, { config: { broadcast: { self: false }, presence: { key: myId } } });
+  channel = ch;
+  ch
     .on('presence', { event: 'sync' }, () => {
-      const st = channel.presenceState();
+      if (gen !== netGen) return;
+      const st = ch.presenceState();
       onlineList = Object.keys(st).map(id => Object.assign({ id }, (st[id] && st[id][0]) || {}));
       for (const id in remotes) if (!st[id]) removeRemote(id);
       syncBots();
@@ -1768,12 +1789,39 @@ async function joinNet(){
     .on('broadcast', { event: 'zx' },   ({ payload }) => onZe('zx', payload))
     .on('broadcast', { event: 'bld' },  ({ payload }) => onZe('bld', payload))
     .subscribe(status => {
+      if (gen !== netGen) return;
       if (status === 'SUBSCRIBED'){
-        netReady = true; channel.track(me()); setNet(true);
+        netReady = true; netTry = 0; ch.track(me()); setNet(true); sendPos(true);
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED'){
-        netReady = false; setNet(false);
+        netReady = false; setNet(false); netRetry();
       }
     });
+}
+function netKick(){   // 탭으로 돌아왔을 때 / 인터넷이 다시 켜졌을 때: 끊겼으면 바로 다시 붙기
+  if (!netWanted() || !sb) return;
+  const st = channel && channel.state, sockOk = !sb.realtime || !sb.realtime.isConnected || sb.realtime.isConnected();
+  if (!channel || (st !== 'joined' && st !== 'joining') || !sockOk){ netReady = false; setNet(false); netTry = 0; openChannel(); }
+}
+function startNetWatch(){
+  if (netWatch) return; netWatch = true;
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) netKick(); });
+  window.addEventListener('online', netKick);
+  window.addEventListener('focus', netKick);
+  setInterval(() => {   // 4초마다 점검: 상태가 어긋났거나 접속이 오래 걸리면 다시 시도
+    if (!netWanted() || !sb || netTimer) return;
+    const st = channel && channel.state;
+    if (netReady && st && st !== 'joined'){ netReady = false; setNet(false); }
+    if (!netReady){
+      if (!channel || (st !== 'joining' && st !== 'joined') || (st === 'joining' && now() - netAt > 12)) netRetry(0);
+    }
+  }, 4000);
+}
+async function joinNet(){
+  if (!configured) return setNet(false);
+  if (!mkClient()) return setNet(false);
+  await loadProfile(myName);
+  openChannel();
+  startNetWatch();
   setTimeout(() => { if (!netReady && !bots.length){ startBots(); setNet(false); } }, 8000);
 }
 async function saveScore(){
@@ -1813,7 +1861,7 @@ function renderOnline(){
   if (!netReady) arr = [{ id: myId, name: myName, k: kills, d: deaths }];
   $('onlineCount').textContent = netReady
     ? '🟢 접속자 ' + arr.length + '명' + (bots.length ? ' + 봇 ' + bots.length : '')
-    : '🔴 오프라인(연습) · 접속자 1명 + 봇 ' + bots.length;
+    : (netWanted() ? '🟡 서버 재접속 중… · ' : '🔴 오프라인(연습) · ') + '접속자 1명 + 봇 ' + bots.length;
   arr = arr.slice().sort((a, b) => (b.id === myId ? kills : b.k | 0) - (a.id === myId ? kills : a.k | 0));
   arr.slice(0, 12).forEach(p => {
     const row = document.createElement('div');
@@ -3271,7 +3319,7 @@ function loop(){
   // 원격 플레이어 보간 / 타임아웃
   for (const id in remotes){
     const r = remotes[id];
-    if (t - r.last > 6){ removeRemote(id); continue; }
+    if (t - r.last > (netReady ? 6 : 20)){ removeRemote(id); continue; }
     const g = r.avatar.group, k = 1 - Math.exp(-12 * dt);
     const ox = g.position.x, oy = g.position.y, oz = g.position.z;
     g.position.x += (r.tx - g.position.x) * k;
