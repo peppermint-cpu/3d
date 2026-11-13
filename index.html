@@ -272,6 +272,14 @@ background:radial-gradient(circle,rgba(255,246,222,.95) 0,rgba(255,230,180,.55) 
     <div class="set touchset"><label><span>버튼 투명도</span><b id="uiOVal">100%</b></label><input type="range" id="uiO" min="0.3" max="1" step="0.05" value="1"></div>
     <div class="set touchset"><label><span>자이로 조준 (폰을 돌려 조준)</span><input type="checkbox" id="gyro" style="width:auto;margin:0;padding:0"></label></div>
     <div class="set touchset"><label><span>자이로 감도</span><b id="gyroSVal">1.0</b></label><input type="range" id="gyroS" min="0.3" max="3" step="0.1" value="1"></div>
+    <style>.mb.on{background:linear-gradient(90deg,#f59e0b,#ef4444)!important}</style>
+    <div class="set" id="modeSel"><label><span>게임 모드</span></label>
+    <div style="display:flex;gap:6px">
+    <button class="sec mb" data-m="0" style="margin:0;padding:10px 2px;font-size:13px">⚔ 대전</button>
+    <button class="sec mb" data-m="1" style="margin:0;padding:10px 2px;font-size:13px">🧟 좀비 솔로</button>
+    <button class="sec mb" data-m="2" style="margin:0;padding:10px 2px;font-size:13px">🧟 좀비 멀티</button>
+    </div><div id="modeInfo" style="margin-top:6px;font-size:12px;opacity:.75"></div></div>
+    <div class="set touchset"><label><span>자이로 상하 반전 (위아래가 반대면 켜세요)</span><input type="checkbox" id="gyroInv" style="width:auto;margin:0;padding:0"></label></div>
     <button id="editUI" class="sec">🎮 버튼 위치·크기 편집</button>
     <button id="shopOpen" class="sec" style="display:none">🛒 상점 / 코인</button>
     <button id="play">게임 시작</button>
@@ -1533,7 +1541,7 @@ function removeRemote(id){
 function send(event, payload){
   if (channel && netReady) channel.send({ type: 'broadcast', event, payload });
 }
-function me(){ return { name: myName, k: kills, d: deaths, rn: rnd.n, rk: rnd.k, rd: rnd.d, prk: rnd.pk, prd: rnd.pd }; }
+function me(){ return { jt: zJoinT, name: myName, k: kills, d: deaths, rn: rnd.n, rk: rnd.k, rd: rnd.d, prk: rnd.pk, prd: rnd.pd }; }
 function trackMe(){ if (channel && netReady) channel.track(me()); }
 
 function onPos(p){
@@ -1579,7 +1587,7 @@ async function joinNet(){
     sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { realtime: { params: { eventsPerSecond: 40 } } });
   } catch(e){ return setNet(false); }
   await loadProfile(myName);
-  channel = sb.channel(ROOM, { config: { broadcast: { self: false }, presence: { key: myId } } });
+  channel = sb.channel(zmode ? ROOM + '-zombie' : ROOM, { config: { broadcast: { self: false }, presence: { key: myId } } });
   channel
     .on('presence', { event: 'sync' }, () => {
       const st = channel.presenceState();
@@ -1593,6 +1601,11 @@ async function joinNet(){
     .on('broadcast', { event: 'hit' },  ({ payload }) => onHit(payload))
     .on('broadcast', { event: 'kill' }, ({ payload }) => onKill(payload))
     .on('broadcast', { event: 'chat' }, ({ payload }) => onChat(payload))
+    .on('broadcast', { event: 'zs' },   ({ payload }) => onZs(payload))
+    .on('broadcast', { event: 'zk' },   ({ payload }) => onZe('zk', payload))
+    .on('broadcast', { event: 'zhit' }, ({ payload }) => onZe('zhit', payload))
+    .on('broadcast', { event: 'zc' },   ({ payload }) => onZe('zc', payload))
+    .on('broadcast', { event: 'zo' },   ({ payload }) => onZe('zo', payload))
     .subscribe(status => {
       if (status === 'SUBSCRIBED'){
         netReady = true; channel.track(me()); setNet(true);
@@ -1654,7 +1667,7 @@ function renderOnline(){
 /* ---------- 봇 (오프라인 연습 모드) ---------- */
 const bots = [];
 function startBots(){
-  if (bots.length) return;
+  if (bots.length || zmode) return;
   for (let i = 0; i < 4; i++){
     const b = { name: 'BOT ' + (i + 1), x: 0, y: 0, z: 0, yaw: 0, hp: 100, dead: false, respawnAt: 0, tx: 0, tz: 0, nextTurn: 0, nextShot: 0, mask: 0, limbDmg: {}, rk: 0, rd: 0 };
     const av = makeAvatar(b.name, 0xb23a48, { kind: 'bot', bot: b });
@@ -1748,7 +1761,7 @@ function roundResults(n, sk, sd, bsnap){
   return out;
 }
 function checkRound(){
-  if (!joined || rnd.n === null) return;
+  if (!joined || zmode || rnd.n === null) return;
   const n = roundNow();
   if (n === rnd.n) return;
   const old = rnd.n, sk = rnd.k, sd = rnd.d, bsnap = botSnap();
@@ -1787,6 +1800,7 @@ function updateRoundHud(dt){
   box.style.display = 'block';
   roundHudT -= dt; if (roundHudT > 0) return;
   roundHudT = 0.25;
+  if (zmode){ zHud(); return; }
   const rem = Math.ceil((ROUND_MS - (Date.now() % ROUND_MS)) / 1000);
   const tEl = $('roundTime');
   tEl.textContent = '⏱ ' + Math.floor(rem / 60) + ':' + (rem % 60 < 10 ? '0' : '') + (rem % 60);
@@ -1859,6 +1873,7 @@ function hitMarker(head){
 }
 function collectTargets(){
   const t = worldMeshes.slice();
+  if (zmode){ for (const id in zomb) for (const m of zomb[id].av.hit) t.push(m); return t; }
   for (const id in remotes){ const r = remotes[id]; if (!r.dead) for (const m of r.hit) if (!m.userData.gone) t.push(m); }
   for (const b of bots) if (!b.dead) for (const m of b.hit) if (!m.userData.gone) t.push(m);
   return t;
@@ -1933,14 +1948,14 @@ function meleeAttack(w){
     raycaster.set(origin, dir); raycaster.far = w.range;
     const h = raycaster.intersectObjects(targets, false)[0]; if (!h) continue;
     const ud = h.object.userData;
-    if (ud.kind !== 'player' && ud.kind !== 'bot') continue;
-    const key = ud.kind === 'bot' ? ud.bot : ud.id;
+    if (ud.kind !== 'player' && ud.kind !== 'bot' && ud.kind !== 'zombie') continue;
+    const key = ud.kind === 'bot' ? ud.bot : ud.kind === 'zombie' ? ud.zid : ud.id;
     if (done.has(key)) continue; done.add(key);
     const part = ud.part, d = w.dmg * (PART_MUL[part] || 1);
     hit = true; head = head || part === 'head';
     spawnBlood(h.point, bloodCount(part), 3.2, dir);
     if (ud.kind === 'player'){ agg[ud.id] = { dmg: d, head: part === 'head', parts: { [part]: d } }; }
-    else if (!ud.bot.dead) damageBot(ud.bot, d, part);
+    else if (ud.kind === 'zombie') zShoot(ud.zid, d, part === 'head'); else if (!ud.bot.dead) damageBot(ud.bot, d, part);
   }
   if (hit) hitMarker(head);
   for (const id in agg){ const e = agg[id], pr = {}; for (const k in e.parts) pr[k] = Math.round(e.parts[k]); send('hit', { to: id, dmg: Math.round(e.dmg), parts: pr, from: myId, fromName: myName, w: cur, head: e.head }); }
@@ -1972,7 +1987,7 @@ function fire(){
     if (hits.length){
       const h = hits[0]; end = h.point.clone();
       const ud = h.object.userData;
-      if (ud.kind === 'player' || ud.kind === 'bot'){
+      if (ud.kind === 'player' || ud.kind === 'bot' || ud.kind === 'zombie'){
         const part = ud.part;
         let d = w.dmg; if (w.range < 100) d *= Math.max(0.25, 1 - h.distance / w.range);
         d *= PART_MUL[part] || 1;
@@ -1983,7 +1998,7 @@ function fire(){
         if (ud.kind === 'player'){
           const e = agg[ud.id] || (agg[ud.id] = { dmg: 0, head: false, parts: {} });
           e.dmg += d; e.head = e.head || head; e.parts[part] = (e.parts[part] || 0) + d;
-        } else if (!ud.bot.dead){
+        } else if (ud.kind === 'zombie'){ zShoot(ud.zid, d, head); } else if (!ud.bot.dead){
           damageBot(ud.bot, d, part);
         }
       } else if (i < 3) impact(end);
@@ -2047,7 +2062,7 @@ function die(killerId, killerName, w, head){
   $('deathInfo').textContent = killerName + ' 에게 처치당했습니다 · 3초 후 부활';
   saveScore(); trackMe(); renderOnline();
   sendPos(true);
-  setTimeout(respawn, 3000);
+  setTimeout(respawn, zmode ? 6000 : 3000);
 }
 function respawn(){
   const s = randomSpawn();
@@ -2262,17 +2277,31 @@ $('reflfx').addEventListener('change', () => {
   try { localStorage.setItem('is_refl', reflFx ? '1' : '0'); } catch(e){}
 });
 /* 자이로 조준 (모바일): 폰을 돌리는 만큼 시점이 회전 */
-let gyroOn = false, gyroLive = false, gyroS = 1, gyroLast = 0;
+let gyroOn = false, gyroLive = false, gyroS = 1, gyroLast = 0, gyroInv = false;
+/* 자이로: 좌우 회전은 중력(수직축) 기준, 상하는 화면 가로축 기준 (가로모드 90°/270° 모두 대응) */
+const _gv = { x: 0, y: 0, z: 0, ok: false };
 function onMotion(e){
   const tn = performance.now(), dt = clamp((tn - gyroLast) / 1000, 0, .05); gyroLast = tn;
-  const r = e.rotationRate;
+  const r = e.rotationRate, ag = e.accelerationIncludingGravity;
+  if (ag && ag.x != null){ const k = _gv.ok ? .12 : 1; _gv.x += (ag.x - _gv.x) * k; _gv.y += (ag.y - _gv.y) * k; _gv.z += (ag.z - _gv.z) * k; _gv.ok = true; }
   if (!gyroOn || !r || !locked || player.dead) return;
   const a = (screen.orientation && screen.orientation.angle != null) ? screen.orientation.angle : (window.orientation || 0);
-  const al = ((a % 360) + 360) % 360, b = r.beta || 0, g = r.gamma || 0;
-  let yr, pr;
-  if (al === 90){ yr = b; pr = -g; } else if (al === 270){ yr = -b; pr = g; } else if (al === 180){ yr = -g; pr = -b; } else { yr = g; pr = b; }
+  const al = ((Math.round(a / 90) * 90) % 360 + 360) % 360;
+  const wx = r.beta || 0, wy = r.gamma || 0, wz = r.alpha || 0;
+  const U  = al === 90 ? [1, 0] : al === 270 ? [-1, 0] : al === 180 ? [0, -1] : [0, 1];
+  const Rt = al === 90 ? [0, -1] : al === 270 ? [0, 1] : al === 180 ? [-1, 0] : [1, 0];
+  let pr = wx * Rt[0] + wy * Rt[1], yr;
+  const gl = Math.hypot(_gv.x, _gv.y, _gv.z);
+  if (_gv.ok && gl > 4){
+    let ux = _gv.x / gl, uy = _gv.y / gl, uz = _gv.z / gl;
+    if (ux * U[0] + uy * U[1] + uz < 0){ ux = -ux; uy = -uy; uz = -uz; }
+    yr = wx * ux + wy * uy + wz * uz;
+  } else yr = wx * U[0] + wy * U[1];
+  if (Math.abs(yr) < .25) yr = 0;
+  if (Math.abs(pr) < .25) pr = 0;
   const k = Math.PI / 180 * dt * gyroS * (camera.fov / 75);
-  player.yaw += yr * k; player.pitch = clamp(player.pitch + pr * k, -1.5, 1.5);
+  player.yaw += yr * k;
+  player.pitch = clamp(player.pitch + pr * (gyroInv ? -1 : 1) * k, -1.5, 1.5);
 }
 async function enableGyro(){
   try {
@@ -2316,11 +2345,11 @@ $('play').addEventListener('click', () => {
     myName = n; try { localStorage.setItem('is_nick', n); } catch(e){}
     loadLocalProf(n);
     $('nick').value = n;
-    joined = true; initAudio(); rnd.n = roundNow();
+    joined = true; initAudio(); rnd.n = roundNow(); $('modeSel').style.display = 'none'; zJoinT = Date.now();
     const s = randomSpawn(); player.pos.set(s.x, 0, s.z);
     equip(0);
-    if (!configured) startBots();
-    joinNet();
+    if (!zmode && !configured) startBots();
+    if (zmode !== 1) joinNet(); else setNet(false);
     renderOnline();
     updateWallet();
   } else {
@@ -2568,6 +2597,200 @@ $('editSize').addEventListener('input', () => {
   layer.addEventListener('touchcancel', endDrag);
 }
 
+/* ---------- 좀비 디펜스 (0 대전 / 1 좀비 솔로 / 2 좀비 멀티) ---------- */
+let zmode = 0, zJoinT = Date.now(), zbest = 0, zSendT = 0;
+try { zmode = +localStorage.getItem('is_mode') || 0; } catch(e){}
+try { zbest = +localStorage.getItem('is_zbest') || 0; } catch(e){}
+const zomb = {}, zw = { n: 0, left: 0, cd: 6, sp: 0, id: 1, over: 0, dead: 0 };
+const ZT = [
+  { hp: 100, sp: 2.3, dmg: 12, sc: 1,    col: 0x3f6b35, reach: 1.4 },
+  { hp: 55,  sp: 4.8, dmg: 8,  sc: .92,  col: 0x6f7f2f, reach: 1.3 },
+  { hp: 420, sp: 1.7, dmg: 26, sc: 1.35, col: 0x5a3040, reach: 1.9 }
+];
+const ZMAX = isTouch ? 16 : 26;
+function isHost(){
+  if (!netReady) return zmode !== 2 || !configured || Date.now() - zJoinT > 9000;
+  let best = null;
+  for (const p of onlineList){ const j = p.jt || 1e15; if (!best || j < best.j || (j === best.j && p.id < best.id)) best = { j, id: p.id }; }
+  return !best || best.id === myId;
+}
+function zTargets(){
+  const T = []; if (!player.dead) T.push({ x: player.pos.x, z: player.pos.z });
+  for (const id in remotes){ const r = remotes[id]; if (!r.dead) T.push({ x: r.tx, z: r.tz }); }
+  return T;
+}
+function zAdd(id, t, x, z, hp, mhp){
+  const T = ZT[t], av = makeAvatar('', T.col, { kind: 'zombie', zid: id });
+  av.label.visible = false; av.parts.gun.visible = false;
+  av.parts.head.material.color.set(0x7ea35c);
+  av.group.scale.setScalar(T.sc);
+  av.group.position.set(x, hillH(x, z), z);
+  return (zomb[id] = { id, t, x, z, yaw: 0, hp, mhp, av, ph: 0, atk: 0 });
+}
+function zSpawn(){
+  const T = zTargets(), c = T[(Math.random() * T.length) | 0] || { x: 0, z: 0 };
+  let x = 0, z = 0;
+  for (let i = 0; i < 14; i++){
+    const a = Math.random() * 6.283, r = 26 + Math.random() * 10;
+    x = clamp(c.x + Math.cos(a) * r, -57, 57); z = clamp(c.z + Math.sin(a) * r, -57, 57);
+    if (!collides(x, 0, z) && !inLake(x, z)) break;
+  }
+  const q = Math.random(), t = zw.n >= 3 && q < .12 ? 2 : zw.n >= 2 && q < .38 ? 1 : 0;
+  const mhp = Math.round(ZT[t].hp * (1 + zw.n * .12));
+  zAdd(zw.id++, t, x, z, mhp, mhp);
+}
+function zReset(){
+  for (const id in zomb){ scene.remove(zomb[id].av.group); delete zomb[id]; }
+  zw.n = 0; zw.left = 0; zw.cd = 6; zw.sp = 0; zw.over = 0; zw.dead = 0;
+}
+function zSaveBest(n){ if (n > zbest){ zbest = n; try { localStorage.setItem('is_zbest', String(n)); } catch(e){} } }
+function zClear(n){
+  const c = 30 + n * 10;
+  prof.coins += c; prof.xp += 30 + n * 5;
+  WEAPONS.forEach((w, i) => { ammo[i].mag = w.mag; ammo[i].res = w.res; });
+  reloading = false;
+  if (!player.dead) player.hp = Math.min(100, player.hp + 50);
+  zSaveBest(n); saveScore(); updateWallet();
+  showMsg('✅ 웨이브 ' + n + ' 클리어! 🪙 +' + c + ' · 탄약 보충', 2500); beep(880, .15, .08);
+}
+function zHostSim(dt){
+  if (zw.over){ if (now() > zw.over) zReset(); return; }
+  const T = zTargets(), ids = Object.keys(zomb), alive = ids.length;
+  const humans = netReady ? Math.max(1, onlineList.length) : 1;
+  if (!T.length){
+    zw.dead += dt;
+    if (zw.dead > 4){ zw.over = now() + 1.5; send('zo', { w: zw.n }); showMsg('💀 게임 오버 · 웨이브 ' + zw.n, 3000); }
+    return;
+  }
+  zw.dead = 0;
+  if (zw.cd > 0){
+    zw.cd -= dt;
+    if (zw.cd <= 0){ zw.n++; zw.left = Math.round((6 + zw.n * 3) * (1 + (humans - 1) * .6)); zw.sp = 1; showMsg('🧟 웨이브 ' + zw.n + ' 시작!', 2000); beep(180, .4, .08); }
+  } else {
+    zw.sp -= dt;
+    if (zw.left > 0 && alive < ZMAX && zw.sp <= 0){ zSpawn(); zw.left--; zw.sp = Math.max(.35, 1.5 - zw.n * .07); }
+    if (zw.left <= 0 && alive === 0){ zw.cd = 9; send('zc', { w: zw.n }); zClear(zw.n); }
+  }
+  for (const id of ids){
+    const z = zomb[id], s = ZT[z.t];
+    let bd = 1e9, bx = 0, bz = 0;
+    for (const p of T){ const d = Math.hypot(p.x - z.x, p.z - z.z); if (d < bd){ bd = d; bx = p.x - z.x; bz = p.z - z.z; } }
+    z.yaw = Math.atan2(-bx, -bz);
+    if (bd > s.reach * .8){
+      const v = s.sp * (1 + Math.min(zw.n, 12) * .03) * dt, sx = bx / bd * v, sz = bz / bd * v;
+      let moved = false;
+      if (!collides(z.x + sx, 0, z.z) && !inLake(z.x + sx, z.z)){ z.x += sx; moved = true; }
+      if (!collides(z.x, 0, z.z + sz) && !inLake(z.x, z.z + sz)){ z.z += sz; moved = true; }
+      if (!moved){
+        const ox = z.x - bz / bd * v * 1.2, oz = z.z + bx / bd * v * 1.2;
+        if (!collides(ox, 0, oz) && !inLake(ox, oz)){ z.x = ox; z.z = oz; }
+      }
+    }
+  }
+}
+function animZ(z, dt, sp){
+  const L = z.av.limbs; z.ph += dt * (2 + sp * 1.6);
+  const s = Math.sin(z.ph) * Math.min(1, sp / 1.5) * .7, w = Math.sin(z.ph * .5) * .08;
+  L.legL.rotation.x = s; L.legR.rotation.x = -s;
+  L.armL.rotation.set(1.45 + w, 0, .1); L.armR.rotation.set(1.45 - w, 0, -.1);
+  z.av.pivot.rotation.z = Math.sin(z.ph) * .06;
+}
+function zRender(dt){
+  const k = 1 - Math.exp(-10 * dt);
+  for (const id in zomb){
+    const z = zomb[id], g = z.av.group, ox = g.position.x, oz = g.position.z;
+    g.position.x += (z.x - ox) * k; g.position.z += (z.z - oz) * k;
+    g.position.y = hillH(g.position.x, g.position.z);
+    let dr = z.yaw - g.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); g.rotation.y += dr * k;
+    animZ(z, dt, Math.hypot(g.position.x - ox, g.position.z - oz) / Math.max(dt, .001));
+  }
+}
+function zAttackMe(){
+  if (player.dead || !locked) return;
+  const t = now();
+  for (const id in zomb){
+    const z = zomb[id], s = ZT[z.t], p = z.av.group.position;
+    if (t - z.atk < 1) continue;
+    if (Math.hypot(p.x - player.pos.x, p.z - player.pos.z) < s.reach && Math.abs(p.y - player.pos.y) < 1.8){
+      z.atk = t; beep(120 + Math.random() * 40, .2, .05);
+      takeDamage(Math.round(s.dmg * (1 + zw.n * .04)), 'zombie', '좀비', 0, false, null);
+      if (player.dead) return;
+    }
+  }
+}
+function zDamage(id, d, by, w, head){
+  const z = zomb[id]; if (!z) return;
+  z.hp -= d;
+  if (z.hp <= 0){ send('zk', { id, by, w, h: head ? 1 : 0 }); zKill(id, by, w, head); }
+}
+function zShoot(id, d, head){
+  if (isHost()) zDamage(id, d, myId, cur, head);
+  else send('zhit', { id, d, by: myId, w: cur, h: head ? 1 : 0 });
+}
+function zKill(id, by, w, head){
+  const z = zomb[id]; if (!z) return;
+  const g = z.av.group, p = g.position;
+  spawnBlood(new THREE.Vector3(p.x, p.y + 1.1, p.z), 30, 4);
+  spawnCorpse(z.av, p.x, p.y, p.z, g.rotation.y, p.x - player.pos.x, p.z - player.pos.z);
+  scene.remove(g); delete zomb[id];
+  if (by === myId){
+    kills++; prof.coins += z.t === 2 ? 40 : 10; prof.xp += 15;
+    showMsg(head ? '헤드샷!' : 'KILL +1', 800); beep(900, .08, .06);
+    saveLocalProf(); updateWallet(); trackMe();
+  }
+}
+function onZs(p){
+  if (!p || isHost()) return;
+  if (p.w > 0 && p.w !== zw.n) showMsg('🧟 웨이브 ' + p.w, 1500);
+  zw.n = p.w; zw.left = p.l; zw.cd = p.c; zw.id = Math.max(zw.id, p.i); zw.over = p.o;
+  const seen = {};
+  for (const a of p.z){
+    seen[a[0]] = 1;
+    const z = zomb[a[0]] || zAdd(a[0], a[5], a[1], a[2], a[4], Math.round(ZT[a[5]].hp * (1 + p.w * .12)));
+    z.x = a[1]; z.z = a[2]; z.yaw = a[3]; z.hp = a[4];
+  }
+  for (const id in zomb) if (!seen[id]){ scene.remove(zomb[id].av.group); delete zomb[id]; }
+}
+function onZe(ev, p){
+  if (!p) return;
+  if (ev === 'zhit'){ if (isHost()) zDamage(p.id, p.d, p.by, p.w, !!p.h); return; }
+  if (isHost()) return;
+  if (ev === 'zk') zKill(p.id, p.by, p.w, !!p.h);
+  else if (ev === 'zc') zClear(p.w);
+  else if (ev === 'zo') showMsg('💀 게임 오버 · 웨이브 ' + p.w, 3000);
+}
+function zHud(){
+  const t = $('roundTime'), l = $('roundLead');
+  t.classList.remove('low');
+  if (zw.over){ t.textContent = '💀 게임 오버'; l.textContent = '웨이브 ' + zw.n + ' 도달 · 곧 다시 시작'; }
+  else if (zw.cd > 0){ t.textContent = '🧟 웨이브 ' + (zw.n + 1) + ' · ' + Math.ceil(zw.cd) + '초'; l.textContent = '대비하세요! · 최고 ' + zbest; }
+  else { t.textContent = '🧟 웨이브 ' + zw.n; l.textContent = '남은 좀비 ' + (zw.left + Object.keys(zomb).length) + ' · 최고 ' + zbest; }
+}
+function zTick(dt){
+  const host = isHost();
+  if (host && (locked || netReady)) zHostSim(dt);
+  zRender(dt); zAttackMe();
+  if (host && netReady){
+    zSendT += dt;
+    if (zSendT >= .1){
+      zSendT = 0;
+      send('zs', { w: zw.n, l: zw.left, c: Math.ceil(zw.cd), o: zw.over ? 1 : 0, i: zw.id,
+        z: Object.values(zomb).map(z => [z.id, +z.x.toFixed(1), +z.z.toFixed(1), +z.yaw.toFixed(2), Math.round(z.hp), z.t]) });
+    }
+  }
+}
+const MODE_INFO = ['다른 플레이어와 4분 라운드 대전', '혼자서 몰려오는 좀비를 막아내요', '같은 방 사람들과 함께 좀비 방어 (호스트가 나가도 이어져요)'];
+function markMode(){ document.querySelectorAll('.mb').forEach(b => b.classList.toggle('on', +b.dataset.m === zmode)); $('modeInfo').textContent = MODE_INFO[zmode] || ''; }
+document.querySelectorAll('.mb').forEach(b => b.addEventListener('click', () => {
+  if (joined) return;
+  zmode = +b.dataset.m; try { localStorage.setItem('is_mode', String(zmode)); } catch(e){}
+  markMode();
+}));
+markMode();
+try { gyroInv = localStorage.getItem('is_gyroinv') === '1'; } catch(e){}
+$('gyroInv').checked = gyroInv;
+$('gyroInv').addEventListener('change', () => { gyroInv = $('gyroInv').checked; try { localStorage.setItem('is_gyroinv', gyroInv ? '1' : '0'); } catch(e){} });
+
 /* ---------- 위치 전송 ---------- */
 let sendT = 0;
 function sendPos(force){
@@ -2636,6 +2859,7 @@ function loop(){
     }
   }
   updateBots(dt);
+  if (zmode) zTick(dt);
   updateEffects();
   updateGore(dt);
   updateCorpses(dt);
