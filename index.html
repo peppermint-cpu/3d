@@ -3293,4 +3293,55 @@ function loop(){
     spr += ((sprinting ? 1 : 0) - spr) * clamp((sprinting ? 9 : 25) * dt, 0, 1);
     bobT += dt * (moving ? (sprinting ? 14 : 10) : 1.8);
     const bob = (moving ? (ads ? .004 : .012) : .0025) * (1 + spr * .8) * shake;
-    let dyw = player.yaw - prevYaw; dyw = Math.atan2(Math.sin(dyw), M
+    let dyw = player.yaw - prevYaw; dyw = Math.atan2(Math.sin(dyw), Math.cos(dyw));
+    const yawRate = dyw / Math.max(dt, .001), pitRate = (player.pitch - prevPitch) / Math.max(dt, .001);
+    prevYaw = player.yaw; prevPitch = player.pitch;
+    const sk = ads ? .35 : 1, ks = clamp(9 * dt, 0, 1);
+    swayX += (clamp(yawRate * .012, -.07, .07) * sk * shake - swayX) * ks;
+    swayY += (clamp(-pitRate * .010, -.05, .05) * sk * shake - swayY) * ks;
+    const lat = player.vel.x * Math.cos(player.yaw) - player.vel.z * Math.sin(player.yaw);
+    const sgs = sightOf(cur), sa = ads && sgs ? sgs : null;
+    const tx = ads ? 0 : .24 - spr * .1, ty = ads ? (sa ? sa.y : -.15) : -.22 - spr * .07, tz = ads ? (sa ? sa.z : -.36) : -.5 + spr * .08;
+    const rp = reloading ? Math.min(1, (reloadEnd - t) / reloadTime(cur)) : 0;
+    const dip = reloading ? Math.sin(Math.min(1, 1 - rp) * Math.PI) : 0;
+    drawT = Math.max(0, drawT - dt / drawDur);
+    const dw = drawT * drawT * (3 - 2 * drawT);
+    const gp = gunGroup.position, k2 = clamp(16 * dt, 0, 1);
+    gp.x += (tx + swayX + Math.cos(bobT * .5) * bob * .9 - lat * .004 * shake + dw * .1 - gp.x) * k2;
+    gp.y += (ty + swayY + Math.sin(bobT) * bob - dip * .18 - camLand * 1.1 - dw * .38 - gp.y) * k2;
+    gp.z += (tz + kick * .06 + Math.abs(Math.sin(bobT * .5)) * bob * .6 + dw * .12 - gp.z) * k2;
+    gunGroup.rotation.x = kick * .12 - dip * .7 + spr * .38 + swayY * 1.6 - camLand * 2 - dw * 1.0;
+    gunGroup.rotation.y = spr * .75 - swayX * 2.4 + dw * .4;
+    // 재장전: 총을 기울이고 → 탄창 분리·낙하 → 새 탄창 장착
+    const mg = gunGroup.userData.mag, mp = gunGroup.userData.mp, pr = reloading ? 1 - rp : 0;
+    gunGroup.rotation.z = (reloading ? -Math.sin(Math.min(1, pr / 0.85) * Math.PI) * 0.45 : 0) + spr * .3 - swayX * 1.8 - lat * .006 * shake + Math.cos(bobT * .5) * bob * 2 + dw * .5;
+    if (w.melee){ swing = Math.max(0, swing - dt * 3.2); const q = 1 - swing, sw = swing > 0 ? Math.sin(q * Math.PI) : 0; gunGroup.rotation.z = swing > 0 ? (1 - q * 2) * 1.2 : 0; gunGroup.rotation.y = -sw * 0.8; gunGroup.rotation.x -= sw * 0.5; }
+    if (gunGroup.userData.belt) updateBelt(gunGroup.userData.belt, dt, a.mag, reloading);
+    if (mg){
+      if (!reloading || pr >= 0.8){ mg.visible = true; mg.position.copy(mp); }
+      else if (pr < 0.3){ mg.visible = true; mg.position.set(mp.x, mp.y - pr / 0.3 * 0.35, mp.z); }
+      else if (pr < 0.5){ if (mg.visible){ mg.visible = false; dropMag(mg); } }
+      else { mg.visible = true; mg.position.set(mp.x, mp.y - (0.8 - pr) / 0.3 * 0.35, mp.z); }
+    }
+  }
+  const spread = armPen() * w.spread * (ads ? 0.35 : 1) * (Math.hypot(player.vel.x, player.vel.z) > 1 ? 1.8 : 1) * (player.onGround ? 1 : 2.5);
+  $('cross').style.setProperty('--g', (5 + spread * 900) + 'px');
+
+  // 네트워크 전송
+  sendT += dt;
+  if (sendT >= 0.1){ sendT = 0; sendPos(); }
+
+  updateHud();
+  renderFrame();
+}
+equip(0);
+// 내 그림자 전용 몸체 (화면에는 안 보이고 그림자만 드리움)
+const selfAv = makeAvatar('', 0x3b82f6, {});
+selfAv.label.visible = false; selfAv.group.visible = false;
+selfAv.group.traverse(o => { if (o.material){ o.material.colorWrite = false; o.material.depthWrite = false; } });
+if (gunGroup) gunGroup.visible = false;
+loop();
+})();
+</script>
+</body>
+</html>
