@@ -1717,6 +1717,8 @@ function animateAvatar(av, dt, speed, vy, pitch){
 
 /* ---------- 네트워크 (Supabase Realtime + DB) ---------- */
 let sb = null, channel = null, netReady = false;
+let srvWhy = '', srvAt = 0, joinedAt = 0, sendN = 0, sendRate = 0;   // 끊김 원인 진단용
+setInterval(() => { sendRate = sendN; sendN = 0; }, 1000);
 const remotes = {};
 let onlineList = [];
 
@@ -1725,7 +1727,7 @@ function removeRemote(id){
   scene.remove(r.avatar.group); delete remotes[id];
 }
 function send(event, payload){
-  if (channel && netReady) channel.send({ type: 'broadcast', event, payload });
+  if (channel && netReady){ sendN++; channel.send({ type: 'broadcast', event, payload }); }
 }
 function me(){ return { jt: zJoinT, name: myName, k: kills, d: deaths, rn: rnd.n, rk: rnd.k, rd: rnd.d, prk: rnd.pk, prd: rnd.pd }; }
 let trackT = 0, trackLast = 0;
@@ -1774,10 +1776,15 @@ function onKill(p){
 
 /* 연결이 끊겨도 자동으로 다시 붙는 네트워크 (재접속: 1·2·4·8·10초 간격) */
 let netTry = 0, netTimer = 0, netGen = 0, netAt = 0, netWatch = false, netDrops = 0, netWhy = '', aloneAt = 0;
-function netDown(why){ netDrops++; netWhy = why; try { console.warn('[net] 연결 끊김:', why); } catch(e){} }
+function netDown(why){
+  netDrops++;
+  if (srvWhy && now() - srvAt < 15 && why.indexOf('서버') !== 0) why = srvWhy + ' → ' + why;   // 서버가 보낸 진짜 사유를 CLOSED가 덮어쓰지 않게
+  netWhy = why + ' [' + Math.round(now() - joinedAt) + '초 후·전송 ' + sendRate + '/초]';
+  try { console.warn('[net] 연결 끊김:', netWhy); } catch(e){}
+}
 function netHook(){   // 소켓 수준의 끊김 이유(코드)도 기록
-  try { sb.realtime.onClose(e => { if (netReady) netWhy = 'ws ' + ((e && e.code) || '?') + ((e && e.reason) ? ' ' + e.reason : ''); }); } catch(e){}
-  try { sb.realtime.onError(e => { netWhy = 'ws 오류'; }); } catch(e){}
+  try { sb.realtime.onClose(e => { srvWhy = 'ws ' + ((e && e.code) || '?') + ((e && e.reason) ? ' ' + e.reason : ''); srvAt = now(); }); } catch(e){}
+  try { sb.realtime.onError(e => { srvWhy = 'ws 오류'; srvAt = now(); }); } catch(e){}
 }
 function netWanted(){ return joined && configured && zmode !== 1; }
 function mkClient(){
@@ -1814,7 +1821,7 @@ async function openChannel(){
       syncBots();
       renderOnline();
     })
-    .on('system', {}, p => { if (gen !== netGen || !p) return; if (p.status === 'error' || /limit|too many|exceed/i.test(String(p.message || ''))) netDown('서버: ' + (p.message || p.extension || p.status)); })
+    .on('system', {}, p => { if (gen !== netGen || !p) return; if (p.status !== 'ok' || /limit|too many|exceed/i.test(String(p.message || ''))){ srvWhy = '서버: ' + String(p.message || p.extension || p.status).slice(0, 60); srvAt = now(); } })
     .on('broadcast', { event: 'pos' },  ({ payload }) => onPos(payload))
     .on('broadcast', { event: 'shot' }, ({ payload }) => onShot(payload))
     .on('broadcast', { event: 'hit' },  ({ payload }) => onHit(payload))
@@ -1830,7 +1837,7 @@ async function openChannel(){
     .subscribe((status, err) => {
       if (gen !== netGen) return;
       if (status === 'SUBSCRIBED'){
-        netReady = true; netTry = 0; ch.track(me()); setNet(true); sendPos(true);
+        netReady = true; netTry = 0; joinedAt = now(); ch.track(me()); setNet(true); sendPos(true);
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED'){
         if (netReady) netDown(status + (err && err.message ? ' ' + err.message : ''));
         netReady = false; setNet(false);
@@ -2356,7 +2363,7 @@ function updatePlayer(dt){
   if (player.onGround && player.vel.y <= 0 && p.y > gy && p.y - gy < .4) p.y = gy;
   if (p.y <= gy){ p.y = gy; player.vel.y = 0; player.onGround = true; } else player.onGround = false;
   if (p.y < -20) { p.set(0, 0, 0); }
-  }
+}
 
 /* ---------- 입력 ---------- */
 addEventListener('keydown', e => {
