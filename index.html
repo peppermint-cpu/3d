@@ -247,7 +247,7 @@ background:radial-gradient(circle,rgba(255,246,222,.95) 0,rgba(255,230,180,.55) 
 <div id="chat" class="hud"></div>
 <div id="chatBar"><input id="chatIn" maxlength="100" placeholder="전체 채팅 (Enter 전송)" autocomplete="off"><button id="chatSend">전송</button><button id="chatClose" class="x">✕</button></div>
 
-<div id="shop"><div class="shopbox"><div class="shophead"><b>🛒 무기 상점</b><span id="shopCoin"></span><button id="shopClose">✕</button></div><div class="stabs"><button id="tabW" class="on">🔫 무기</button><button id="tabP">🔧 파츠</button></div><div id="shopList"></div></div></div>
+<div id="shop"><div class="shopbox"><div class="shophead"><b>🛒 무기 상점</b><span id="shopCoin"></span><button id="shopClose">✕</button></div><div class="stabs"><button id="tabW" class="on">🔫 무기</button><button id="tabP">🔧 파츠</button><button id="tabD" style="display:none">🧱 방어</button></div><div id="shopList"></div></div></div>
 
 <div id="editLayer"></div>
 <div id="editbar"><b id="editName">버튼을 눌러 선택하세요</b><input type="range" id="editSize" min="0.5" max="2" step="0.05" value="1" disabled><button id="editReset" class="eb">초기화</button><button id="editDone" class="eb ok">완료</button></div>
@@ -967,6 +967,7 @@ function groundAt(x, z, prevY){
   return gy;
 }
 function randomSpawn(){
+  if (zmode){ const a = Math.random() * 6.283, r = Math.random() * 5; return { x: Math.cos(a) * r, z: Math.sin(a) * r }; }
   for (let i = 0; i < 80; i++){
     const x = (Math.random()-.5)*100, z = (Math.random()-.5)*100;
     if (!collides(x, 0, z) && !inLake(x, z)) return { x, z };
@@ -1706,6 +1707,8 @@ async function joinNet(){
     .on('broadcast', { event: 'zhit' }, ({ payload }) => onZe('zhit', payload))
     .on('broadcast', { event: 'zc' },   ({ payload }) => onZe('zc', payload))
     .on('broadcast', { event: 'zo' },   ({ payload }) => onZe('zo', payload))
+    .on('broadcast', { event: 'zx' },   ({ payload }) => onZe('zx', payload))
+    .on('broadcast', { event: 'bld' },  ({ payload }) => onZe('bld', payload))
     .subscribe(status => {
       if (status === 'SUBSCRIBED'){
         netReady = true; channel.track(me()); setNet(true);
@@ -2211,6 +2214,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Tab'){ e.preventDefault(); if (joined && !e.repeat){ $('board').style.display = 'block'; loadBoard(); } return; }
   if (!locked) return;
   if (e.code === 'KeyB' && joined && !e.repeat){ e.preventDefault(); openShop(); return; }
+  if (e.code === 'KeyG' && joined && zmode && !e.repeat){ e.preventDefault(); bPlace('wood'); return; }
   if (e.code === 'Enter' && joined && !e.repeat){ e.preventDefault(); openChat(); return; }
   if (noLock && (e.code === 'Escape' || e.code === 'KeyP')){
     locked = false; noLock = false; firing = false; mouseR = false;
@@ -2406,8 +2410,11 @@ function buyPart(id){
 let shopTab = 0, shopSel = 0;
 function renderShop(){
   $('shopCoin').textContent = '🪙 ' + prof.coins.toLocaleString();
-  $('tabW').classList.toggle('on', shopTab === 0); $('tabP').classList.toggle('on', shopTab === 1);
+  if (!zmode && shopTab === 2) shopTab = 0;
+  $('tabD').style.display = zmode ? '' : 'none';
+  $('tabW').classList.toggle('on', shopTab === 0); $('tabP').classList.toggle('on', shopTab === 1); $('tabD').classList.toggle('on', shopTab === 2);
   const box = $('shopList'); box.innerHTML = '';
+  if (shopTab === 2){ renderDef(box); return; }
   if (shopTab === 0){
     WEAPONS.forEach((w, i) => {
       const own = isOwned(i), row = document.createElement('div'); row.className = 'si';
@@ -2449,6 +2456,7 @@ function renderShop(){
   });
 }
 $('tabW').addEventListener('click', () => { shopTab = 0; renderShop(); });
+$('tabD').addEventListener('click', () => { shopTab = 2; renderShop(); });
 $('tabP').addEventListener('click', () => { shopTab = 1; if (!WEAPONS[cur].melee) shopSel = cur; renderShop(); });
 $('wallet').addEventListener('touchstart', e => { e.preventDefault(); openShop(); }, { passive: false });
 $('wallet').addEventListener('click', openShop);
@@ -2822,11 +2830,16 @@ $('editSize').addEventListener('input', () => {
 let zmode = 0, zJoinT = Date.now(), zbest = 0, zSendT = 0;
 try { zmode = +localStorage.getItem('is_mode') || 0; } catch(e){}
 try { zbest = +localStorage.getItem('is_zbest') || 0; } catch(e){}
-const zomb = {}, zw = { n: 0, left: 0, cd: 6, sp: 0, id: 1, over: 0, dead: 0 };
+const zomb = {}, zw = { n: 0, left: 0, cd: 12, sp: 0, id: 1, over: 0, dead: 0, bi: 1, boss: 0, base: 0 };
+let zSN = 0;
+const zy = (x, z) => inLake(x, z) ? LAKE_FLOOR : hillH(x, z);   // 호수 속에서는 호수 바닥 높이 (좀비도 물에 들어와요)
 const ZT = [
   { hp: 100, sp: 2.3, dmg: 12, sc: 1,    col: 0x3f6b35, reach: 1.4 },
   { hp: 55,  sp: 4.8, dmg: 8,  sc: .92,  col: 0x6f7f2f, reach: 1.3 },
-  { hp: 420, sp: 1.7, dmg: 26, sc: 1.35, col: 0x5a3040, reach: 1.9 }
+  { hp: 420, sp: 1.7, dmg: 26, sc: 1.35, col: 0x5a3040, reach: 1.9 },
+  { hp: 70,  sp: 2.4, dmg: 11, sc: 1,    col: 0x2f7a8a, reach: 1.3, rng: 17, keep: 11, cd: 2.2 },   // 침 뱉는 좀비 (멀리서 공격)
+  { hp: 60,  sp: 5.4, dmg: 0,  sc: .95,  col: 0xc4661a, reach: 1.2, boom: 1 },                       // 폭탄 좀비 (시설을 폭파)
+  { hp: 2600, sp: 2.0, dmg: 40, sc: 1.9, col: 0x2b1a3a, reach: 2.6, boss: 1 }                        // 보스 (5웨이브마다)
 ];
 const ZMAX = isTouch ? 16 : 26;
 function isHost(){
@@ -2840,13 +2853,136 @@ function zTargets(){
   for (const id in remotes){ const r = remotes[id]; if (!r.dead) T.push({ x: r.tx, z: r.tz }); }
   return T;
 }
+/* ---------- 방어 시설 (바리케이드·모래주머니·터렛·기지 성벽) — 좀비가 길을 막으면 부수고, 코인으로 다시 지어요 ---------- */
+const bars = [];
+const BT = {
+  wood: { h: 1.5, hp: 320,  c: 0x8a6a3c, cost: 40,  name: '나무 바리케이드', w: 3,   d: .5 },
+  sand: { h: 1.2, hp: 650,  c: 0xb9a77c, cost: 70,  name: '모래주머니 벽',   w: 3.2, d: 1 },
+  tur:  { h: 1.1, hp: 260,  c: 0x4b5a4b, cost: 350, name: '자동 터렛',       w: .9,  d: .9 },
+  bw:   { h: 1.4, hp: 900,  c: 0x8d9096 },   // 기지 성벽 (눈높이보다 낮아서 위로 쏠 수 있어요)
+  tw:   { h: 3.2, hp: 1600, c: 0x7b7468 },   // 감시탑
+  sx:   { h: 2.2, hp: 700,  c: 0x7b7468 },   // 탑 계단 2단
+  st:   { h: 1.1, hp: 700,  c: 0x7b7468 }    // 탑 계단 1단
+};
+function bTint(b){ b.m.material.color.setHex(BT[b.t].c).multiplyScalar(.4 + .6 * clamp(b.hp / b.mhp, 0, 1)); }
+function bAdd(id, t, x, z, w, d, hp){
+  const T = BT[t], top = hillH(x, z) + T.h;
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, top, d), new THREE.MeshLambertMaterial({ color: T.c }));
+  m.position.set(x, top / 2, z); m.castShadow = m.receiveShadow = true; scene.add(m);
+  let gun = null;
+  if (t === 'tur'){
+    gun = new THREE.Group(); gun.position.set(x, top + .2, z);
+    const br = new THREE.Mesh(new THREE.BoxGeometry(.16, .16, .9), new THREE.MeshLambertMaterial({ color: 0x1b1b1b })); br.position.z = -.45;
+    const hd = new THREE.Mesh(new THREE.BoxGeometry(.5, .3, .5), new THREE.MeshLambertMaterial({ color: 0x33403a }));
+    br.castShadow = hd.castShadow = true; gun.add(br, hd); scene.add(gun);
+  }
+  const box = { minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2, top };
+  boxes.push(box);
+  const b = { id, t, x, z, w, d, hp: hp == null ? T.hp : hp, mhp: T.hp, m, gun, box, cd: 0 };
+  bars.push(b); bTint(b); return b;
+}
+function bRemove(b){
+  scene.remove(b.m); if (b.gun) scene.remove(b.gun);
+  const i = boxes.indexOf(b.box); if (i >= 0) boxes.splice(i, 1);
+  const j = bars.indexOf(b); if (j >= 0) bars.splice(j, 1);
+}
+function zBarHit(b, d){
+  b.hp -= d;
+  if (b.hp <= 0){ impact(new THREE.Vector3(b.x, 1, b.z)); spawnBlood(new THREE.Vector3(b.x, 1, b.z), 12, 3); beep(110, .15, .06); bRemove(b); }
+  else bTint(b);
+}
+function zFix(x, z){ bars.forEach(b => { if (Math.hypot(b.x - x, b.z - z) < 16){ b.hp = b.mhp; bTint(b); } }); }
+function zBuildBase(){   // 가운데 기지: 성벽 + 모서리 감시탑(계단으로 올라가요)
+  const K = 11;
+  for (const s of [-1, 1]) for (let i = 0; i < 3; i++){
+    const c = -6.2 + i * 6.2;
+    bAdd(zw.bi++, 'bw', c, s * K, 6.2, .9); bAdd(zw.bi++, 'bw', s * K, c, .9, 6.2);
+  }
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]){
+    bAdd(zw.bi++, 'tw', sx * K, sz * K, 3.4, 3.4);
+    bAdd(zw.bi++, 'sx', sx * 8.3, sz * 9.2, 2, 2.4);
+    bAdd(zw.bi++, 'st', sx * 6.3, sz * 9.2, 2, 2.4);
+  }
+}
+function bPlace(t){
+  if (!zmode || !joined || player.dead) return;
+  const T = BT[t];
+  if (prof.coins < T.cost){ showMsg('코인이 부족해요', 900); return; }
+  if (bars.length >= 70){ showMsg('시설이 너무 많아요', 900); return; }
+  const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw), sw = Math.abs(fx) > Math.abs(fz);
+  const x = clamp(player.pos.x + fx * 3.4, -57, 57), z = clamp(player.pos.z + fz * 3.4, -57, 57);
+  const w = sw ? T.d : T.w, d = sw ? T.w : T.d;
+  if (inLake(x, z) || (Math.abs(x - player.pos.x) < w / 2 + R + .1 && Math.abs(z - player.pos.z) < d / 2 + R + .1)){ showMsg('여기엔 설치할 수 없어요', 900); return; }
+  prof.coins -= T.cost; saveLocalProf(); updateWallet();
+  if (isHost()) bAdd(zw.bi++, t, x, z, w, d); else send('bld', { t, x, z, w, d });
+  showMsg(T.name + ' 설치!', 900); beep(300, .08, .06);
+}
+function bRepair(){
+  if (prof.coins < 60){ showMsg('코인이 부족해요', 900); return; }
+  prof.coins -= 60; saveLocalProf(); updateWallet();
+  if (isHost()) zFix(player.pos.x, player.pos.z); else send('bld', { t: 'fix', x: player.pos.x, z: player.pos.z });
+  showMsg('🔧 주변 시설 수리!', 900);
+}
+function renderDef(box){
+  const mk = (nm, sm, label, dis, fn) => {
+    const row = document.createElement('div'); row.className = 'si';
+    const info = document.createElement('div'), n = document.createElement('span'); n.className = 'nm'; n.textContent = nm;
+    const g = document.createElement('small'); g.textContent = sm; info.append(n, g);
+    const b = document.createElement('button'); b.textContent = label; b.disabled = dis; b.onclick = fn;
+    row.append(info, b); box.appendChild(row);
+  };
+  ['wood', 'sand', 'tur'].forEach(k => { const T = BT[k]; mk(T.name, '내 앞에 설치 · 체력 ' + T.hp + (k === 'tur' ? ' · 가까운 좀비를 자동 사격' : ' · 좀비가 먼저 부숴요'), '🪙 ' + T.cost, prof.coins < T.cost, () => { bPlace(k); closeShop(); }); });
+  mk('🔧 시설 수리', '주변 16m 시설 체력 전부 회복', '🪙 60', prof.coins < 60, () => { bRepair(); renderShop(); });
+}
+function zbSync(p){   // 호스트가 보낸 시설 목록을 따라가기 (호스트가 바뀌어도 시설이 이어져요)
+  if (!p.b) return;
+  if (p.b.length) zw.base = 1;
+  zw.bi = Math.max(zw.bi, p.bi || 1);
+  const seen = {};
+  for (const a of p.b){
+    if (!BT[a[1]]) continue;
+    seen[a[0]] = 1;
+    let b = bars.find(q => q.id === a[0]);
+    if (!b) b = bAdd(a[0], a[1], a[2], a[3], a[4], a[5], a[6]);
+    else if (b.hp !== a[6]){ b.hp = a[6]; bTint(b); }
+    if (b.gun && a[7] != null) b.gun.rotation.y = a[7];
+  }
+  for (const b of bars.slice()) if (!seen[b.id]) bRemove(b);
+}
+function zBoom(x, z){   // 폭탄 좀비 폭발: 사람은 피해, 시설은 호스트가 부숨
+  const y = zy(x, z) + .8;
+  spawnBlood(new THREE.Vector3(x, y, z), 50, 7);
+  for (let i = 0; i < 4; i++) impact(new THREE.Vector3(x + (Math.random() - .5) * 2.5, y + Math.random(), z + (Math.random() - .5) * 2.5));
+  beep(90, .5, .15);
+  const d = Math.hypot(player.pos.x - x, player.pos.z - z);
+  if (!player.dead && d < 5) takeDamage(Math.round(45 * (1 - d / 5) + 8), 'zombie', '폭탄 좀비', 0, false, null);
+  if (isHost()) for (const b of bars.slice()) if (Math.hypot(b.x - x, b.z - z) < 6) zBarHit(b, 260);
+}
+function zBoomHost(z){ const x = z.x, zz = z.z; scene.remove(z.av.group); delete zomb[z.id]; send('zx', { x, z: zz }); zBoom(x, zz); }
+function zTurrets(dt){
+  for (const b of bars){
+    if (b.t !== 'tur') continue;
+    b.cd -= dt; let best = null, bd = 26;
+    for (const id in zomb){ const q = zomb[id], d = Math.hypot(q.x - b.x, q.z - b.z); if (d < bd){ bd = d; best = q; } }
+    if (!best) continue;
+    b.gun.rotation.y = Math.atan2(-(best.x - b.x), -(best.z - b.z));
+    if (b.cd <= 0){
+      b.cd = .28;
+      const from = new THREE.Vector3(b.x, b.gun.position.y + .05, b.z), to = new THREE.Vector3(best.x, zy(best.x, best.z) + 1.2, best.z);
+      tracer(from, to, 0x9ff28a); playShot(0, clamp(1 - bd / 60, 0, 1) * .4);
+      send('shot', { id: 'tur', f: from.toArray(), t: to.toArray(), w: 0, h: 0 });
+      zDamage(best.id, 15 + zw.n, '', 0, false);
+    }
+  }
+}
+
 function zAdd(id, t, x, z, hp, mhp){
   const T = ZT[t], av = makeAvatar('', T.col, { kind: 'zombie', zid: id });
   av.label.visible = false; av.parts.gun.visible = false;
-  av.parts.head.material.color.set(0x7ea35c);
+  av.parts.head.material.color.set(t === 4 ? 0xe0a24a : t === 5 ? 0x8a4a9a : 0x7ea35c);
   av.group.scale.setScalar(T.sc);
-  av.group.position.set(x, hillH(x, z), z);
-  return (zomb[id] = { id, t, x, z, yaw: 0, hp, mhp, av, ph: 0, atk: 0 });
+  av.group.position.set(x, zy(x, z), z);
+  return (zomb[id] = { id, t, x, z, yaw: 0, hp, mhp, av, ph: 0, atk: 0, batk: 0 });
 }
 function zSpawn(){
   const T = zTargets(), c = T[(Math.random() * T.length) | 0] || { x: 0, z: 0 };
@@ -2854,15 +2990,19 @@ function zSpawn(){
   for (let i = 0; i < 14; i++){
     const a = Math.random() * 6.283, r = 26 + Math.random() * 10;
     x = clamp(c.x + Math.cos(a) * r, -57, 57); z = clamp(c.z + Math.sin(a) * r, -57, 57);
-    if (!collides(x, 0, z) && !inLake(x, z)) break;
+    if (!collides(x, 0, z)) break;
   }
-  const q = Math.random(), t = zw.n >= 3 && q < .12 ? 2 : zw.n >= 2 && q < .38 ? 1 : 0;
-  const mhp = Math.round(ZT[t].hp * (1 + zw.n * .12));
+  const q = Math.random(), n = zw.n;
+  let t = 0;
+  if (zw.boss){ zw.boss = 0; t = 5; }
+  else if (n >= 5 && q < .10) t = 4; else if (n >= 4 && q < .20) t = 3; else if (n >= 3 && q < .30) t = 2; else if (n >= 2 && q < .55) t = 1;
+  const mhp = Math.round(ZT[t].hp * (1 + n * .12));
   zAdd(zw.id++, t, x, z, mhp, mhp);
 }
 function zReset(){
   for (const id in zomb){ scene.remove(zomb[id].av.group); delete zomb[id]; }
-  zw.n = 0; zw.left = 0; zw.cd = 6; zw.sp = 0; zw.over = 0; zw.dead = 0;
+  for (const b of bars.slice()) bRemove(b);
+  zw.n = 0; zw.left = 0; zw.cd = 12; zw.sp = 0; zw.over = 0; zw.dead = 0; zw.boss = 0; zw.base = 0;
 }
 function zSaveBest(n){ if (n > zbest){ zbest = n; try { localStorage.setItem('is_zbest', String(n)); } catch(e){} } }
 function zClear(n){
@@ -2876,6 +3016,7 @@ function zClear(n){
 }
 function zHostSim(dt){
   if (zw.over){ if (now() > zw.over) zReset(); return; }
+  if (!zw.base){ zw.base = 1; if (!bars.length) zBuildBase(); }
   const T = zTargets(), ids = Object.keys(zomb), alive = ids.length;
   const humans = netReady ? Math.max(1, onlineList.length) : 1;
   if (!T.length){
@@ -2886,28 +3027,47 @@ function zHostSim(dt){
   zw.dead = 0;
   if (zw.cd > 0){
     zw.cd -= dt;
-    if (zw.cd <= 0){ zw.n++; zw.left = Math.round((6 + zw.n * 3) * (1 + (humans - 1) * .6)); zw.sp = 1; showMsg('🧟 웨이브 ' + zw.n + ' 시작!', 2000); beep(180, .4, .08); }
+    if (zw.cd <= 0){
+      zw.n++; zw.left = Math.round((6 + zw.n * 3) * (1 + (humans - 1) * .6)); zw.sp = 1;
+      if (zw.n % 5 === 0){ zw.boss = 1; zw.left++; }
+      showMsg(zw.n % 5 === 0 ? '👹 보스 웨이브 ' + zw.n + '!' : '🧟 웨이브 ' + zw.n + ' 시작!', 2000); beep(180, .4, .08);
+    }
   } else {
     zw.sp -= dt;
     if (zw.left > 0 && alive < ZMAX && zw.sp <= 0){ zSpawn(); zw.left--; zw.sp = Math.max(.35, 1.5 - zw.n * .07); }
-    if (zw.left <= 0 && alive === 0){ zw.cd = 9; send('zc', { w: zw.n }); zClear(zw.n); }
+    if (zw.left <= 0 && alive === 0){ zw.cd = 12; send('zc', { w: zw.n }); zClear(zw.n); bars.forEach(b => { b.hp = Math.min(b.mhp, b.hp + b.mhp * .5); bTint(b); }); }
   }
+  const tn = now();
   for (const id of ids){
-    const z = zomb[id], s = ZT[z.t];
+    const z = zomb[id]; if (!z) continue;
+    const s = ZT[z.t];
     let bd = 1e9, bx = 0, bz = 0;
     for (const p of T){ const d = Math.hypot(p.x - z.x, p.z - z.z); if (d < bd){ bd = d; bx = p.x - z.x; bz = p.z - z.z; } }
     z.yaw = Math.atan2(-bx, -bz);
+    const dx = bx / bd, dz = bz / bd;
+    if (s.boom && bd < 2.2){ zBoomHost(z); continue; }
+    let blk = null;   // 가는 길을 막는 시설이 있으면 멈춰서 부숨
     if (bd > s.reach * .8){
-      const v = s.sp * (1 + Math.min(zw.n, 12) * .03) * dt, sx = bx / bd * v, sz = bz / bd * v;
+      const px = z.x + dx * .35, pz = z.z + dz * .35;
+      for (const b of bars) if (Math.abs(px - b.x) < b.w / 2 + .45 && Math.abs(pz - b.z) < b.d / 2 + .45){ blk = b; break; }
+    }
+    if (blk){
+      if (s.boom){ zBoomHost(z); continue; }
+      if (tn - z.batk > 1){ z.batk = tn; zBarHit(blk, s.dmg * (s.boss ? 3 : 1.4)); }
+      continue;
+    }
+    if (bd > (s.keep || s.reach * .8)){
+      const v = s.sp * (1 + Math.min(zw.n, 12) * .03) * (inLake(z.x, z.z) ? .55 : 1) * dt, sx = dx * v, sz = dz * v;   // 물속에서는 느려지지만 들어올 수 있어요
       let moved = false;
-      if (!collides(z.x + sx, 0, z.z) && !inLake(z.x + sx, z.z)){ z.x += sx; moved = true; }
-      if (!collides(z.x, 0, z.z + sz) && !inLake(z.x, z.z + sz)){ z.z += sz; moved = true; }
+      if (!collides(z.x + sx, 0, z.z)){ z.x += sx; moved = true; }
+      if (!collides(z.x, 0, z.z + sz)){ z.z += sz; moved = true; }
       if (!moved){
-        const ox = z.x - bz / bd * v * 1.2, oz = z.z + bx / bd * v * 1.2;
-        if (!collides(ox, 0, oz) && !inLake(ox, oz)){ z.x = ox; z.z = oz; }
+        const ox = z.x - dz * v * 1.2, oz = z.z + dx * v * 1.2;
+        if (!collides(ox, 0, oz)){ z.x = ox; z.z = oz; }
       }
     }
   }
+  zTurrets(dt);
 }
 function animZ(z, dt, sp){
   const L = z.av.limbs; z.ph += dt * (2 + sp * 1.6);
@@ -2921,7 +3081,7 @@ function zRender(dt){
   for (const id in zomb){
     const z = zomb[id], g = z.av.group, ox = g.position.x, oz = g.position.z;
     g.position.x += (z.x - ox) * k; g.position.z += (z.z - oz) * k;
-    g.position.y = hillH(g.position.x, g.position.z);
+    g.position.y = zy(g.position.x, g.position.z);
     let dr = z.yaw - g.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); g.rotation.y += dr * k;
     animZ(z, dt, Math.hypot(g.position.x - ox, g.position.z - oz) / Math.max(dt, .001));
   }
@@ -2931,9 +3091,11 @@ function zAttackMe(){
   const t = now();
   for (const id in zomb){
     const z = zomb[id], s = ZT[z.t], p = z.av.group.position;
-    if (t - z.atk < 1) continue;
-    if (Math.hypot(p.x - player.pos.x, p.z - player.pos.z) < s.reach && Math.abs(p.y - player.pos.y) < 1.8){
+    if (s.boom || t - z.atk < (s.cd || 1)) continue;
+    const d = Math.hypot(p.x - player.pos.x, p.z - player.pos.z);
+    if (d < (s.rng || s.reach) && Math.abs(p.y - player.pos.y) < (s.rng ? 6 : 1.8)){
       z.atk = t; beep(120 + Math.random() * 40, .2, .05);
+      if (s.rng) tracer(new THREE.Vector3(p.x, p.y + 1.4, p.z), new THREE.Vector3(player.pos.x, player.pos.y + 1.2, player.pos.z), 0x9bff5a);
       takeDamage(Math.round(s.dmg * (1 + zw.n * .04)), 'zombie', '좀비', 0, false, null);
       if (player.dead) return;
     }
@@ -2955,7 +3117,7 @@ function zKill(id, by, w, head){
   spawnCorpse(z.av, p.x, p.y, p.z, g.rotation.y, p.x - player.pos.x, p.z - player.pos.z);
   scene.remove(g); delete zomb[id];
   if (by === myId){
-    kills++; prof.coins += z.t === 2 ? 40 : 10; prof.xp += 15;
+    kills++; prof.coins += z.t === 5 ? 300 : z.t === 2 ? 40 : z.t >= 3 ? 20 : 10; prof.xp += z.t === 5 ? 200 : 15;
     showMsg(head ? '헤드샷!' : 'KILL +1', 800); beep(900, .08, .06);
     saveLocalProf(); updateWallet(); trackMe();
   }
@@ -2971,10 +3133,19 @@ function onZs(p){
     z.x = a[1]; z.z = a[2]; z.yaw = a[3]; z.hp = a[4];
   }
   for (const id in zomb) if (!seen[id]){ scene.remove(zomb[id].av.group); delete zomb[id]; }
+  zbSync(p);
 }
 function onZe(ev, p){
   if (!p) return;
   if (ev === 'zhit'){ if (isHost()) zDamage(p.id, p.d, p.by, p.w, !!p.h); return; }
+  if (ev === 'bld'){
+    if (isHost() && isFinite(+p.x + +p.z)){
+      if (p.t === 'fix') zFix(+p.x, +p.z);
+      else if (BT[p.t] && BT[p.t].cost && isFinite(+p.w + +p.d) && bars.length < 70) bAdd(zw.bi++, p.t, +p.x, +p.z, +p.w, +p.d);
+    }
+    return;
+  }
+  if (ev === 'zx'){ zBoom(+p.x, +p.z); return; }
   if (isHost()) return;
   if (ev === 'zk') zKill(p.id, p.by, p.w, !!p.h);
   else if (ev === 'zc') zClear(p.w);
@@ -2984,7 +3155,7 @@ function zHud(){
   const t = $('roundTime'), l = $('roundLead');
   t.classList.remove('low');
   if (zw.over){ t.textContent = '💀 게임 오버'; l.textContent = '웨이브 ' + zw.n + ' 도달 · 곧 다시 시작'; }
-  else if (zw.cd > 0){ t.textContent = '🧟 웨이브 ' + (zw.n + 1) + ' · ' + Math.ceil(zw.cd) + '초'; l.textContent = '대비하세요! · 최고 ' + zbest; }
+  else if (zw.cd > 0){ t.textContent = '🧟 웨이브 ' + (zw.n + 1) + ' · ' + Math.ceil(zw.cd) + '초'; l.textContent = '대비하세요! · G 바리케이드 · B 방어상점 · 최고 ' + zbest; }
   else { t.textContent = '🧟 웨이브 ' + zw.n; l.textContent = '남은 좀비 ' + (zw.left + Object.keys(zomb).length) + ' · 최고 ' + zbest; }
 }
 function zTick(dt){
@@ -2995,7 +3166,8 @@ function zTick(dt){
     zSendT += dt;
     if (zSendT >= .1){
       zSendT = 0;
-      send('zs', { w: zw.n, l: zw.left, c: Math.ceil(zw.cd), o: zw.over ? 1 : 0, i: zw.id,
+      zSN = (zSN + 1) % 5;
+      send('zs', { b: zSN ? undefined : bars.map(b => [b.id, b.t, +b.x.toFixed(1), +b.z.toFixed(1), +b.w.toFixed(1), +b.d.toFixed(1), Math.round(b.hp), b.gun ? +b.gun.rotation.y.toFixed(2) : 0]), bi: zw.bi, w: zw.n, l: zw.left, c: Math.ceil(zw.cd), o: zw.over ? 1 : 0, i: zw.id,
         z: Object.values(zomb).map(z => [z.id, +z.x.toFixed(1), +z.z.toFixed(1), +z.yaw.toFixed(2), Math.round(z.hp), z.t]) });
     }
   }
@@ -3121,55 +3293,4 @@ function loop(){
     spr += ((sprinting ? 1 : 0) - spr) * clamp((sprinting ? 9 : 25) * dt, 0, 1);
     bobT += dt * (moving ? (sprinting ? 14 : 10) : 1.8);
     const bob = (moving ? (ads ? .004 : .012) : .0025) * (1 + spr * .8) * shake;
-    let dyw = player.yaw - prevYaw; dyw = Math.atan2(Math.sin(dyw), Math.cos(dyw));
-    const yawRate = dyw / Math.max(dt, .001), pitRate = (player.pitch - prevPitch) / Math.max(dt, .001);
-    prevYaw = player.yaw; prevPitch = player.pitch;
-    const sk = ads ? .35 : 1, ks = clamp(9 * dt, 0, 1);
-    swayX += (clamp(yawRate * .012, -.07, .07) * sk * shake - swayX) * ks;
-    swayY += (clamp(-pitRate * .010, -.05, .05) * sk * shake - swayY) * ks;
-    const lat = player.vel.x * Math.cos(player.yaw) - player.vel.z * Math.sin(player.yaw);
-    const sgs = sightOf(cur), sa = ads && sgs ? sgs : null;
-    const tx = ads ? 0 : .24 - spr * .1, ty = ads ? (sa ? sa.y : -.15) : -.22 - spr * .07, tz = ads ? (sa ? sa.z : -.36) : -.5 + spr * .08;
-    const rp = reloading ? Math.min(1, (reloadEnd - t) / reloadTime(cur)) : 0;
-    const dip = reloading ? Math.sin(Math.min(1, 1 - rp) * Math.PI) : 0;
-    drawT = Math.max(0, drawT - dt / drawDur);
-    const dw = drawT * drawT * (3 - 2 * drawT);
-    const gp = gunGroup.position, k2 = clamp(16 * dt, 0, 1);
-    gp.x += (tx + swayX + Math.cos(bobT * .5) * bob * .9 - lat * .004 * shake + dw * .1 - gp.x) * k2;
-    gp.y += (ty + swayY + Math.sin(bobT) * bob - dip * .18 - camLand * 1.1 - dw * .38 - gp.y) * k2;
-    gp.z += (tz + kick * .06 + Math.abs(Math.sin(bobT * .5)) * bob * .6 + dw * .12 - gp.z) * k2;
-    gunGroup.rotation.x = kick * .12 - dip * .7 + spr * .38 + swayY * 1.6 - camLand * 2 - dw * 1.0;
-    gunGroup.rotation.y = spr * .75 - swayX * 2.4 + dw * .4;
-    // 재장전: 총을 기울이고 → 탄창 분리·낙하 → 새 탄창 장착
-    const mg = gunGroup.userData.mag, mp = gunGroup.userData.mp, pr = reloading ? 1 - rp : 0;
-    gunGroup.rotation.z = (reloading ? -Math.sin(Math.min(1, pr / 0.85) * Math.PI) * 0.45 : 0) + spr * .3 - swayX * 1.8 - lat * .006 * shake + Math.cos(bobT * .5) * bob * 2 + dw * .5;
-    if (w.melee){ swing = Math.max(0, swing - dt * 3.2); const q = 1 - swing, sw = swing > 0 ? Math.sin(q * Math.PI) : 0; gunGroup.rotation.z = swing > 0 ? (1 - q * 2) * 1.2 : 0; gunGroup.rotation.y = -sw * 0.8; gunGroup.rotation.x -= sw * 0.5; }
-    if (gunGroup.userData.belt) updateBelt(gunGroup.userData.belt, dt, a.mag, reloading);
-    if (mg){
-      if (!reloading || pr >= 0.8){ mg.visible = true; mg.position.copy(mp); }
-      else if (pr < 0.3){ mg.visible = true; mg.position.set(mp.x, mp.y - pr / 0.3 * 0.35, mp.z); }
-      else if (pr < 0.5){ if (mg.visible){ mg.visible = false; dropMag(mg); } }
-      else { mg.visible = true; mg.position.set(mp.x, mp.y - (0.8 - pr) / 0.3 * 0.35, mp.z); }
-    }
-  }
-  const spread = armPen() * w.spread * (ads ? 0.35 : 1) * (Math.hypot(player.vel.x, player.vel.z) > 1 ? 1.8 : 1) * (player.onGround ? 1 : 2.5);
-  $('cross').style.setProperty('--g', (5 + spread * 900) + 'px');
-
-  // 네트워크 전송
-  sendT += dt;
-  if (sendT >= 0.1){ sendT = 0; sendPos(); }
-
-  updateHud();
-  renderFrame();
-}
-equip(0);
-// 내 그림자 전용 몸체 (화면에는 안 보이고 그림자만 드리움)
-const selfAv = makeAvatar('', 0x3b82f6, {});
-selfAv.label.visible = false; selfAv.group.visible = false;
-selfAv.group.traverse(o => { if (o.material){ o.material.colorWrite = false; o.material.depthWrite = false; } });
-if (gunGroup) gunGroup.visible = false;
-loop();
-})();
-</script>
-</body>
-</html>
+    let dyw = player.yaw - prevYaw; dyw = Math.atan2(Math.sin(dyw), M
