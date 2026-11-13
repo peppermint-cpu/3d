@@ -1619,7 +1619,8 @@ function avGunTemplate(wid){
   spec.parts.forEach(p => { if (p[6] !== SKIN) add(p, g); });   // 손 모양 파츠는 아바타 손이 있으니 뺌
   const mi = MAGIDX[wid], mg = mi != null ? g.children[mi] : null;
   (spec.d || []).forEach(p => { if (p[6] !== SKIN) add(p, ((p[7] || '').indexOf('M') >= 0 && mg) ? mg : g); });
-  g.scale.setScalar(.8); g.position.z = .08;
+  const tip = new THREE.Object3D(); tip.name = 'tip'; tip.position.set(0, .015, spec.tip); g.add(tip);   // 총구 위치 (총알 궤적 시작점)
+  g.position.set(0, -.21, -.46);   // 어깨(회전축)에서 본 총의 위치. 크기는 내 화면 총과 같은 1배
   return (_avGun[wid] = g);
 }
 function setAvatarGun(av, wi){
@@ -1627,7 +1628,7 @@ function setAvatarGun(av, wi){
   if (av.gunW === wi) return; av.gunW = wi;
   const holder = av.parts.gun;
   while (holder.children.length) holder.remove(holder.children[0]);
-  holder.add(avGunTemplate(WEAPONS[wi].id).clone());
+  const c = avGunTemplate(WEAPONS[wi].id).clone(); holder.add(c); av.gunTip = c.getObjectByName('tip');
 }
 function makeAvatar(name, color, userData){
   const grp = new THREE.Group(), pivot = new THREE.Group();
@@ -1660,8 +1661,8 @@ function makeAvatar(name, color, userData){
   // 바이저(얼굴 방향 표시) – 머리 메쉬의 자식이라 머리가 날아가면 같이 사라짐
   const visor = new THREE.Mesh(new THREE.BoxGeometry(.26, .07, .06), new THREE.MeshLambertMaterial({ color: 0x111827 }));
   visor.position.set(0, .03, -.19); parts.head.add(visor);
-  const gun = new THREE.Group(); gun.position.set(.16, 1.22, -.42); pivot.add(gun); parts.gun = gun;   // 총 모델은 setAvatarGun 이 채움 (그 전엔 검은 막대)
-  const gbox = new THREE.Mesh(new THREE.BoxGeometry(.07, .1, .55), new THREE.MeshLambertMaterial({ color: 0x222222 })); gbox.castShadow = true; gun.add(gbox);
+  const gun = new THREE.Group(); gun.position.set(.16, 1.43, 0); pivot.add(gun); parts.gun = gun;   // 총 모델은 setAvatarGun 이 채움 (그 전엔 검은 막대)
+  const gbox = new THREE.Mesh(new THREE.BoxGeometry(.07, .1, .55), new THREE.MeshLambertMaterial({ color: 0x222222 })); gbox.castShadow = true; gbox.position.set(0, -.21, -.42); gun.add(gbox);
   const label = makeLabel(name); grp.add(label);
   scene.add(grp);
   return { group: grp, pivot, parts, limbs, label, nm: name, gunW: -1, prone: false, phase: 0, spd: 0, breath: Math.random() * 6, kick: 0, hit: [parts.legL, parts.legR, parts.torso, parts.armL, parts.armR, parts.head] };
@@ -1705,8 +1706,8 @@ function animateAvatar(av, dt, speed, vy, pitch){
   L.armR.rotation.set(1.3 - low + pt + kk * .35 + Math.sin(av.phase * 2) * .04 * moving + br * .02, 0, -.2);
   L.armL.rotation.set(1.2 - low + pt + kk * .3 + Math.sin(av.phase * 2 + 1) * .04 * moving + br * .02, 0, .45);
   P.gun.rotation.x = pt - low + kk * .25;
-  P.gun.position.y = 1.22 + Math.sin(av.phase * 2) * .01 * moving + br * .01;
-  P.gun.position.z = -.42 + kk * .06;
+  P.gun.position.y = 1.43 + Math.sin(av.phase * 2) * .01 * moving + br * .01;
+  P.gun.position.z = kk * .06;
   P.torso.scale.y = 1 + br * .02;
   av.pivot.position.x = Math.sin(av.breath * .8) * .012 * (1 - moving);
   P.head.position.y = 1.65 + Math.abs(sw) * .02 * moving + br * .012;
@@ -1766,6 +1767,8 @@ function onPos(p){
 function onShot(p){
   if (!p || p.id === myId) return;
   const a = new THREE.Vector3().fromArray(p.f), b = new THREE.Vector3().fromArray(p.t);
+  const rr = remotes[p.id];
+  if (rr && rr.avatar.gunTip && rr.avatar.group.visible){ rr.avatar.group.updateMatrixWorld(true); rr.avatar.gunTip.getWorldPosition(a); }
   tracer(a, b, 0xffb86b);
   if (remotes[p.id]) remotes[p.id].avatar.kick = 1;
   if (p.h) spawnBlood(b, bloodCount(p.hp), 3.2, b.clone().sub(a).normalize());
@@ -3492,7 +3495,7 @@ function loop(){
     g.position.z += (r.tz - g.position.z) * k;
     let dr = r.tr - g.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr));
     g.rotation.y += dr * k;
-    animateAvatar(r.avatar, dt, Math.hypot(g.position.x - ox, g.position.z - oz) / dt, (g.position.y - oy) / dt, r.tp);
+    animateAvatar(r.avatar, dt, Math.hypot(g.position.x - ox, g.position.z - oz) / dt, (g.position.y - oy) / dt, r.sp = (r.sp || 0) + ((r.tp || 0) - (r.sp || 0)) * k);
   }
 
   updateSun();
