@@ -459,30 +459,96 @@ addEventListener('resize', () => {
   camera.updateProjectionMatrix();
 });
 
+/* ---------- [땅] 텍스처 도우미 (노이즈 / 이음새 없는 타일 그리기) ---------- */
+const ANISO = Math.min(4, renderer.capabilities.getMaxAnisotropy());   // 멀리 있는 땅이 뭉개지지 않게
+const sst = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const thh = (x, y) => { const n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453; return n - Math.floor(n); };
+const tvn = (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  return (thh(xi, yi) * (1 - u) + thh(xi + 1, yi) * u) * (1 - v) + (thh(xi, yi + 1) * (1 - u) + thh(xi + 1, yi + 1) * u) * v; };
+const thh3 = (x, y, z) => { const n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return n - Math.floor(n); };
+const tvn3 = (x, y, z) => {
+  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z), xf = x - xi, yf = y - yi, zf = z - zi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf), l = (a, b, t) => a + (b - a) * t;
+  return l(l(l(thh3(xi, yi, zi), thh3(xi + 1, yi, zi), u), l(thh3(xi, yi + 1, zi), thh3(xi + 1, yi + 1, zi), u), v),
+           l(l(thh3(xi, yi, zi + 1), thh3(xi + 1, yi, zi + 1), u), l(thh3(xi, yi + 1, zi + 1), thh3(xi + 1, yi + 1, zi + 1), u), v), w);
+};
+// 캔버스 가장자리를 넘어가는 그림은 반대편에도 그려서 타일을 이어 붙여도 이음새가 안 보이게 함
+const wrapDraw = (S, x, y, r, fn) => { for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++){ const X = x + ox * S, Y = y + oy * S; if (X + r < 0 || X - r > S || Y + r < 0 || Y - r > S) continue; fn(X, Y); } };
+
 /* ---------- 맵 (시드 고정 → 모든 접속자가 같은 맵) ---------- */
 const LAKE = { x: 22, z: -16, r: 16 }, WATER_Y = -0.12, LAKE_FLOOR = -0.45;   // 원형 호수
 const inLake = (x, z) => Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r;
 const boxes = [];        // 충돌용 AABB
 const worldMeshes = [];  // 총알 충돌용 메쉬
 (function buildMap(){
-  // 풀밭 텍스처 (점점이 색을 흩뿌려 자연스럽게)
-  const c = document.createElement('canvas'); c.width = c.height = 128;
-  const g = c.getContext('2d');
-  g.fillStyle = '#5c8a3e'; g.fillRect(0,0,128,128);
-  const r0 = mulberry32(7);
-  for (let i = 0; i < 700; i++){ g.fillStyle = r0() < .5 ? 'rgba(40,90,30,.35)' : 'rgba(150,190,80,.30)'; g.fillRect(r0()*128, r0()*128, 2 + r0()*3, 2 + r0()*3); }
-  const tex = new THREE.CanvasTexture(c);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(.24, .24);
+  // [땅] 풀밭 텍스처: 큰 색 얼룩 + 수천 개의 풀잎 + 흙 알갱이 + 들꽃 (256px, 이음새 없음)
+  const tex = (() => {
+    const S = 256, cv = document.createElement('canvas'); cv.width = cv.height = S;
+    const g = cv.getContext('2d'), r0 = mulberry32(7);
+    g.fillStyle = '#5a8a3a'; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 46; i++){
+      const x = r0() * S, y = r0() * S, r = 14 + r0() * 34, k = r0(), c = k < .45 ? '60,110,40' : k < .75 ? '135,160,70' : '80,100,45';
+      wrapDraw(S, x, y, r, (X, Y) => { const gr = g.createRadialGradient(X, Y, 0, X, Y, r); gr.addColorStop(0, 'rgba(' + c + ',.30)'); gr.addColorStop(1, 'rgba(' + c + ',0)'); g.fillStyle = gr; g.fillRect(X - r, Y - r, r * 2, r * 2); });
+    }
+    const pal = ['#3f7a2c', '#4e8f34', '#6aa642', '#85b552', '#2f6422', '#9cc45f'];
+    g.lineWidth = 1;
+    for (let i = 0; i < 3600; i++){
+      const x = r0() * S, y = r0() * S, an = -Math.PI / 2 + (r0() - .5) * 1.2, l = 3 + r0() * 6;
+      g.strokeStyle = pal[(r0() * pal.length) | 0]; g.globalAlpha = .55 + r0() * .35;
+      wrapDraw(S, x, y, l, (X, Y) => { g.beginPath(); g.moveTo(X, Y); g.lineTo(X + Math.cos(an) * l, Y + Math.sin(an) * l); g.stroke(); });
+    }
+    g.globalAlpha = 1;
+    for (let i = 0; i < 60; i++){ const x = r0() * S, y = r0() * S; g.fillStyle = 'rgba(88,68,42,.45)'; wrapDraw(S, x, y, 2, (X, Y) => g.fillRect(X, Y, 1.5, 1.5)); }
+    for (let i = 0; i < 16; i++){ const x = r0() * S, y = r0() * S; g.fillStyle = r0() < .5 ? 'rgba(250,244,214,.9)' : 'rgba(238,206,70,.9)'; wrapDraw(S, x, y, 2, (X, Y) => g.fillRect(X, Y, 2, 2)); }
+    const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(.36, .36); t.anisotropy = ANISO;
+    return t;
+  })();
   // 땅: 호수 자리가 뚫린 판 (판의 y축 = 월드 -z)
   const shape = new THREE.Shape();
   shape.moveTo(-62,-62); shape.lineTo(62,-62); shape.lineTo(62,62); shape.lineTo(-62,62);
   const hole = new THREE.Path(); hole.absarc(LAKE.x, -LAKE.z, LAKE.r, 0, Math.PI * 2, false); shape.holes.push(hole);
-  const ground = new THREE.Mesh(new THREE.ShapeGeometry(shape, 64), new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }));
+  const groundMat = new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide });
+  groundMat.onBeforeCompile = sh => {   // [땅] 월드 좌표 노이즈로 넓은 영역에 색 변화를 줘서 타일 무늬가 반복돼 보이지 않게 함
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.)).xyz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+varying vec3 vWP;
+float gH(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float gN(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+  return mix(mix(gH(i), gH(i + vec2(1., 0.)), f.x), mix(gH(i + vec2(0., 1.)), gH(i + vec2(1., 1.)), f.x), f.y); }`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+{
+  float mn = gN(vWP.xz * .045) * .6 + gN(vWP.xz * .13 + 7.) * .4;
+  vec3 lush = vec3(.90, 1.04, .88), dry = vec3(1.16, 1.04, .74);
+  diffuseColor.rgb *= mix(lush, dry, smoothstep(.42, .68, mn)) * (.88 + .24 * gN(vWP.xz * .5));
+  float l2 = dot(texture2D(map, vUv * .137 + vec2(.31, .57)).rgb, vec3(.3, .55, .15));
+  diffuseColor.rgb *= mix(1., l2 / .44, .45);
+}`);
+  };
+  const ground = new THREE.Mesh(new THREE.ShapeGeometry(shape, 64), groundMat);
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
   ground.userData = { kind: 'world' };
   scene.add(ground); worldMeshes.push(ground);
   // 호숫가 모래
-  const sand = new THREE.Mesh(new THREE.RingGeometry(LAKE.r, LAKE.r + 3, 64), new THREE.MeshLambertMaterial({ color: 0xd9c48f, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+  // [땅] 모래 텍스처: 물가는 젖어서 어둡고, 바깥쪽은 밝은 모래 → 풀밭으로 서서히 이어짐 (알갱이 노이즈 포함)
+  const sandTex = (() => {
+    const SS = isTouch ? 512 : 1024, cv = document.createElement('canvas'); cv.width = cv.height = SS;
+    const g = cv.getContext('2d'), im = g.createImageData(SS, SS), d = im.data, rin = LAKE.r / (LAKE.r + 3);
+    for (let y = 0; y < SS; y++) for (let x = 0; x < SS; x++){
+      const dx = (x + .5) / SS * 2 - 1, dy = (y + .5) / SS * 2 - 1, t = (Math.hypot(dx, dy) - rin) / (1 - rin);
+      if (t < -.03 || t > 1) continue;
+      const tt = clamp(t, 0, 1), k = SS / 1024;
+      const shade = .86 + .14 * thh(x, y) + .10 * (tvn(x * .35 / k, y * .35 / k) - .5) + .16 * (tvn(x * .03 / k, y * .03 / k) - .5);
+      const wet = (1 - sst(0, .45, tt)) * .75, gr = sst(.62, 1, tt) * .55;
+      let r = (217 + (140 - 217) * wet) * shade, gg = (196 + (118 - 196) * wet) * shade, b = (143 + (84 - 143) * wet) * shade;
+      r += (96 - r) * gr; gg += (140 - gg) * gr; b += (64 - b) * gr;
+      const i = (y * SS + x) * 4;
+      d[i] = clamp(r, 0, 255); d[i + 1] = clamp(gg, 0, 255); d[i + 2] = clamp(b, 0, 255); d[i + 3] = 255 * (1 - sst(.7, 1, tt));
+    }
+    g.putImageData(im, 0, 0);
+    const t = new THREE.CanvasTexture(cv); t.anisotropy = ANISO; return t;
+  })();
+  const sand = new THREE.Mesh(new THREE.RingGeometry(LAKE.r, LAKE.r + 3, 64), new THREE.MeshLambertMaterial({ map: sandTex, transparent: true, alphaTest: .02, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
   sand.rotation.x = -Math.PI / 2; sand.position.set(LAKE.x, .015, LAKE.z); sand.receiveShadow = true;
   scene.add(sand);
 
@@ -499,13 +565,36 @@ const worldMeshes = [];  // 총알 충돌용 메쉬
   const rng = mulberry32(20240607);   // 시드 고정 → 모든 접속자가 같은 맵
 
   const aoList = [];   // [광원] 접지 그림자 위치 [x, z, 반지름]
+  // [바위] 울퉁불퉁하게 일그러진 둥근 돌 + 정점 색(돌 얼룩·줄무늬, 윗면엔 이끼)
+  const rockGeo = (col, seed) => {
+    const g = new THREE.IcosahedronGeometry(1, 2), pos = g.attributes.position, n = pos.count, o = seed * 7.31, base = new THREE.Color(col);
+    for (let i = 0; i < n; i++){
+      let x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i); const l = Math.hypot(x, y, z) || 1; x /= l; y /= l; z /= l;
+      const dd = 1 + (tvn3(x * 1.5 + o, y * 1.5 + o * .7, z * 1.5) - .5) * .5 + (tvn3(x * 4 + o, y * 4, z * 4 + o) - .5) * .16;
+      pos.setXYZ(i, x * dd, y * dd, z * dd);
+    }
+    g.computeVertexNormals();
+    const nr = g.attributes.normal, cols = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++){
+      const px = pos.getX(i), py = pos.getY(i), pz = pos.getZ(i), rl = Math.hypot(px, py, pz) || 1;
+      let nx = px / rl * .75 + nr.getX(i) * .25, ny = py / rl * .75 + nr.getY(i) * .25, nz = pz / rl * .75 + nr.getZ(i) * .25;
+      const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl; nr.setXYZ(i, nx, ny, nz);   // 부드러운 법선 (75% 둥글게 + 25% 각지게)
+      const b = .62 + .55 * tvn3(px * 3 + o, py * 3, pz * 3) + .2 * tvn3(px * 9, py * 9 + o, pz * 9) + Math.sin(py * 7 + tvn3(px * 2, py * 2, pz * 2) * 4) * .05;
+      const moss = sst(.5, .85, ny + (tvn3(px * 5 + o, py * 5, pz * 5) - .5) * .5) * .85, mb = .75 + .5 * tvn3(px * 6, py * 6, pz * 6 + o);
+      cols[i * 3]     = clamp(base.r * b + (.27 * mb - base.r * b) * moss, 0, 1);
+      cols[i * 3 + 1] = clamp(base.g * b + (.40 * mb - base.g * b) * moss, 0, 1);
+      cols[i * 3 + 2] = clamp(base.b * b + (.15 * mb - base.b * b) * moss, 0, 1);
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+    return g;
+  };
   // 바위 (충돌은 상자, 겉모습은 울퉁불퉁한 돌)
   const rockCol = [0x7b776f, 0x8a8579, 0x6a6862];
   for (let i = 0; i < 22; i++){
     const w = 1.6 + rng()*3, d = 1.6 + rng()*3, h = .9 + rng()*1.4;
     const cx = (rng()-.5)*108, cz = (rng()-.5)*108, col = rockCol[Math.floor(rng()*3)], ry = rng()*6.28;
     if (Math.hypot(cx, cz) < 8 || Math.hypot(cx - LAKE.x, cz - LAKE.z) < LAKE.r + 2) continue;
-    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(1, 0), new THREE.MeshPhongMaterial({ color: col, flatShading: true, shininess: 4 }));
+    const m = new THREE.Mesh(rockGeo(col, i), new THREE.MeshLambertMaterial({ vertexColors: true }));
     m.scale.set(w*.62, h*.78, d*.62); m.position.set(cx, h*.42, cz); m.rotation.y = ry;
     m.castShadow = m.receiveShadow = true; m.userData = { kind: 'world' }; aoList.push([cx, cz, Math.max(w, d) * .85]);
     scene.add(m); worldMeshes.push(m);
@@ -561,10 +650,83 @@ const worldMeshes = [];  // 총알 충돌용 메쉬
     aoList.forEach((a, i) => { dm.position.set(a[0], .03, a[1]); dm.rotation.set(0, 0, 0); dm.scale.set(a[2], 1, a[2]); dm.updateMatrix(); ao.setMatrixAt(i, dm.matrix); });
     scene.add(ao);
   }
+  // [땅] 풀 뭉치: 교차한 두 장의 판 × 수천 개를 한 번에 그림. 바람에 살랑거리고, 키가 낮아서 시야를 가리지 않음
+  {
+    const TS = 64, tc = document.createElement('canvas'); tc.width = tc.height = TS;
+    const tg = tc.getContext('2d'), tr = mulberry32(99);
+    for (let i = 0; i < 16; i++){
+      const x0 = 4 + tr() * 56, hg = 22 + tr() * 38, lean = (tr() - .5) * 22, w = 1.6 + tr() * 1.6, k = tr();
+      const gr = tg.createLinearGradient(0, TS, 0, TS - hg);
+      gr.addColorStop(0, 'rgb(' + (48 + k * 14 | 0) + ',' + (92 + k * 16 | 0) + ',30)'); gr.addColorStop(1, 'rgb(' + (130 + k * 34 | 0) + ',' + (180 + k * 20 | 0) + ',76)');
+      tg.fillStyle = gr; tg.beginPath(); tg.moveTo(x0 - w, TS);
+      tg.quadraticCurveTo(x0 - w * .4 + lean * .3, TS - hg * .55, x0 + lean, TS - hg);
+      tg.quadraticCurveTo(x0 + w * .4 + lean * .3, TS - hg * .55, x0 + w, TS); tg.closePath(); tg.fill();
+    }
+    const tgeo = new THREE.BufferGeometry(), up = [];
+    for (let i = 0; i < 8; i++) up.push(0, 1, 0);
+    tgeo.setAttribute('position', new THREE.Float32BufferAttribute([-.5,0,0, .5,0,0, .5,1,0, -.5,1,0, 0,0,-.5, 0,0,.5, 0,1,.5, 0,1,-.5], 3));
+    tgeo.setAttribute('normal', new THREE.Float32BufferAttribute(up, 3));   // 법선을 위로 맞춰서 땅과 같은 밝기로 보이게
+    tgeo.setAttribute('uv', new THREE.Float32BufferAttribute([0,0, 1,0, 1,1, 0,1, 0,0, 1,0, 1,1, 0,1], 2));
+    tgeo.setIndex([0,1,2, 0,2,3, 4,5,6, 4,6,7]);
+    const ttex = new THREE.CanvasTexture(tc); ttex.anisotropy = ANISO;
+    const tmat = new THREE.MeshLambertMaterial({ map: ttex, alphaTest: .45, side: THREE.DoubleSide });
+    tmat.onBeforeCompile = sh => {
+      sh.uniforms.uT = wu.uT;
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uT;')
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+#ifdef USE_INSTANCING
+float tfS = sin(uT * 1.7 + instanceMatrix[3].x * .6 + instanceMatrix[3].z * .8);
+transformed.x += tfS * .08 * position.y;
+transformed.z += cos(uT * 1.3 + instanceMatrix[3].z * .7) * .05 * position.y;
+#endif`);
+    };
+    const TN = isTouch ? 1100 : 2400, tuft = new THREE.InstancedMesh(tgeo, tmat, TN), pr = mulberry32(4242);
+    tuft.frustumCulled = false; tuft.receiveShadow = !isTouch;
+    let tn = 0;
+    for (let tries = 0; tries < TN * 4 && tn < TN; tries++){
+      const x = (pr() - .5) * 116, z = (pr() - .5) * 116, q = pr();
+      if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 3.6) continue;
+      if (tvn(x * .07, z * .07) + q * .4 < .45) continue;   // 풀이 듬성듬성/빽빽한 구역을 나눔
+      if (boxes.some(b => x > b.minX - .3 && x < b.maxX + .3 && z > b.minZ - .3 && z < b.maxZ + .3)) continue;
+      const wd = .7 + pr() * .5, ht = .3 + pr() * .25, cv = pr();
+      dm.position.set(x, 0, z); dm.rotation.set(0, pr() * 6.283, 0); dm.scale.set(wd, ht, wd); dm.updateMatrix();
+      tuft.setMatrixAt(tn, dm.matrix); tuft.setColorAt(tn, lc.setRGB(.78 + .22 * cv, .84 + .16 * cv, .68 + .22 * cv)); tn++;
+    }
+    tuft.count = tn; scene.add(tuft);
+  }
 })();
 
 /* ---------- 호수: 바닥 + 실시간 반사 물 ---------- */
-const bed = new THREE.Mesh(new THREE.CircleGeometry(LAKE.r + 1, 48), new THREE.MeshLambertMaterial({ color: 0x7d8a6a }));
+// [땅] 호수 바닥: 자갈 텍스처 + 얕은 곳에서 일렁이는 빛무늬(코스틱)
+const bedTex = (() => {
+  const S = 128, cv = document.createElement('canvas'); cv.width = cv.height = S;
+  const g = cv.getContext('2d'), r0 = mulberry32(31);
+  g.fillStyle = '#6f7a5c'; g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 30; i++){
+    const x = r0() * S, y = r0() * S, r = 10 + r0() * 22, k = r0(), c = k < .4 ? '96,104,74' : k < .7 ? '58,70,52' : '124,120,96';
+    wrapDraw(S, x, y, r, (X, Y) => { const gr = g.createRadialGradient(X, Y, 0, X, Y, r); gr.addColorStop(0, 'rgba(' + c + ',.40)'); gr.addColorStop(1, 'rgba(' + c + ',0)'); g.fillStyle = gr; g.fillRect(X - r, Y - r, r * 2, r * 2); });
+  }
+  for (let i = 0; i < 110; i++){
+    const x = r0() * S, y = r0() * S, rx = 1.5 + r0() * 3.5, ry = rx * (.6 + r0() * .4), v = 105 + r0() * 55 | 0, rot = r0() * 3.14;
+    wrapDraw(S, x, y, 6, (X, Y) => { g.fillStyle = 'rgba(' + v + ',' + (v - 6) + ',' + (v - 22) + ',.6)'; g.strokeStyle = 'rgba(40,44,32,.45)'; g.lineWidth = .8; g.beginPath(); g.ellipse(X, Y, rx, ry, rot, 0, 6.283); g.fill(); g.stroke(); });
+  }
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(10, 10); t.anisotropy = ANISO; return t;
+})();
+const bedMat = new THREE.MeshLambertMaterial({ map: bedTex });
+bedMat.onBeforeCompile = sh => {
+  sh.uniforms.uT = wu.uT;
+  sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP;')
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.)).xyz;');
+  sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP; uniform float uT;')
+    .replace('#include <map_fragment>', `#include <map_fragment>
+{
+  vec2 cp = vWP.xz * .6;
+  float c1 = sin(cp.x * 3.1 + uT * .9) + sin(cp.y * 2.7 - uT * .7) + sin((cp.x + cp.y) * 2.3 + uT * .6);
+  float cs = pow(.5 + .5 * sin(c1 * 1.7 + sin(cp.x * 1.3 - uT * .5)), 7.);
+  diffuseColor.rgb += vec3(.5, .7, .6) * cs * .40;
+}`);
+};
+const bed = new THREE.Mesh(new THREE.CircleGeometry(LAKE.r + 1, 48), bedMat);
 bed.rotation.x = -Math.PI / 2; bed.position.set(LAKE.x, LAKE_FLOOR - .05, LAKE.z);
 scene.add(bed);
 const reflRT = new THREE.WebGLRenderTarget(isTouch ? 384 : 768, isTouch ? 216 : 432);
