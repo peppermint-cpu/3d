@@ -689,7 +689,7 @@ float gN(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
     tgeo.setIndex([0,1,2, 0,2,3, 4,5,6, 4,6,7]);
     const ttex = new THREE.CanvasTexture(tc); ttex.anisotropy = ANISO;
     const tmat = new THREE.MeshLambertMaterial({ map: ttex, alphaTest: .45, side: THREE.DoubleSide });
-    tmat.onBeforeCompile = sh => {
+    const windPatch = sh => {   // 바람 흔들림 (본체와 그림자가 같은 식을 써서 그림자도 같이 살랑거림)
       sh.uniforms.uT = wu.uT;
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uT;')
         .replace('#include <begin_vertex>', `#include <begin_vertex>
@@ -699,8 +699,13 @@ transformed.x += tfS * .08 * position.y;
 transformed.z += cos(uT * 1.3 + instanceMatrix[3].z * .7) * .05 * position.y;
 #endif`);
     };
+    tmat.onBeforeCompile = windPatch;
+    // [그림자] 풀잎 모양 그대로 그림자가 생기도록 알파 테스트하는 전용 깊이 재질
+    const tdepth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: ttex, alphaTest: .45, side: THREE.DoubleSide });
+    tdepth.onBeforeCompile = windPatch;
     const TN = isTouch ? 1100 : 2400, tuft = new THREE.InstancedMesh(tgeo, tmat, TN), pr = mulberry32(4242);
     tuft.frustumCulled = false; tuft.receiveShadow = !isTouch;
+    tuft.castShadow = true; tuft.customDepthMaterial = tdepth;
     let tn = 0;
     for (let tries = 0; tries < TN * 4 && tn < TN; tries++){
       const x = (pr() - .5) * 116, z = (pr() - .5) * 116, q = pr();
@@ -901,16 +906,130 @@ const GUNS = {
   m249:  { tip:-0.72, parts:[[.07,.10,.42,0,0,-.05,0x2a2f25],[.03,.03,.36,0,.012,-.50,0x111111],[.09,.12,.14,0,-.11,-.02,0x3d4a2f],[.05,.08,.22,0,-.01,.28,0x2a2f25],[.04,.10,.05,0,-.10,.12,0x222222],[.06,.05,.10,0,-.06,-.30,SKIN]] },
   katana:{ tip:-0.9,  parts:[[.012,.05,.80,0,0,-.55,0xdfe6ee],[.07,.07,.02,0,0,-.14,0x222222],[.03,.04,.22,0,0,-.02,0x3b2417],[.06,.05,.10,0,-.01,0,SKIN]] }
 };
+
+/* 총기 디테일: [w,h,d,x,y,z,색,플래그] — 기존 파츠 위에 덧그려서 탄창 번호(MAGIDX)는 그대로예요
+   플래그: c=z축 원통 / y=세로 원통 / m=금속 광택 / w=나무결 / g=유리 / e=발광 / M=탄창에 붙임(재장전 때 같이 빠짐) */
+const rep = (n, f) => Array.from({ length: n }, (_, i) => f(i));
+const GD = {};
+GD.m416 = [
+  [.024,.011,.52,0,.0505,-.14,0x101010,'m'],
+  ...rep(6, i => [.026,.006,.012,0,.057,-.34 + i * .05,0x050505]),
+  ...rep(3, i => [.004,.018,.03,-.0265,0,-.26 - i * .05,0x0a0a0a]),
+  [.01,.014,.18,-.03,0,-.30,0x111111,'m'],
+  [.03,0,.07,0,.012,-.585,0x0b0b0b,'cm'], [.032,0,.025,0,.012,-.36,0x2a2a2a,'cm'],
+  [.016,.016,.016,0,.062,-.395,0x1a1a1a,'m'], [.006,.03,.006,0,.078,-.395,0x0a0a0a],
+  [.03,.012,.07,0,.062,-.03,0x0e0e0e,'m'], [.038,.04,.09,0,.083,-.03,0x151515,'m'],
+  [.03,.03,.004,0,.085,-.076,0x66b3ff,'g'], [.03,.028,.004,0,.085,.017,0x224466,'g'], [.004,.004,.003,0,.085,.019,0xff2222,'e'],
+  [.03,.012,.03,0,.04,.14,0x151515,'m'], [.006,.012,.025,-.0325,0,.06,0x0a0a0a,'m'],
+  [.008,.008,.07,0,-.082,.04,0x151515,'m'], [.008,.034,.008,0,-.063,.005,0x151515,'m'], [.006,.024,.008,0,-.062,.04,0x050505,'m'],
+  [.052,.09,.02,0,-.01,.355,0x0a0a0a], [.012,.02,.14,-.0265,-.012,.25,0x1a1a1a],
+  ...rep(4, i => [.003,.006,.05,-.0215,.05 - i * .03,0,0x2a2a2a,'M']), [.044,.012,.075,0,-.081,0,0x0d0d0d,'mM'],
+  [.056,.07,.07,0,-.095,.10,SKIN]
+];
+GD.akm = [
+  [.052,.012,.34,0,.046,-.07,0x2a2a2a,'m'],
+  ...rep(4, i => [.054,.004,.01,0,.0535,-.2 + i * .08,0x1a1a1a]),
+  [.02,0,.26,0,.04,-.34,0x1c1c1c,'cm'], [.05,.02,.2,0,.035,-.32,0x7a4a21,'w'],
+  [.058,.064,.012,0,-.005,-.20,0x1a1a1a,'m'], [.058,.064,.012,0,-.005,-.40,0x1a1a1a,'m'],
+  [.014,.04,.014,0,.045,-.56,0x151515,'m'], [.032,0,.04,0,.012,-.62,0x0f0f0f,'cm'],
+  [.03,.02,.06,0,.055,-.17,0x1a1a1a,'m'], [.02,.01,.05,0,.063,-.19,0x1a1a1a,'m'],
+  [.004,.012,.2,-.031,.02,-.05,0x0a0a0a],
+  [.008,.008,.07,0,-.075,.035,0x151515,'m'], [.008,.034,.008,0,-.058,.0,0x151515,'m'], [.006,.022,.008,0,-.055,.035,0x050505,'m'],
+  [.052,.095,.015,0,-.015,.375,0x151515,'m'],
+  ...rep(4, i => [.003,.006,.05,-.0215,.045 - i * .03,0,0x2a2a2a,'M']),
+  [.04,.05,.07,0,-.09,-.025,0x1a1a1a,'M'], [.044,.012,.075,0,-.121,-.03,0x0d0d0d,'mM'],
+  [.056,.07,.07,0,-.095,.10,SKIN]
+];
+GD.awm = [
+  [.03,.035,.02,0,.06,-.12,0x0f0f0f,'m'], [.03,.035,.02,0,.06,0,0x0f0f0f,'m'],
+  [.04,0,.30,0,.105,-.06,0x151515,'cm'], [.06,0,.07,0,.105,-.20,0x0f0f0f,'cm'], [.05,0,.05,0,.105,.10,0x0f0f0f,'cm'],
+  [.052,0,.004,0,.105,-.236,0x6aa0ff,'cg'], [.04,0,.004,0,.105,.126,0x203040,'cg'],
+  [.022,.025,0,0,.1375,-.06,0x1a1a1a,'ym'], [.024,.02,.02,.03,.105,-.06,0x1a1a1a,'m'],
+  [.04,0,.10,0,.012,-.95,0x111111,'cm'], ...rep(3, i => [.044,0,.01,0,.012,-.92 - i * .03,0x050505,'cm']),
+  [.01,.004,.4,0,.028,-.6,0x2a2a2a,'m'],
+  [.01,.012,.16,-.018,-.03,-.62,0x1a1a1a,'m'], [.01,.012,.16,.018,-.03,-.62,0x1a1a1a,'m'],
+  [.04,.012,.012,.035,.03,.07,0x151515,'m'], [.02,.02,.02,.058,.03,.07,0x151515,'m'],
+  [.05,.03,.18,0,.055,.31,0x2a3322], [.056,.1,.02,0,-.01,.485,0x0a0a0a],
+  [.008,.008,.08,0,-.075,.035,0x151515,'m'], [.008,.03,.008,0,-.06,-.005,0x151515,'m'], [.006,.022,.008,0,-.058,.04,0x050505,'m'],
+  [.044,.012,.055,0,-.056,0,0x0d0d0d,'mM'],
+  [.056,.065,.07,0,-.10,.10,SKIN]
+];
+GD.s12k = [
+  [.026,.011,.40,0,.0505,-.05,0x101010,'m'],
+  [.052,0,.20,0,.012,-.36,0x1a1a1a,'cm'],
+  ...rep(6, i => [.012,.004,.014,0,.039,-.28 - i * .03,0x000000]),
+  ...rep(5, i => [.004,.012,.014,-.0265,.012,-.28 - i * .03,0x000000]),
+  [.05,0,.04,0,.012,-.53,0x0d0d0d,'cm'],
+  [.016,.016,.016,0,.052,-.46,0x1a1a1a,'m'], [.008,.03,.008,0,.07,-.46,0x0a0a0a],
+  [.04,.02,.03,0,.062,.10,0x1a1a1a,'m'], [.01,.012,.04,-.04,.03,0,0x151515,'m'],
+  [.008,.008,.07,0,-.075,.035,0x151515,'m'], [.008,.034,.008,0,-.058,0,0x151515,'m'], [.006,.022,.008,0,-.056,.035,0x050505,'m'],
+  [.052,.08,.015,0,-.01,.335,0x0a0a0a],
+  ...rep(4, i => [.004,.008,.12,-.032,.04 - i * .03,0,0x2a2a2a,'M']), [.064,.012,.145,0,-.066,0,0x0d0d0d,'mM'],
+  [.056,.065,.07,0,-.10,.10,SKIN]
+];
+GD.m249 = [
+  [.06,.02,.22,0,.058,-.05,0x1e231c,'m'], [.05,.012,.10,0,.052,-.18,0x151515,'m'],
+  [.045,0,.22,0,.012,-.45,0x15190f,'cm'], ...rep(5, i => [.01,.004,.014,0,.036,-.36 - i * .035,0x000000]),
+  [.02,.012,.16,0,.095,-.42,0x151515,'m'], [.012,.055,.012,0,.0625,-.50,0x151515,'m'], [.012,.055,.012,0,.0625,-.34,0x151515,'m'],
+  [.01,.012,.16,-.02,-.04,-.55,0x1a1a1a,'m'], [.01,.012,.16,.02,-.04,-.55,0x1a1a1a,'m'],
+  [.04,0,.06,0,.012,-.69,0x0f0f0f,'cm'], [.008,.03,.008,0,.04,-.66,0x0a0a0a],
+  [.04,.02,.03,0,.075,.04,0x151515,'m'], [.01,.014,.05,-.04,.02,-.05,0x151515,'m'],
+  [.052,.09,.015,0,-.01,.395,0x0a0a0a],
+  [.008,.008,.07,0,-.075,.035,0x151515,'m'], [.008,.034,.008,0,-.058,0,0x151515,'m'], [.006,.022,.008,0,-.056,.035,0x050505,'m'],
+  ...rep(3, i => [.004,.01,.12,-.0465,.04 - i * .04,0,0x2a2a2a,'M']), [.094,.012,.145,0,-.066,0,0x0d0d0d,'mM'],
+  ...rep(8, i => [.012,.014,.02,-.053,.055 - i * .0155,0,i % 2 ? 0x6b6b6b : 0xc9a227,'mM']),
+  [.056,.065,.07,0,-.10,.12,SKIN]
+];
+GD.katana = [
+  [.016,.008,.78,0,.026,-.55,0x9aa3ad,'m'], [.0125,.01,.78,0,-.005,-.55,0xb7c0ca,'m'], [.004,.01,.78,0,-.02,-.55,0xffffff,'m'],
+  [.01,.035,.03,0,0,-.965,0xdfe6ee,'m'],
+  [.075,0,.012,0,0,-.14,0xb8962e,'cm'], [.05,0,.016,0,0,-.14,0x1a1a1a,'cm'], [.022,.034,.03,0,0,-.17,0xc9a227,'m'],
+  [.034,.044,.012,0,0,-.115,0x111111], [.034,.044,.012,0,0,-.09,0x111111], [.034,.044,.012,0,0,.065,0x111111], [.034,.044,.012,0,0,.085,0x111111],
+  [.036,.046,.015,0,0,.10,0xb8962e,'m']
+];
+for (const k in GD) GUNS[k].d = GD[k];
+
 const MAGIDX = { m416:3, akm:3, awm:4, s12k:2, m249:2 };   // 재장전 때 빠지는 탄창 파츠 번호
 let gunGroup = null;
+let _wood = null;
+function woodTex(){
+  if (_wood) return _wood;
+  const c = document.createElement('canvas'); c.width = 128; c.height = 64;
+  const g = c.getContext('2d'), r = mulberry32(5);
+  g.fillStyle = '#7a4a21'; g.fillRect(0, 0, 128, 64);
+  for (let i = 0; i < 70; i++){
+    const y = r() * 64;
+    g.strokeStyle = r() < .5 ? 'rgba(60,30,10,' + (.15 + r() * .25) + ')' : 'rgba(170,110,60,' + (.12 + r() * .2) + ')';
+    g.lineWidth = .6 + r() * 1.4; g.beginPath(); g.moveTo(0, y);
+    g.bezierCurveTo(40, y + (r() - .5) * 6, 90, y + (r() - .5) * 6, 128, y + (r() - .5) * 4); g.stroke();
+  }
+  return (_wood = new THREE.CanvasTexture(c));
+}
+function gunGeo(p, fl){
+  if (fl.indexOf('c') >= 0){ const gg = new THREE.CylinderGeometry(p[0] / 2, p[0] / 2, p[2], 14); gg.rotateX(Math.PI / 2); return gg; }
+  if (fl.indexOf('y') >= 0) return new THREE.CylinderGeometry(p[0] / 2, p[0] / 2, p[1], 14);
+  return new THREE.BoxGeometry(p[0], p[1], p[2]);
+}
+function gunMat(color, fl){
+  const o = { color, depthTest: false, transparent: true };
+  if (fl.indexOf('w') >= 0 || color === 0x7a4a21) return new THREE.MeshPhongMaterial(Object.assign(o, { color: 0xffffff, map: woodTex(), specular: 0x2a2018, shininess: 18 }));
+  if (fl.indexOf('g') >= 0) return new THREE.MeshPhongMaterial(Object.assign(o, { specular: 0xffffff, shininess: 120, opacity: .6 }));
+  if (color === SKIN) return new THREE.MeshLambertMaterial(o);
+  const metal = fl.indexOf('m') >= 0;
+  const m = new THREE.MeshPhongMaterial(Object.assign(o, { specular: metal ? 0x777777 : 0x3a3a3a, shininess: metal ? 60 : 35 }));
+  if (fl.indexOf('e') >= 0) m.emissive = new THREE.Color(color);
+  return m;
+}
 function buildGun(i){
   const spec = GUNS[WEAPONS[i].id];
   const g = new THREE.Group();
-  for (const p of spec.parts){
-    const m = new THREE.Mesh(new THREE.BoxGeometry(p[0],p[1],p[2]), new THREE.MeshLambertMaterial({ color: p[6], depthTest: false, transparent: true }));
-    m.position.set(p[3],p[4],p[5]); m.renderOrder = 999; g.add(m);
-  }
+  const add = (p, parent, ro) => {
+    const fl = p[7] || '', m = new THREE.Mesh(gunGeo(p, fl), gunMat(p[6], fl));
+    m.position.set(p[3], p[4], p[5]); m.renderOrder = ro; parent.add(m);
+  };
+  for (const p of spec.parts) add(p, g, 999);
   const mg = g.children[MAGIDX[WEAPONS[i].id]]; if (mg){ g.userData.mag = mg; g.userData.mp = mg.position.clone(); }
+  (spec.d || []).forEach((p, k) => add(p, ((p[7] || '').indexOf('M') >= 0 && mg) ? mg : g, 999.5 + k * .0005));
   const mf = new THREE.Mesh(new THREE.BoxGeometry(.13,.13,.05), new THREE.MeshBasicMaterial({ color: 0xffd27a, depthTest: false, transparent: true, opacity: .9 }));
   mf.position.set(0,.015,spec.tip - .04); mf.renderOrder = 1000; mf.visible = false;
   g.add(mf); g.userData.flash = mf;
