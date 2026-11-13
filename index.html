@@ -304,7 +304,7 @@ background:radial-gradient(circle,rgba(255,246,226,.78) 0,rgba(255,234,200,.34) 
       <div><b>WASD</b> 이동</div><div><b>Shift</b> 달리기</div>
       <div><b>Space</b> 점프</div><div><b>R</b> 재장전</div>
       <div><b>좌클릭</b> 발사</div><div><b>우클릭</b> 조준(줌)</div>
-      <div><b>1~6 / 휠</b> 무기 교체</div><div><b>Tab</b> 리더보드</div><div><b>C</b> 앉기(누르는 동안)</div><div><b>Enter</b> 전체 채팅</div>
+      <div><b>1~3 / 휠</b> 무기 교체</div><div><b>Tab</b> 리더보드</div><div><b>C</b> 앉기(누르는 동안)</div><div><b>Enter</b> 전체 채팅</div>
       <div><b>B</b> 상점</div><div></div>
     </div>
   </div>
@@ -1015,7 +1015,12 @@ const WEAPONS = [
   { id:'awm',    name:'AWM',          short:'AWM',    dmg:100,delay:1.40, mag:5,  res:25,  reload:3.2, auto:false, spread:0.0008, recoil:0.07,  pellets:1, range:400, zoom:4.5 },
   { id:'s12k',   name:'S12K',         short:'S12K',   dmg:13, delay:0.24, mag:5,  res:35,  reload:3.0, auto:true,  spread:0.05,   recoil:0.035, pellets:8, range:60,  zoom:1.2 },
   { id:'m249',   name:'M249',         short:'M249',   dmg:19, delay:0.075,mag:100,res:200, reload:4.5, auto:true,  spread:0.016,  recoil:0.012, pellets:1, range:250, zoom:1.4 },
-  { id:'katana', name:'KATANA',       short:'KATANA', dmg:55, delay:0.55, mag:1,  res:0,   reload:0,   auto:true,  spread:0,      recoil:0,     pellets:1, range:2.8, zoom:1,   melee:true }
+  { id:'katana', name:'KATANA',       short:'KATANA', dmg:55, delay:0.55, mag:1,  res:0,   reload:0,   auto:true,  spread:0,      recoil:0,     pellets:1, range:2.8, zoom:1,   melee:true },
+  { id:'g18',    name:'G18 권총',     short:'G18',    dmg:18, delay:0.06, mag:20, res:120, reload:1.6, auto:true,  spread:0.022,  recoil:0.009, pellets:1, range:110, zoom:1.2 },
+  { id:'mp5',    name:'MP5 기관단총', short:'MP5',    dmg:17, delay:0.075,mag:30, res:150, reload:2.0, auto:true,  spread:0.016,  recoil:0.008, pellets:1, range:160, zoom:1.3 },
+  { id:'deagle', name:'DEAGLE 핸드캐논', short:'DEAGLE', dmg:58, delay:0.32, mag:7, res:42,  reload:2.0, auto:false, spread:0.005,  recoil:0.05,  pellets:1, range:220, zoom:1.3 },
+  { id:'scar',   name:'SCAR-H',       short:'SCAR',   dmg:34, delay:0.105,mag:20, res:100, reload:2.7, auto:true,  spread:0.010,  recoil:0.022, pellets:1, range:280, zoom:1.5 },
+  { id:'sks',    name:'SKS 지정사수', short:'SKS',    dmg:52, delay:0.24, mag:10, res:70,  reload:2.6, auto:false, spread:0.0035, recoil:0.032, pellets:1, range:380, zoom:1.8 }
 ];
 const SKIN = 0xd9a98a;
 // [w,h,d,x,y,z,color]  (총구 방향 = -z)
@@ -1110,9 +1115,19 @@ GD.katana = [
   [.034,.044,.012,0,0,-.115,0x111111], [.034,.044,.012,0,0,-.09,0x111111], [.034,.044,.012,0,0,.065,0x111111], [.034,.044,.012,0,0,.085,0x111111],
   [.036,.046,.015,0,0,.10,0xb8962e,'m']
 ];
+GUNS.g18 = { tip:-0.26, parts:[[.04,.045,.24,0,.025,-.08,0x2a2a2a],[.038,.03,.20,0,-.012,-.06,0x1c1c1c],[.034,.11,.05,0,-.075,.02,0x222222],[.012,.012,.05,0,.03,-.225,0x111111],[.056,.05,.08,-.012,-.1,.05,SKIN]] };
+GD.g18 = [[.03,.008,.02,0,.052,-.17,0x050505],[.03,.008,.02,0,.052,-.0,0x050505],[.056,.07,.07,.012,-.075,.035,SKIN]];
+GUNS.deagle = { tip:-0.32, parts:[[.052,.055,.30,0,.03,-.10,0x8a8f96,'m'],[.05,.04,.26,0,-.015,-.08,0x6e747c],[.042,.13,.06,0,-.085,.04,0x222222],[.02,.02,.06,0,.03,-.28,0x111111],[.06,.05,.09,-.014,-.115,.065,SKIN]] };
+GD.deagle = [[.03,.01,.02,0,.062,-.2,0x050505],[.03,.01,.02,0,.062,.0,0x050505],[.056,.07,.07,.014,-.09,.05,SKIN]];
+GUNS.mp5 = { tip:-0.52, parts:[[.058,.085,.34,0,0,-.03,0x2a2a2a],[.04,.04,.20,0,.01,-.30,0x1c1c1c],[.035,.15,.05,0,-.115,-.02,0x1a1a1a],[.04,.07,.20,0,-.005,.26,0x2a2a2a],[.04,.10,.05,0,-.095,.10,0x222222],[.06,.05,.10,0,-.06,-.22,SKIN]] };
+GD.mp5 = [[.012,.022,.012,0,.055,-.19,0x111111,'m'],[.03,.012,.03,0,.052,.07,0x111111,'m'],[.02,0,.05,0,.012,-.52,0x0b0b0b,'cm'],[.056,.07,.07,0,-.095,.10,SKIN]];
+GUNS.scar = { tip:-0.62, parts:[[.06,.09,.40,0,0,-.05,0x6b5f48],[.025,.025,.30,0,.012,-.45,0x111111],[.055,.06,.24,0,0,-.30,0x7a6c52],[.04,.15,.07,0,-.12,-.02,0x1a1a1a],[.05,.08,.22,0,-.01,.26,0x6b5f48],[.04,.10,.05,0,-.10,.10,0x222222],[.06,.05,.10,0,-.06,-.28,SKIN]] };
+GD.scar = [[.052,.012,.34,0,.05,-.07,0x3a3326,'m'],[.03,0,.05,0,.012,-.615,0x0f0f0f,'cm'],[.012,.03,.012,0,.05,-.50,0x151515,'m'],[.056,.07,.07,0,-.095,.10,SKIN]];
+GUNS.sks = { tip:-0.70, parts:[[.055,.08,.38,0,0,-.05,0x2f2f2f],[.025,.025,.38,0,.012,-.5,0x111111],[.055,.06,.26,0,-.005,-.32,0x7a4a21],[.035,.10,.06,0,-.09,-.03,0x1a1a1a],[.05,.09,.24,0,-.015,.27,0x7a4a21],[.04,.09,.05,0,-.09,.11,0x222222],[.06,.05,.10,0,-.06,-.30,SKIN]] };
+GD.sks = [[.03,0,.05,0,.012,-.7,0x0f0f0f,'cm'],[.012,.03,.012,0,.045,-.62,0x151515,'m'],[.03,.02,.05,0,.05,.12,0x1a1a1a,'m'],[.056,.07,.07,0,-.095,.10,SKIN]];
 for (const k in GD) GUNS[k].d = GD[k];
 
-const MAGIDX = { m416:3, akm:3, awm:4, s12k:2, m249:2 };   // 재장전 때 빠지는 탄창 파츠 번호
+const MAGIDX = { m416:3, akm:3, awm:4, s12k:2, m249:2, g18:2, mp5:2, deagle:2, scar:3, sks:3 };   // 재장전 때 빠지는 탄창 파츠 번호
 let gunGroup = null;
 let _wood = null;
 function woodTex(){
@@ -1264,8 +1279,8 @@ function buildGun(i){
 }
 /* ---------- 무기 파츠 (조준경 / 탄창) ---------- */
 const AY = .035;                                                    // 레일 윗면 → 조준축 높이
-const RAIL  = { akm: .052, m416: .056, s12k: .056, m249: .068 };   // 총별 레일 윗면 높이 (여기 없는 총은 조준경 장착 불가)
-const RAILZ = { akm: -.05, m416: -.06, s12k: -.05, m249: -.05 };   // 조준경 중심 z
+const RAIL  = { akm: .052, m416: .056, s12k: .056, m249: .068, scar: .05, sks: .048 };   // 총별 레일 윗면 높이 (여기 없는 총은 조준경 장착 불가)
+const RAILZ = { akm: -.05, m416: -.06, s12k: -.05, m249: -.05, scar: -.05, sks: -.05 };   // 조준경 중심 z
 const pipRT = new THREE.WebGLRenderTarget(isTouch ? 224 : 384, isTouch ? 224 : 384);   // 배율 렌즈 화면
 const pipCam = new THREE.PerspectiveCamera(10, 1, .1, 300);
 const lensOn = new THREE.MeshBasicMaterial({ map: pipRT.texture, toneMapped: false });
@@ -1373,9 +1388,16 @@ let sens = 1, goreFx = true, runHeld = false, eyeH = 1.6;
 let crouch = false, crouchT = false;   // 앉기 (키보드 C 누르는 동안 / 모바일 버튼 토글)
 const raycaster = new THREE.Raycaster();
 
-const DRAW = { katana: .35, m416: .42, akm: .5, s12k: .6, awm: .85, m249: 1.0 };   // 무거울수록 오래 걸려요 (초)
+const DRAW = { katana: .35, m416: .42, akm: .5, s12k: .6, awm: .85, m249: 1.0, g18: .25, mp5: .38, deagle: .4, scar: .55, sks: .6 };   // 무거울수록 오래 걸려요 (초)
+function loAdd(i){   // 장착 슬롯에 넣기 (3개가 차 있으면 지금 들고 있는 무기와 교체)
+  const id = WEAPONS[i].id, L = prof.lo;
+  if (L.length < 3) L.push(id);
+  else { let k = L.indexOf(WEAPONS[cur].id); if (k < 0) k = 2; showMsg(WEAPONS[cur].short + ' → ' + WEAPONS[i].short + ' 교체 (최대 3개)', 1500); L[k] = id; }
+  saveLocalProf();
+}
 function equip(i){
   if (!isOwned(i)){ showMsg('상점에서 먼저 구매하세요', 1000); return; }
+  if (prof.lo.indexOf(WEAPONS[i].id) === -1) loAdd(i);
   if (gunGroup) gunCam.remove(gunGroup);
   cur = i; reloading = false; semiReady = false;
   drawDur = DRAW[WEAPONS[i].id] || .5; drawT = 1;
@@ -1387,10 +1409,10 @@ function equip(i){
 if (isTouch) $('hpwrap').insertBefore($('slots'), $('kd'));   // 폰: 무기 선택 버튼을 체력바 바로 아래로
 function buildSlots(){
   const s = $('slots'); s.innerHTML = '';
-  WEAPONS.forEach((w, i) => {
-    if (!isOwned(i)) return;
-    const d = document.createElement('div');
-    d.textContent = (i+1) + ' ' + w.short;
+  prof.lo.forEach((id, k) => {
+    const i = WEAPONS.findIndex(x => x.id === id); if (i < 0) return;
+    const w = WEAPONS[i], d = document.createElement('div');
+    d.textContent = (k + 1) + ' ' + w.short;
     if (i === cur) d.className = 'on';
     d.addEventListener('touchstart', ev => { ev.preventDefault(); ev.stopPropagation(); if (i !== cur) equip(i); }, { passive: false });
     s.appendChild(d);
@@ -1408,7 +1430,7 @@ function initAudio(){
     for (let i = 0; i < d.length; i++) d[i] = Math.random()*2 - 1;
   } catch(e){ ac = null; }
 }
-const SND = { m416:[3200,.13,110], akm:[2400,.16,95], awm:[1500,.7,60], s12k:[1300,.3,70], m249:[2600,.12,85], katana:[1000,.1,60] };
+const SND = { m416:[3200,.13,110], akm:[2400,.16,95], awm:[1500,.7,60], s12k:[1300,.3,70], m249:[2600,.12,85], katana:[1000,.1,60], g18:[2800,.09,120], mp5:[3000,.1,115], deagle:[1700,.28,70], scar:[2300,.15,85], sks:[1900,.2,75] };
 function playShot(idx, vol){
   if (!ac || vol <= 0.01) return;
   const s = SND[WEAPONS[idx].id]; const t = ac.currentTime;
@@ -1885,6 +1907,7 @@ async function openChannel(){
     .on('broadcast', { event: 'zc' },   ({ payload }) => onZe('zc', payload))
     .on('broadcast', { event: 'zo' },   ({ payload }) => onZe('zo', payload))
     .on('broadcast', { event: 'zx' },   ({ payload }) => onZe('zx', payload))
+    .on('broadcast', { event: 'zpk' },  ({ payload }) => onZe('zpk', payload))
     .on('broadcast', { event: 'bld' },  ({ payload }) => onZe('bld', payload))
     .subscribe((status, err) => {
       if (gen !== netGen) return;
@@ -2436,7 +2459,7 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'Space' || e.code.indexOf('Arrow') === 0) e.preventDefault();
   if (e.code === 'KeyR') startReload();
-  if (/^Digit[1-6]$/.test(e.code)) equip(parseInt(e.code.slice(5), 10) - 1);
+  if (/^Digit[1-3]$/.test(e.code)){ const id = prof.lo[+e.code.slice(5) - 1], i = WEAPONS.findIndex(w => w.id === id); if (i >= 0 && i !== cur) equip(i); }
 });
 addEventListener('keyup', e => {
   keys[e.code] = false;
@@ -2463,13 +2486,15 @@ document.addEventListener('mouseup', e => {
 document.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('wheel', e => {
   if (!locked) return;
-  const n = WEAPONS.length, dir = e.deltaY > 0 ? 1 : -1;
-  for (let k = 1; k <= n; k++){ const i = (cur + dir * k + n) % n; if (isOwned(i)){ equip(i); break; } }   // 가진 무기끼리만 교체
+  const L = prof.lo, dir = e.deltaY > 0 ? 1 : -1;
+  if (L.length < 2) return;
+  const i = WEAPONS.findIndex(w => w.id === L[(Math.max(0, L.indexOf(WEAPONS[cur].id)) + dir + L.length) % L.length]);   // 장착한 무기끼리만 교체
+  if (i >= 0) equip(i);
 }, { passive: true });
 
 /* ---------- 코인 / 경험치 / 상점 ---------- */
-const PRICE = { akm: 0, m416: 800, awm: 2500, s12k: 1500, m249: 2200, katana: 600 };   // 무기 가격은 여기서 조절
-const prof = { coins: 0, xp: 0, owned: ['akm'], parts: [], eq: {} };
+const PRICE = { akm: 0, m416: 800, awm: 2500, s12k: 1500, m249: 2200, katana: 600, g18: 400, mp5: 1100, deagle: 1800, scar: 2000, sks: 1900 };   // 무기 가격은 여기서 조절
+const prof = { coins: 0, xp: 0, owned: ['akm'], parts: [], eq: {}, lo: ['akm'] };   // lo: 장착한 무기(최대 3개)
 const levelOf = xp => Math.floor(Math.sqrt(xp / 100)) + 1;
 const lvStart = lv => (lv - 1) * (lv - 1) * 100;
 const isOwned = i => prof.owned.indexOf(WEAPONS[i].id) !== -1;
@@ -2524,7 +2549,7 @@ function renderShop(){
     sm.textContent = w.melee ? '근접 · 피해 ' + w.dmg : '피해 ' + w.dmg + ' · 탄창 ' + w.mag + ' · 예비 ' + w.res;
     info.append(nm, sm);
     const btn = document.createElement('button');
-    if (own){ btn.textContent = i === cur ? '장착중' : '장착'; btn.disabled = i === cur; btn.onclick = () => { equip(i); renderShop(); }; }
+    if (own){ const inL = prof.lo.indexOf(w.id) !== -1; btn.textContent = i === cur ? '사용중' : inL ? '사용' : prof.lo.length < 3 ? '장착' : '교체'; btn.disabled = i === cur; btn.onclick = () => { equip(i); renderShop(); }; }
     else { btn.textContent = '🪙 ' + PRICE[w.id]; btn.disabled = prof.coins < PRICE[w.id]; btn.onclick = () => buyWeapon(i); }
     row.append(info, btn); box.appendChild(row);
   });
@@ -2569,6 +2594,7 @@ function partTag(i){
 function fixAmmo(i){ const a = ammo[i], c = magCap(i); if (a.mag > c){ a.res += a.mag - c; a.mag = c; } }
 function ownedTokens(){   // 무기 + 보유 파츠(p_) + 장착(e_무기_파츠)을 한 목록으로 저장
   const a = prof.owned.slice();
+  prof.lo.forEach((id, k) => a.push('l' + k + '_' + id));
   prof.parts.forEach(p => a.push('p_' + p));
   for (const wid in prof.eq){ const e = prof.eq[wid]; for (const s in e) if (e[s]) a.push('e_' + wid + '_' + e[s]); }
   return a;
@@ -2594,6 +2620,10 @@ function applyProf(o){
   });
   if (ow.indexOf('akm') === -1) ow.push('akm');
   prof.owned = ow; prof.parts = pa; prof.eq = eq;
+  const lo = []; raw.forEach(t => { const m = /^l([0-2])_(.+)$/.exec(t); if (m && ow.indexOf(m[2]) !== -1 && lo.indexOf(m[2]) === -1) lo[+m[1]] = m[2]; });
+  prof.lo = lo.filter(Boolean);
+  if (!prof.lo.length) prof.lo = ['akm'].concat(ow.filter(x => x !== 'akm')).slice(0, 3);   // 예전 저장본: 가진 무기에서 3개까지 자동 장착
+  if (typeof buildSlots === 'function' && gunGroup) buildSlots();
   WEAPONS.forEach((w, i) => { if (ammo[i].mag === w.mag) ammo[i].mag = magCap(i); fixAmmo(i); });
 }
 function saveLocalProf(){ try { localStorage.setItem('is_prof_' + myName, JSON.stringify({ coins: prof.coins, xp: prof.xp, owned: ownedTokens() })); } catch(e){} }
@@ -2627,15 +2657,16 @@ function renderShop(){
   const box = $('shopList'); box.innerHTML = '';
   if (shopTab === 2){ renderDef(box); return; }
   if (shopTab === 0){
+    const nt = document.createElement('div'); nt.style.cssText = 'font-size:12px;opacity:.75;margin:0 0 8px'; nt.textContent = '장착 가능한 무기는 최대 3개 (1·2·3번 키). 가득 차면 지금 들고 있는 무기와 교체돼요'; box.appendChild(nt);
     WEAPONS.forEach((w, i) => {
       const own = isOwned(i), row = document.createElement('div'); row.className = 'si';
       const info = document.createElement('div');
       const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = w.name;
       const sm = document.createElement('small');
-      sm.textContent = w.melee ? '근접 · 피해 ' + w.dmg : '피해 ' + w.dmg + ' · 탄창 ' + magCap(i) + ' · 예비 ' + w.res + partTag(i);
+      sm.textContent = w.melee ? '근접 · 피해 ' + w.dmg : '피해 ' + w.dmg + ' · 탄창 ' + magCap(i) + ' · 예비 ' + w.res + partTag(i) + (prof.lo.indexOf(w.id) !== -1 ? ' · 슬롯' + (prof.lo.indexOf(w.id) + 1) : '');
       info.append(nm, sm);
       const btn = document.createElement('button');
-      if (own){ btn.textContent = i === cur ? '장착중' : '장착'; btn.disabled = i === cur; btn.onclick = () => { equip(i); renderShop(); }; }
+      if (own){ const inL = prof.lo.indexOf(w.id) !== -1; btn.textContent = i === cur ? '사용중' : inL ? '사용' : prof.lo.length < 3 ? '장착' : '교체'; btn.disabled = i === cur; btn.onclick = () => { equip(i); renderShop(); }; }
       else { btn.textContent = '🪙 ' + PRICE[w.id]; btn.disabled = prof.coins < PRICE[w.id]; btn.onclick = () => buyWeapon(i); }
       row.append(info, btn); box.appendChild(row);
     });
@@ -3041,7 +3072,7 @@ $('editSize').addEventListener('input', () => {
 let zmode = 0, zJoinT = Date.now(), zbest = 0, zSendT = 0;
 try { zmode = +localStorage.getItem('is_mode') || 0; } catch(e){}
 try { zbest = +localStorage.getItem('is_zbest') || 0; } catch(e){}
-const zomb = {}, zw = { n: 0, left: 0, cd: 12, sp: 0, id: 1, over: 0, dead: 0, bi: 1, boss: 0, base: 0 };
+const zomb = {}, zw = { n: 0, left: 0, cd: 12, sp: 0, id: 1, over: 0, dead: 0, bi: 1, boss: 0, base: 0, ev: 0, lev: 0, ct: 20, cr: null };
 let zSN = 0;
 const zy = (x, z) => inLake(x, z) ? LAKE_FLOOR : hillH(x, z);   // 호수 속에서는 호수 바닥 높이 (좀비도 물에 들어와요)
 const ZT = [
@@ -3050,7 +3081,9 @@ const ZT = [
   { hp: 420, sp: 1.7, dmg: 26, sc: 1.35, col: 0x5a3040, reach: 1.9 },
   { hp: 100, sp: 2.3, dmg: 12, sc: 1,    col: 0x3f6b35, reach: 1.4 },                                // (원거리 좀비 삭제 — 번호 유지용 자리. 더 이상 나오지 않아요)
   { hp: 60,  sp: 5.4, dmg: 0,  sc: .95,  col: 0xc4661a, reach: 1.2, boom: 1 },                       // 폭탄 좀비 (시설을 폭파)
-  { hp: 2600, sp: 2.0, dmg: 40, sc: 1.9, col: 0x2b1a3a, reach: 2.6, boss: 1 }                        // 보스 (5웨이브마다)
+  { hp: 2600, sp: 2.0, dmg: 40, sc: 1.9, col: 0x2b1a3a, reach: 2.6, boss: 1 },
+  { hp: 220, sp: 2.1, dmg: 15, sc: 1.1,  col: 0x4a5560, reach: 1.5, armor: 1 },   // 6 방패 좀비 (머리 말고는 피해 감소)
+  { hp: 130, sp: 2.4, dmg: 14, sc: 1.15, col: 0x6b3f6b, reach: 1.5, split: 1 }    // 7 분열 좀비 (죽으면 러너 2마리로 쪼개짐)                        // 보스 (5웨이브마다)
 ];
 const ZMAX = isTouch ? 16 : 26;
 function isHost(){
@@ -3187,11 +3220,73 @@ function zTurrets(dt){
   }
 }
 
+/* ---------- 재미 추가: 웨이브 이벤트 · 특수 좀비 · 보급 상자 ----------
+   · 웨이브마다 무작위 이벤트(러시/군단/중장갑/폭탄/분열/보급)가 걸려서 매번 상대가 달라져요 (5웨이브마다 보스는 그대로)
+   · 좀비 수·체력 증가는 완만하게 제한 → 대신 종류와 상황이 바뀌는 쪽으로 난이도를 올려요
+   · 보급 상자(빛기둥)를 먹으면 2배 데미지 / 무한 탄창 / 무적 / 회복 / 충격파 중 하나가 걸려요 */
+const ZEV = [null,
+  { n: '🏃 러시 웨이브', d: '전부 빠른 좀비!' }, { n: '🧟 군단 웨이브', d: '약하지만 엄청 많아요!' },
+  { n: '🛡 중장갑 웨이브', d: '방패 좀비는 머리를 노리세요!' }, { n: '💣 폭탄 웨이브', d: '시설을 지키세요!' },
+  { n: '🧬 분열 웨이브', d: '죽으면 쪼개져요!' }, { n: '📦 보급 웨이브', d: '좀비는 적고 보급 상자가 자주 나와요!' }];
+const ZEVM = [1, .8, 1.8, .6, .8, .7, .5];
+const zHm = n => 1 + Math.min(n, 14) * .1;
+function zEvPick(){ let e = 0; if (zw.n >= 2 && zw.n % 5 !== 0 && Math.random() < .8){ do e = 1 + ((Math.random() * 6) | 0); while (e === zw.lev); } zw.lev = zw.ev = e; if (e === 6) zw.ct = 3; }
+let zCr = null, zCrGone = -999;
+const zBuf = { dmg: 0, ammo: 0, god: 0 };
+const ZCN = ['⚡ 2배 데미지 20초', '🔋 무한 탄창 20초', '🛡 무적 8초', '❤ 체력 완전 회복', '💥 충격파!'];
+function zCrate(){   // 호스트: 플레이어 근처 빈 땅에 상자 생성
+  if (zw.cr) return;
+  const T = zTargets(), c = T[(Math.random() * T.length) | 0] || { x: 0, z: 0 };
+  for (let i = 0; i < 20; i++){
+    const a = Math.random() * 6.283, r = 8 + Math.random() * 10, x = clamp(c.x + Math.cos(a) * r, -55, 55), z = clamp(c.z + Math.sin(a) * r, -55, 55);
+    if (!collides(x, 0, z) && !inLake(x, z)){ zw.cr = [+x.toFixed(1), +z.toFixed(1), (Math.random() * 5) | 0]; zCrSet(zw.cr); return; }
+  }
+}
+function zCrSet(a){
+  if (!a){ if (zCr){ scene.remove(zCr.m); zCr = null; } return; }
+  if (a[0] === zCrGone || (zCr && zCr.x === a[0] && zCr.z === a[1])) return;
+  if (zCr) scene.remove(zCr.m);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(.7, .7, .7), new THREE.MeshBasicMaterial({ color: 0x5cf2ff }));
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(.4, .4, 40, 10, 1, true), new THREE.MeshBasicMaterial({ color: 0x5cf2ff, transparent: true, opacity: .22, depthWrite: false, side: THREE.DoubleSide }));
+  beam.position.y = 20; m.add(beam);
+  m.position.set(a[0], zy(a[0], a[1]) + 1, a[1]); scene.add(m);
+  zCr = { x: a[0], z: a[1], k: a[2] | 0, m };
+  showMsg('📦 보급 상자 등장! 빛기둥으로 달려가세요', 2500); beep(1000, .1, .06);
+}
+function zCrTake(k){
+  const t = now(); beep(1200, .15, .08);
+  if (k === 0) zBuf.dmg = t + 20; else if (k === 1) zBuf.ammo = t + 20; else if (k === 2) zBuf.god = t + 8;
+  else if (k === 3) player.hp = 100;
+  else {
+    for (const id in zomb){ const z = zomb[id], p = z.av.group.position; if (Math.hypot(p.x - player.pos.x, p.z - player.pos.z) < 16) zShoot(id, ZT[z.t].boss ? 400 : 999, false); }
+    spawnBlood(new THREE.Vector3(player.pos.x, player.pos.y + 1, player.pos.z), 40, 7); beep(90, .5, .12);
+  }
+  showMsg('📦 ' + ZCN[k] + ' 획득!', 2200);
+}
+function zFun(dt){
+  const t = now();
+  if (zCr){
+    zCr.m.rotation.y += dt * 1.5; zCr.m.position.y = zy(zCr.x, zCr.z) + 1 + Math.sin(t * 3) * .15;
+    if (!player.dead && locked && Math.hypot(zCr.x - player.pos.x, zCr.z - player.pos.z) < 1.8){
+      const c = zCr; zCrGone = c.x; zCrSet(null); zCrTake(c.k);
+      if (isHost()) zw.cr = null; else send('zpk', { x: c.x, z: c.z });
+    }
+  }
+  if (zBuf.ammo > t) ammo[cur].mag = WEAPONS[cur].mag;
+}
+function zHud(){
+  zHud0();
+  const t = now(), l = $('roundLead'), b = [];
+  if (zw.ev && ZEV[zw.ev] && zw.cd <= 0 && !zw.over) $('roundTime').textContent = ZEV[zw.ev].n + ' ' + zw.n;
+  if (zBuf.dmg > t) b.push('⚡' + Math.ceil(zBuf.dmg - t)); if (zBuf.ammo > t) b.push('🔋' + Math.ceil(zBuf.ammo - t)); if (zBuf.god > t) b.push('🛡' + Math.ceil(zBuf.god - t));
+  if (zCr) b.push('📦 상자 있음');
+  if (b.length) l.textContent += ' · ' + b.join(' ');
+}
 function zAdd(id, t, x, z, hp, mhp){
   if (t === 3) t = 0;   // 예전 버전 호스트가 보낸 원거리 좀비는 일반 좀비로
   const T = ZT[t], av = makeAvatar('', T.col, { kind: 'zombie', zid: id });
   av.label.visible = false; av.parts.gun.visible = false;
-  av.parts.head.material.color.set(t === 4 ? 0xe0a24a : t === 5 ? 0x8a4a9a : 0x7ea35c);
+  av.parts.head.material.color.set(t === 4 ? 0xe0a24a : t === 5 ? 0x8a4a9a : t === 6 ? 0x9aa6b3 : t === 7 ? 0xb06ab0 : 0x7ea35c);
   av.group.scale.setScalar(T.sc);
   av.group.position.set(x, zy(x, z), z);
   return (zomb[id] = { id, t, x, z, yaw: 0, hp, mhp, av, ph: 0, atk: 0, batk: 0, ar: 0, ax: x, az: z, sc: 0, sx: x, sz: z, esc: 0, ed: 1, want: false });
@@ -3207,14 +3302,20 @@ function zSpawn(){
   const q = Math.random(), n = zw.n;
   let t = 0;
   if (zw.boss){ zw.boss = 0; t = 5; }
-  else if (n >= 5 && q < .10) t = 4; else if (n >= 4 && q < .20) t = 0; else if (n >= 3 && q < .30) t = 2; else if (n >= 2 && q < .55) t = 1;
-  const mhp = Math.round(ZT[t].hp * (1 + n * .12));
+  else if (zw.ev === 1) t = q < .8 ? 1 : 0;
+  else if (zw.ev === 2) t = q < .9 ? 0 : 1;
+  else if (zw.ev === 3) t = q < .5 ? 6 : q < .65 ? 2 : 0;
+  else if (zw.ev === 4) t = q < .45 ? 4 : 0;
+  else if (zw.ev === 5) t = q < .6 ? 7 : 0;
+  else if (zw.ev === 6) t = 0;
+  else if (n >= 5 && q < .08) t = 4; else if (n >= 6 && q < .17) t = 7; else if (n >= 4 && q < .27) t = 6; else if (n >= 3 && q < .35) t = 2; else if (n >= 2 && q < .6) t = 1;
+  const mhp = Math.round(ZT[t].hp * zHm(n));
   zAdd(zw.id++, t, x, z, mhp, mhp);
 }
 function zReset(){
   for (const id in zomb){ scene.remove(zomb[id].av.group); delete zomb[id]; }
   for (const b of bars.slice()) bRemove(b);
-  zw.n = 0; zw.left = 0; zw.cd = 12; zw.sp = 0; zw.over = 0; zw.dead = 0; zw.boss = 0; zw.base = 0;
+  zw.n = 0; zw.left = 0; zw.cd = 12; zw.sp = 0; zw.over = 0; zw.dead = 0; zw.boss = 0; zw.base = 0; zw.ev = 0; zw.lev = 0; zw.ct = 20; zw.cr = null; zCrSet(null);
 }
 function zSaveBest(n){ if (n > zbest){ zbest = n; try { localStorage.setItem('is_zbest', String(n)); } catch(e){} } }
 function zClear(n){
@@ -3360,13 +3461,15 @@ function zHostSim(dt){
   if (zw.cd > 0){
     zw.cd -= dt;
     if (zw.cd <= 0){
-      zw.n++; zw.left = Math.round((6 + zw.n * 3) * (1 + (humans - 1) * .6)); zw.sp = 1;
+      zw.n++; zw.sp = 1; zEvPick();
+      zw.left = Math.round(Math.min(34, 6 + zw.n * 2.2) * ZEVM[zw.ev] * (1 + (humans - 1) * .6));
       if (zw.n % 5 === 0){ zw.boss = 1; zw.left++; }
-      showMsg(zw.n % 5 === 0 ? '👹 보스 웨이브 ' + zw.n + '!' : '🧟 웨이브 ' + zw.n + ' 시작!', 2000); beep(180, .4, .08);
+      showMsg(zw.n % 5 === 0 ? '👹 보스 웨이브 ' + zw.n + '!' : zw.ev ? ZEV[zw.ev].n + ' ' + zw.n + ' — ' + ZEV[zw.ev].d : '🧟 웨이브 ' + zw.n + ' 시작!', 3200); beep(180, .4, .08);
     }
   } else {
     zw.sp -= dt;
-    if (zw.left > 0 && alive < ZMAX && zw.sp <= 0){ zSpawn(); zw.left--; zw.sp = Math.max(.35, 1.5 - zw.n * .07); }
+    zw.ct -= dt; if (zw.ct <= 0 && !zw.cr){ zCrate(); zw.ct = (zw.ev === 6 ? 10 : 28) + Math.random() * 12; }
+    if (zw.left > 0 && alive < ZMAX && zw.sp <= 0){ zSpawn(); zw.left--; zw.sp = Math.max(.3, 1.5 - zw.n * .07) * (zw.ev === 2 ? .5 : 1); }
     if (zw.left <= 0 && alive === 0){ zw.cd = 12; send('zc', { w: zw.n }); zClear(zw.n); bars.forEach(b => { b.hp = Math.min(b.mhp, b.hp + b.mhp * .5); bTint(b); }); }
   }
   const tn = now();
@@ -3392,7 +3495,7 @@ function zRender(dt){
   }
 }
 function zAttackMe(){
-  if (player.dead || !locked) return;
+  if (player.dead || !locked || zBuf.god > now()) return;
   const t = now();
   for (const id in zomb){
     const z = zomb[id], s = ZT[z.t], p = z.av.group.position;
@@ -3401,17 +3504,22 @@ function zAttackMe(){
     if (d < (s.rng || s.reach) && Math.abs(p.y - player.pos.y) < (s.rng ? 6 : 1.8)){
       z.atk = t; beep(120 + Math.random() * 40, .2, .05);
       if (s.rng) tracer(new THREE.Vector3(p.x, p.y + 1.4, p.z), new THREE.Vector3(player.pos.x, player.pos.y + 1.2, player.pos.z), 0x9bff5a);
-      takeDamage(Math.round(s.dmg * (1 + zw.n * .04)), 'zombie', '좀비', 0, false, null);
+      takeDamage(Math.round(s.dmg * (1 + Math.min(zw.n, 15) * .04)), 'zombie', '좀비', 0, false, null);
       if (player.dead) return;
     }
   }
 }
 function zDamage(id, d, by, w, head){
   const z = zomb[id]; if (!z) return;
+  const T0 = ZT[z.t]; if (T0.armor && !head) d *= .35;   // 방패 좀비: 머리 말고는 피해 감소
   z.hp -= d;
-  if (z.hp <= 0){ send('zk', { id, by, w, h: head ? 1 : 0 }); zKill(id, by, w, head); }
+  if (z.hp <= 0){
+    if (T0.split) for (let i = 0; i < 2; i++){ const sx = clamp(z.x + (i ? 1 : -1), -57, 57); zAdd(zw.id++, 1, sx, z.z, 45, 45); }   // 분열
+    send('zk', { id, by, w, h: head ? 1 : 0 }); zKill(id, by, w, head);
+  }
 }
 function zShoot(id, d, head){
+  if (zBuf.dmg > now()) d *= 2;
   if (isHost()) zDamage(id, d, myId, cur, head);
   else send('zhit', { id, d, by: myId, w: cur, h: head ? 1 : 0 });
 }
@@ -3429,12 +3537,12 @@ function zKill(id, by, w, head){
 }
 function onZs(p){
   if (!p || isHost()) return;
-  if (p.w > 0 && p.w !== zw.n) showMsg('🧟 웨이브 ' + p.w, 1500);
-  zw.n = p.w; zw.left = p.l; zw.cd = p.c; zw.id = Math.max(zw.id, p.i); zw.over = p.o;
+  if (p.w > 0 && p.w !== zw.n){ const E = ZEV[p.ev | 0]; showMsg(p.w % 5 === 0 ? '👹 보스 웨이브 ' + p.w + '!' : E ? E.n + ' ' + p.w + ' — ' + E.d : '🧟 웨이브 ' + p.w, 3200); }
+  zw.n = p.w; zw.left = p.l; zw.cd = p.c; zw.id = Math.max(zw.id, p.i); zw.over = p.o; zw.ev = p.ev | 0; zCrSet(p.cr || null);
   const seen = {};
   for (const a of p.z){
     seen[a[0]] = 1;
-    const z = zomb[a[0]] || zAdd(a[0], a[5], a[1], a[2], a[4], Math.round(ZT[a[5]].hp * (1 + p.w * .12)));
+    const z = zomb[a[0]] || zAdd(a[0], a[5], a[1], a[2], a[4], Math.round(ZT[a[5]].hp * zHm(p.w)));
     z.x = a[1]; z.z = a[2]; z.yaw = a[3]; z.hp = a[4];
   }
   for (const id in zomb) if (!seen[id]){ scene.remove(zomb[id].av.group); delete zomb[id]; }
@@ -3451,12 +3559,13 @@ function onZe(ev, p){
     return;
   }
   if (ev === 'zx'){ zBoom(+p.x, +p.z); return; }
+  if (ev === 'zpk'){ if (isHost() && zw.cr && Math.abs(zw.cr[0] - +p.x) < .2){ zw.cr = null; zCrSet(null); } return; }
   if (isHost()) return;
   if (ev === 'zk') zKill(p.id, p.by, p.w, !!p.h);
   else if (ev === 'zc') zClear(p.w);
   else if (ev === 'zo') showMsg('💀 게임 오버 · 웨이브 ' + p.w, 3000);
 }
-function zHud(){
+function zHud0(){
   const t = $('roundTime'), l = $('roundLead');
   t.classList.remove('low');
   if (zw.over){ t.textContent = '💀 게임 오버'; l.textContent = '웨이브 ' + zw.n + ' 도달 · 곧 다시 시작'; }
@@ -3464,6 +3573,7 @@ function zHud(){
   else { t.textContent = '🧟 웨이브 ' + zw.n; l.textContent = '남은 좀비 ' + (zw.left + Object.keys(zomb).length) + ' · 최고 ' + zbest; }
 }
 function zTick(dt){
+  zFun(dt);
   const host = isHost();
   if (host && (locked || netReady)) zHostSim(dt);
   zRender(dt); zAttackMe();
@@ -3472,7 +3582,7 @@ function zTick(dt){
     if (zSendT >= Math.max(.15, netN() / 30) * netSlow){
       zSendT = 0;
       zSN = (zSN + 1) % 5;
-      send('zs', { b: zSN ? undefined : bars.map(b => [b.id, b.t, +b.x.toFixed(1), +b.z.toFixed(1), +b.w.toFixed(1), +b.d.toFixed(1), Math.round(b.hp), b.gun ? +b.gun.rotation.y.toFixed(2) : 0]), bi: zw.bi, w: zw.n, l: zw.left, c: Math.ceil(zw.cd), o: zw.over ? 1 : 0, i: zw.id,
+      send('zs', { b: zSN ? undefined : bars.map(b => [b.id, b.t, +b.x.toFixed(1), +b.z.toFixed(1), +b.w.toFixed(1), +b.d.toFixed(1), Math.round(b.hp), b.gun ? +b.gun.rotation.y.toFixed(2) : 0]), bi: zw.bi, ev: zw.ev | 0, cr: zw.cr || 0, w: zw.n, l: zw.left, c: Math.ceil(zw.cd), o: zw.over ? 1 : 0, i: zw.id,
         z: Object.values(zomb).map(z => [z.id, +z.x.toFixed(1), +z.z.toFixed(1), +z.yaw.toFixed(2), Math.round(z.hp), z.t]) });
     }
   }
