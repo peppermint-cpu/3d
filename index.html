@@ -118,7 +118,7 @@ body.touch #wname{font-size:12px;letter-spacing:1px}
 body.touch #ammo{font-size:30px}
 body.touch #ammo small{font-size:14px}
 body.touch #reloadmsg{font-size:11px;height:14px}
-body.touch #slots{position:fixed;top:6px;left:50%;transform:translateX(-50%);margin:0;gap:4px}
+body.touch #slots{position:relative;left:50%;transform:translateX(-50%);width:max-content;max-width:46vw;flex-wrap:wrap;justify-content:center;margin:4px 0 0;gap:4px}
 body.touch #slots div{pointer-events:auto;font-size:10px;padding:7px 8px}
 body.touch #msg{font-size:20px;top:14%}
 body.touch #board{font-size:12px}
@@ -1351,6 +1351,7 @@ function equip(i){
   gunCam.add(gunGroup);
   buildSlots();
 }
+if (isTouch) $('hpwrap').insertBefore($('slots'), $('kd'));   // 폰: 무기 선택 버튼을 체력바 바로 아래로
 function buildSlots(){
   const s = $('slots'); s.innerHTML = '';
   WEAPONS.forEach((w, i) => {
