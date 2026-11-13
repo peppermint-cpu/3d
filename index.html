@@ -510,6 +510,16 @@ const wrapDraw = (S, x, y, r, fn) => { for (let ox = -1; ox <= 1; ox++) for (let
 const LAKE = { x: 22, z: -16, r: 16 }, WATER_Y = -0.12, LAKE_FLOOR = -0.45;   // 원형 호수
 const inLake = (x, z) => Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r;
 const boxes = [];        // 충돌용 AABB
+/* ---------- 언덕 (충돌·그림·나무 배치가 모두 이 높이 함수를 써요) ---------- */
+const HILLS = [
+  { x: -30, z: 22, r: 24, h: 6 },
+  { x: 36, z: 30, r: 20, h: 4.5 },
+  { x: -38, z: -30, r: 18, h: 5 },
+  { x: -6, z: -38, r: 14, h: 3.5 },
+  { x: 40, z: -40, r: 12, h: 3.5 }
+];
+function hillOne(H, x, z){ const d = Math.hypot(x - H.x, z - H.z); if (d >= H.r) return 0; const t = 1 - d / H.r; return H.h * t * t * (3 - 2 * t); }
+function hillH(x, z){ let m = 0; for (let i = 0; i < HILLS.length; i++){ const v = hillOne(HILLS[i], x, z); if (v > m) m = v; } return m; }
 const worldMeshes = [];  // 총알 충돌용 메쉬
 (function buildMap(){
   // [땅] 풀밭 텍스처: 큰 색 얼룩 + 수천 개의 풀잎 + 흙 알갱이 + 들꽃 (256px, 이음새 없음)
@@ -624,7 +634,7 @@ float gN(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
   for (let i = 0; i < 22; i++){
     const w = 1.6 + rng()*3, d = 1.6 + rng()*3, h = .9 + rng()*1.4;
     const cx = (rng()-.5)*108, cz = (rng()-.5)*108, col = rockCol[Math.floor(rng()*3)], ry = rng()*6.28;
-    if (Math.hypot(cx, cz) < 8 || Math.hypot(cx - LAKE.x, cz - LAKE.z) < LAKE.r + 2) continue;
+    if (Math.hypot(cx, cz) < 8 || hillH(cx, cz) > .05 || Math.hypot(cx - LAKE.x, cz - LAKE.z) < LAKE.r + 2) continue;
     const m = new THREE.Mesh(rockGeo(col, i), new THREE.MeshLambertMaterial({ vertexColors: true }));
     m.scale.set(w*.62, h*.78, d*.62); m.position.set(cx, h*.42, cz); m.rotation.y = ry;
     m.castShadow = m.receiveShadow = true; m.userData = { kind: 'world' }; aoList.push([cx, cz, Math.max(w, d) * .85]);
@@ -634,7 +644,7 @@ float gN(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
 
   // 숲: 소나무(원뿔 3단) + 활엽수(둥근 잎). 인스턴싱으로 가볍게 그림
   const spots = [];
-  const okSpot = (x, z) => Math.hypot(x - LAKE.x, z - LAKE.z) > LAKE.r + 4 && Math.hypot(x, z) > 7;
+  const okSpot = (x, z) => Math.hypot(x - LAKE.x, z - LAKE.z) > LAKE.r + 4 && Math.hypot(x, z) > 7 && hillH(x, z) < .05;
   for (let i = 0; i < 160 && spots.length < 85; i++){
     const x = (rng()-.5)*112, z = (rng()-.5)*112, s = .8 + rng()*.7, t = rng() < .65 ? 0 : 1, cc = rng();
     if (okSpot(x, z)) spots.push({ x, z, s, t, c: cc });
@@ -725,10 +735,54 @@ transformed.z += cos(uT * 1.3 + instanceMatrix[3].z * .7) * .05 * position.y;
       if (tvn(x * .07, z * .07) + q * .4 < .45) continue;   // 풀이 듬성듬성/빽빽한 구역을 나눔
       if (boxes.some(b => x > b.minX - .3 && x < b.maxX + .3 && z > b.minZ - .3 && z < b.maxZ + .3)) continue;
       const wd = .7 + pr() * .5, ht = .3 + pr() * .25, cv = pr();
-      dm.position.set(x, 0, z); dm.rotation.set(0, pr() * 6.283, 0); dm.scale.set(wd, ht, wd); dm.updateMatrix();
+      dm.position.set(x, hillH(x, z), z); dm.rotation.set(0, pr() * 6.283, 0); dm.scale.set(wd, ht, wd); dm.updateMatrix();
       tuft.setMatrixAt(tn, dm.matrix); tuft.setColorAt(tn, lc.setRGB(.78 + .22 * cv, .84 + .16 * cv, .68 + .22 * cv)); tn++;
     }
     tuft.count = tn; scene.add(tuft);
+  {   // 언덕 지형 (같은 풀밭 재질로 이어 붙임)
+    const NR = 28, NS = 72, hm = groundMat.clone();
+    hm.onBeforeCompile = groundMat.onBeforeCompile; hm.polygonOffset = true; hm.polygonOffsetFactor = -2; hm.polygonOffsetUnits = -2;
+    HILLS.forEach(H => {
+      const pos = [], uvs = [], idx = [];
+      for (let i = 0; i <= NR; i++){
+        const rr = H.r * i / NR;
+        for (let j = 0; j <= NS; j++){
+          const a = j / NS * Math.PI * 2, x = H.x + Math.cos(a) * rr, z = H.z + Math.sin(a) * rr;
+          pos.push(x, hillOne(H, x, z), z); uvs.push(x, -z);
+        }
+      }
+      for (let i = 0; i < NR; i++) for (let j = 0; j < NS; j++){
+        const a = i * (NS + 1) + j, b = (i + 1) * (NS + 1) + j;
+        idx.push(a, a + 1, b, b, a + 1, b + 1);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      g.setIndex(idx); g.computeVertexNormals();
+      const m = new THREE.Mesh(g, hm); m.castShadow = m.receiveShadow = true; m.userData = { kind: 'world' };
+      scene.add(m); worldMeshes.push(m);
+    });
+    // 언덕 위 소나무
+    const hr = mulberry32(777), sp = [];
+    HILLS.forEach(H => {
+      const n = Math.floor(H.r * H.r * .03);
+      for (let k = 0; k < n; k++){
+        const a = hr() * 6.2832, rr = Math.sqrt(hr()) * H.r * .85, x = H.x + Math.cos(a) * rr, z = H.z + Math.sin(a) * rr, s = .8 + hr() * .7, c = hr();
+        if (Math.abs(x) > 54 || Math.abs(z) > 54) continue;
+        sp.push({ x, z, y: hillH(x, z), s, c });
+      }
+    });
+    const tr = mkInst(trunkG, sp.length, new THREE.MeshLambertMaterial({ color: 0x5a3d26 }));
+    const cn = [0, 1, 2].map(() => mkInst(coneG, sp.length, leafMat));
+    sp.forEach((p, i) => {
+      put(tr, i, p.x, p.y - .15, p.z, p.s, 2.4 * p.s, p.s);
+      for (let k = 0; k < 3; k++){
+        put(cn[k], i, p.x, p.y + (1.2 + k * 1.2) * p.s, p.z, (1.9 - k * .5) * p.s, (2.6 - k * .3) * p.s, (1.9 - k * .5) * p.s);
+        cn[k].setColorAt(i, lc.setHSL(.33 + .03 * p.c, .5, .17 + .08 * p.c));
+      }
+      boxes.push({ minX: p.x - .35 * p.s, maxX: p.x + .35 * p.s, minZ: p.z - .35 * p.s, maxZ: p.z + .35 * p.s, top: p.y + 4 });
+    });
+  }
   }
 })();
 
@@ -889,7 +943,7 @@ function collides(x, y, z){
   return false;
 }
 function groundAt(x, z, prevY){
-  let gy = inLake(x, z) ? LAKE_FLOOR : 0;
+  let gy = inLake(x, z) ? LAKE_FLOOR : hillH(x, z);
   for (const b of boxes){
     if (x+R > b.minX && x-R < b.maxX && z+R > b.minZ && z-R < b.maxZ && b.top <= prevY + 0.05) gy = Math.max(gy, b.top);
   }
@@ -1301,7 +1355,7 @@ function updateGore(dt){
   for (let i = bloodP.length - 1; i >= 0; i--){
     const b = bloodP[i];
     b.v.y -= 14 * dt; b.m.position.addScaledVector(b.v, dt); b.life -= dt;
-    if (b.m.position.y <= .03 || b.life <= 0){
+    if (b.m.position.y <= .03 + hillH(b.m.position.x, b.m.position.z) || b.life <= 0){
       scene.remove(b.m); bloodP.splice(i, 1);
     }
   }
@@ -1310,8 +1364,9 @@ function updateGore(dt){
     const g = gibs[i];
     g.v.y -= 20 * dt; g.m.position.addScaledVector(g.v, dt);
     g.m.rotation.x += g.w.x * dt; g.m.rotation.y += g.w.y * dt; g.m.rotation.z += g.w.z * dt;
-    if (g.m.position.y < .12){
-      g.m.position.y = .12; g.v.y = Math.abs(g.v.y) > 1.2 ? -g.v.y * .35 : 0;
+    const gh = .12 + hillH(g.m.position.x, g.m.position.z);
+    if (g.m.position.y < gh){
+      g.m.position.y = gh; g.v.y = Math.abs(g.v.y) > 1.2 ? -g.v.y * .35 : 0;
       g.v.x *= .6; g.v.z *= .6; g.w.multiplyScalar(.6);
     }
     if (t > g.until){ scene.remove(g.m); gibs.splice(i, 1); }
@@ -1641,10 +1696,11 @@ function updateBots(dt){
     const px = player.pos.x - b.x, pz = player.pos.z - b.z, pd = Math.hypot(px, pz);
     b.yaw = Math.atan2(-px, -pz);
     b.avatar.group.position.set(b.x, 0, b.z);
+    b.avatar.group.position.y = hillH(b.x, b.z);
     b.avatar.group.rotation.y = b.yaw;
-    animateAvatar(b.avatar, dt, Math.hypot(b.x - obx, b.z - obz) / dt, 0, Math.atan2(player.pos.y - .2, Math.max(pd, 1)));
+    animateAvatar(b.avatar, dt, Math.hypot(b.x - obx, b.z - obz) / dt, 0, Math.atan2(player.pos.y - hillH(b.x, b.z) - .2, Math.max(pd, 1)));
     if (!player.dead && pd < 45 && t > b.nextShot && (b.mask & 6) !== 6){
-      const from = new THREE.Vector3(b.x, 1.5, b.z);
+      const from = new THREE.Vector3(b.x, hillH(b.x, b.z) + 1.5, b.z);
       const to = new THREE.Vector3(player.pos.x, player.pos.y + 1.3, player.pos.z);
       const dir = to.clone().sub(from); const len = dir.length(); dir.normalize();
       raycaster.set(from, dir); raycaster.far = len;
@@ -2028,6 +2084,7 @@ function updatePlayer(dt){
   player.vel.y -= 25 * dt;
   p.y += player.vel.y * dt;
   const gy = groundAt(p.x, p.z, prevY);
+  if (player.onGround && player.vel.y <= 0 && p.y > gy && p.y - gy < .4) p.y = gy;
   if (p.y <= gy){ p.y = gy; player.vel.y = 0; player.onGround = true; } else player.onGround = false;
   if (p.y < -20) { p.set(0, 0, 0); }
 }
