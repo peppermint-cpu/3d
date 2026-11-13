@@ -2231,7 +2231,7 @@ addEventListener('blur', () => { for (const k in keys) keys[k] = false; firing =
 document.addEventListener('mousemove', e => {
   mpos.x = e.clientX; mpos.y = e.clientY;
   if (!locked || player.dead || noLock || isTouch) return;
-  const s = 0.0022 * (camera.fov / 75) * sens;
+  const s = 0.0022 * lookK() * sens;
   player.yaw -= e.movementX * s;
   player.pitch = clamp(player.pitch - e.movementY * s, -1.5, 1.5);
 });
@@ -2520,7 +2520,7 @@ function onMotion(e){
   } else yr = wx * U[0] + wy * U[1];
   if (Math.abs(yr) < .25) yr = 0;
   if (Math.abs(pr) < .25) pr = 0;
-  const k = Math.PI / 180 * dt * gyroS * (camera.fov / 75);
+  const k = Math.PI / 180 * dt * gyroS * lookK();
   player.yaw += yr * k;
   player.pitch = clamp(player.pitch + pr * (gyroInv ? -1 : 1) * k, -1.5, 1.5);
 }
@@ -2601,7 +2601,7 @@ function edgeLook(dt){
   if (keys.ArrowRight) ry += 2;
   if (keys.ArrowUp) rp -= 1.4;
   if (keys.ArrowDown) rp += 1.4;
-  const z = (camera.fov / 75) * sens;
+  const z = lookK() * sens;
   player.yaw -= ry * dt * z;
   player.pitch = clamp(player.pitch - rp * dt * z, -1.5, 1.5);
 }
@@ -2634,7 +2634,7 @@ function moveStick(t){
 function resetStick(){ stick.id = null; stick.x = 0; stick.y = 0; knob.style.transform = 'translate(0,0)'; }
 function lookDelta(dx, dy){
   if (!locked || player.dead) return;
-  const s = 0.0042 * (camera.fov / 75) * sens;
+  const s = 0.0042 * lookK() * sens;
   player.yaw -= dx * s;
   player.pitch = clamp(player.pitch - dy * s, -1.5, 1.5);
 }
@@ -3027,7 +3027,7 @@ function updateHud(){
   $('kd').textContent = 'K ' + kills + ' / D ' + deaths;
   if (isTouch) $('bAds').classList.toggle('on', mouseR);
   const w = WEAPONS[cur], a = ammo[cur];
-  $('wname').textContent = w.name;
+  $('wname').textContent = w.name + partTag(cur);
   $('ammo').innerHTML = w.melee ? '∞' : a.mag + '<small> / ' + a.res + '</small>';
   $('reloadmsg').textContent = reloading ? '재장전 중…' : (a.mag === 0 && a.res === 0 ? '탄약 없음' : '');
 }
