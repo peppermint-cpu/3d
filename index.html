@@ -210,7 +210,15 @@ body.touch #shopBtn small{display:none}
 .si small{display:block;opacity:.7;font-size:12px;margin-top:2px}
 .si button{min-width:96px;padding:9px 10px;border:0;border-radius:8px;background:linear-gradient(90deg,#f59e0b,#ef4444);color:#fff;font-weight:800;cursor:pointer}
 .si button:disabled{background:rgba(255,255,255,.15);color:#aaa}
-
+.stabs{display:flex;gap:6px;margin-bottom:10px}
+.stabs button{flex:1;padding:10px;border:0;border-radius:8px;background:rgba(255,255,255,.12);color:#fff;font-weight:800;cursor:pointer}
+.stabs button.on{background:linear-gradient(90deg,#f59e0b,#ef4444)}
+.wchips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.wchips button{padding:6px 10px;border:1px solid rgba(255,255,255,.25);border-radius:8px;background:rgba(255,255,255,.08);color:#fff;font-size:12px;font-weight:700;cursor:pointer}
+.wchips button.on{background:rgba(250,204,21,.9);color:#111}
+.si .tag{display:inline-block;margin-left:6px;font-size:11px;padding:1px 6px;border-radius:5px;background:rgba(56,189,248,.25);color:#7dd3fc;font-weight:700}
+.si button.eq{background:linear-gradient(90deg,#16a34a,#4ade80)}
+.si button.off{background:rgba(255,255,255,.22)}
 /* ===== [대기] 태양 빛번짐 ===== */
 #sunGlow{position:fixed;left:0;top:0;width:130vmin;height:130vmin;margin:-65vmin 0 0 -65vmin;z-index:3;pointer-events:none;opacity:0;mix-blend-mode:screen;will-change:transform,opacity;
 background:radial-gradient(circle,rgba(255,246,222,.95) 0,rgba(255,230,180,.55) 5%,rgba(255,212,152,.24) 16%,rgba(255,200,140,.09) 36%,rgba(255,200,140,0) 62%)}
@@ -239,7 +247,7 @@ background:radial-gradient(circle,rgba(255,246,222,.95) 0,rgba(255,230,180,.55) 
 <div id="chat" class="hud"></div>
 <div id="chatBar"><input id="chatIn" maxlength="100" placeholder="전체 채팅 (Enter 전송)" autocomplete="off"><button id="chatSend">전송</button><button id="chatClose" class="x">✕</button></div>
 
-<div id="shop"><div class="shopbox"><div class="shophead"><b>🛒 무기 상점</b><span id="shopCoin"></span><button id="shopClose">✕</button></div><div id="shopList"></div></div></div>
+<div id="shop"><div class="shopbox"><div class="shophead"><b>🛒 무기 상점</b><span id="shopCoin"></span><button id="shopClose">✕</button></div><div class="stabs"><button id="tabW" class="on">🔫 무기</button><button id="tabP">🔧 파츠</button></div><div id="shopList"></div></div></div>
 
 <div id="editLayer"></div>
 <div id="editbar"><b id="editName">버튼을 눌러 선택하세요</b><input type="range" id="editSize" min="0.5" max="2" step="0.05" value="1" disabled><button id="editReset" class="eb">초기화</button><button id="editDone" class="eb ok">완료</button></div>
@@ -934,6 +942,7 @@ function renderFrame(){
     water.visible = bed.visible = true;
   }
   wu.uUse.value = refl ? 1 : 0;
+  renderPip();
   // [그림자] 갱신 여부는 updateSun()이 needsUpdate로 정함 (예전 autoUpdate = !refl 방식은 호수가 보이면 그림자가 멈추는 버그가 있었음)
   renderer.render(scene, camera);
   if (gunGroup){   // 총 카메라를 플레이어 카메라와 똑같이 맞춰서 그림 (총구 위치 계산도 이 값을 씀)
@@ -1161,7 +1170,98 @@ function buildGun(i){
   g.position.set(.24,-.22,-.5);
   return g;
 }
+/* ---------- 무기 파츠 (조준경 / 탄창) ---------- */
+const AY = .035;                                                    // 레일 윗면 → 조준축 높이
+const RAIL  = { akm: .052, m416: .056, s12k: .056, m249: .068 };   // 총별 레일 윗면 높이 (여기 없는 총은 조준경 장착 불가)
+const RAILZ = { akm: -.05, m416: -.06, s12k: -.05, m249: -.05 };   // 조준경 중심 z
+const pipRT = new THREE.WebGLRenderTarget(isTouch ? 224 : 384, isTouch ? 224 : 384);   // 배율 렌즈 화면
+const pipCam = new THREE.PerspectiveCamera(10, 1, .1, 300);
+const lensOn = new THREE.MeshBasicMaterial({ map: pipRT.texture, toneMapped: false });
+const lensOff = new THREE.MeshBasicMaterial({ color: 0x0b1118, toneMapped: false });
+const retMat = (() => {   // 렌즈 위에 겹치는 십자선 + 가장자리 어둠
+  const S = 256, h = S / 2, c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(h, h, h * .8, h, h, h);
+  gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,.95)');
+  g.fillStyle = gr; g.fillRect(0, 0, S, S);
+  g.strokeStyle = 'rgba(0,0,0,.9)'; g.fillStyle = 'rgba(0,0,0,.9)';
+  const ln = (x1, y1, x2, y2, w) => { g.lineWidth = w; g.beginPath(); g.moveTo(h + x1 * h, h + y1 * h); g.lineTo(h + x2 * h, h + y2 * h); g.stroke(); };
+  ln(-.38, 0, .38, 0, 1.5); ln(0, -.38, 0, .38, 1.5);
+  ln(.38, 0, 1, 0, 5); ln(-.38, 0, -1, 0, 5); ln(0, .38, 0, 1, 5); ln(0, -.38, 0, -1, 5);
+  for (const d of [-.26, -.13, .13, .26]){ g.beginPath(); g.arc(h + d * h, h, 1.8, 0, 6.283); g.fill(); g.beginPath(); g.arc(h, h + d * h, 1.8, 0, 6.283); g.fill(); }
+  g.fillStyle = 'rgba(255,40,40,.95)'; g.beginPath(); g.arc(h, h, 2, 0, 6.283); g.fill();
+  return new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, toneMapped: false });
+})();
 
+/* 지금 장착한 조준경 정보 (없으면 null). y,z = 조준할 때 총이 놓일 위치 */
+function sightOf(i){
+  const w = WEAPONS[i], e = prof.eq && prof.eq[w.id], p = e && e.sight && PARTS_BY_ID[e.sight];
+  if (!p || RAIL[w.id] === undefined) return null;
+  const zr = RAILZ[w.id] + p.L / 2 + (p.mag > 1 ? .002 : 0);
+  return { p, mag: p.mag, zoom: p.zoom, y: -(RAIL[w.id] + AY), z: -(p.e + zr) };
+}
+function scopeMag(){ const s = sightOf(cur); return s ? s.mag : 1; }
+/* 시점 감도 배율: 줌/배율이 클수록 느리게 */
+function lookK(){ const m = ads ? scopeMag() : 1; return (camera.fov / 75) / (1 + (m - 1) * .5); }
+
+/* 파츠를 총 모델에 붙이기 */
+function decorGun(g, i){
+  const w = WEAPONS[i], e = (prof.eq && prof.eq[w.id]) || {};
+  const mp = e.mag && PARTS_BY_ID[e.mag], sp = e.sight && PARTS_BY_ID[e.sight], mg = g.userData.mag;
+  if (mp && mg){   // 탄창: 대용량은 길게(파란 띠), 퀵드로우는 주황 띠
+    const gm = mg.geometry.parameters || {}, h = gm.height || .1, W = (gm.width || .04) + .004, D = (gm.depth || .05) + .004;
+    if (mp.cap){ mg.scale.y = 1.4; mg.position.y -= h * .2; g.userData.mp = mg.position.clone(); }
+    const band = (c, y) => { const b = new THREE.Mesh(new THREE.BoxGeometry(W, h * .12, D), gunMat(c, 'm')); b.position.y = y; mg.add(b); };
+    if (mp.cap) band(0x38bdf8, h * .3);
+    if (mp.rel) band(0xf59e0b, -h * .3);
+  }
+  const rail = RAIL[w.id];
+  if (!sp || rail === undefined) return;
+  const top = rail + AY - .004;
+  g.children.forEach(m => {   // 기본 조준기구 중 시야를 가리는 것은 숨김
+    if (!m.isMesh || m.renderOrder === 1000) return;
+    m.geometry.computeBoundingBox();
+    if (Math.abs(m.position.x) < .02 && m.position.z > -.6 && m.position.z < .2 && m.position.y + m.geometry.boundingBox.max.y > top) m.visible = false;
+  });
+  const SG = new THREE.Group(); SG.position.set(0, rail, RAILZ[w.id]); g.add(SG);
+  const bx = (a, b, c, x, y, z, col, fl) => { const m = new THREE.Mesh(gunGeo([a, b, c], fl || ''), gunMat(col, fl || '')); m.position.set(x, y, z); SG.add(m); return m; };
+  if (sp.mag <= 1){   // 레드닷
+    bx(.032, .01, .07, 0, .005, 0, 0x1a1a1a, 'm'); bx(.04, .012, .07, 0, .016, 0, 0x1a1a1a, 'm'); bx(.04, .012, .07, 0, .0545, 0, 0x1a1a1a, 'm');
+    bx(.007, .05, .07, -.0185, AY, 0, 0x1a1a1a, 'm'); bx(.007, .05, .07, .0185, AY, 0, 0x1a1a1a, 'm');
+    const gl = new THREE.Mesh(new THREE.BoxGeometry(.03, .028, .002), new THREE.MeshPhongMaterial({ color: 0x9fd8ff, transparent: true, opacity: .16, depthWrite: false, specular: 0xffffff, shininess: 100 }));
+    gl.position.set(0, AY, -.02); SG.add(gl);
+    const dot = new THREE.Mesh(new THREE.BoxGeometry(.0035, .0035, .0035), new THREE.MeshBasicMaterial({ color: 0xff2020, toneMapped: false }));
+    dot.position.set(0, AY, -.019); SG.add(dot);
+    const halo = new THREE.Mesh(new THREE.BoxGeometry(.006, .006, .001), new THREE.MeshBasicMaterial({ color: 0xff2020, transparent: true, opacity: .28, depthWrite: false, toneMapped: false }));
+    halo.position.set(0, AY, -.0185); SG.add(halo);
+    return;
+  }
+  const L = sp.L, R = L / 2;   // 배율 스코프
+  bx(.026, .0215, .012, 0, .01075, -L * .28, 0x1a1a1a, 'm'); bx(.026, .0215, .012, 0, .01075, L * .28, 0x1a1a1a, 'm');
+  bx(.031, 0, L * .62, 0, AY, 0, 0x151515, 'cm');
+  bx(.042, 0, .03, 0, AY, -R + .015, 0x101010, 'cm');
+  bx(.052, 0, .032, 0, AY, R - .016, 0x101010, 'cm');
+  bx(.011, .012, 0, 0, AY + .0215, 0, 0x2a2a2a, 'ym'); bx(.012, .01, .012, .0215, AY, 0, 0x2a2a2a, 'm');
+  const lens = new THREE.Mesh(new THREE.CircleGeometry(.0205, 28), lensOff); lens.position.set(0, AY, R + .002); SG.add(lens);
+  const ret = new THREE.Mesh(new THREE.CircleGeometry(.0205, 28), retMat); ret.position.set(0, AY, R + .0028); ret.visible = false; SG.add(ret);
+  const fg = new THREE.Mesh(new THREE.CircleGeometry(.019, 20), new THREE.MeshPhongMaterial({ color: 0x4a90d9, specular: 0xffffff, shininess: 120, transparent: true, opacity: .5, side: THREE.DoubleSide }));
+  fg.position.set(0, AY, -R - .0005); fg.rotation.y = Math.PI; SG.add(fg);
+  g.userData.sight = { lens, ret, mag: sp.mag, pipFov: 2 * Math.atan(.0205 / sp.e / sp.mag) * 180 / Math.PI };
+}
+const _buildGun0 = buildGun;
+buildGun = function(i){ const g = _buildGun0(i); decorGun(g, i); return g; };
+
+/* 배율 스코프 렌즈 화면: 조준 중일 때만 한 번 더 그림 (렌즈 안쪽만 확대) */
+function renderPip(){
+  const sg = gunGroup && gunGroup.userData.sight; if (!sg) return;
+  const on = !!(gunGroup.visible && ads && sg.mag > 1);
+  sg.lens.material = on ? lensOn : lensOff; sg.ret.visible = on;
+  if (!on) return;
+  pipCam.position.copy(camera.position); pipCam.quaternion.copy(camera.quaternion);
+  pipCam.fov = sg.pipFov; pipCam.updateProjectionMatrix(); pipCam.updateMatrixWorld();
+  const u = wu.uUse.value; wu.uUse.value = 0;
+  renderer.setRenderTarget(pipRT); renderer.render(scene, pipCam); renderer.setRenderTarget(null);
+  wu.uUse.value = u;
+}
 /* ---------- 상태 ---------- */
 const player = { pos: new THREE.Vector3(0,0,0), vel: new THREE.Vector3(), yaw: 0, pitch: 0, onGround: true, hp: 100, dead: false };
 const ammo = WEAPONS.map(w => ({ mag: w.mag, res: w.res }));
@@ -1619,7 +1719,7 @@ async function saveScore(){
   saveLocalProf();
   if (!sb) return;
   try {
-    const r = await sb.from('scores').upsert({ nickname: myName, kills, deaths, coins: prof.coins, xp: prof.xp, owned: prof.owned.join(','), updated_at: new Date().toISOString() }, { onConflict: 'nickname' });
+    const r = await sb.from('scores').upsert({ nickname: myName, kills, deaths, coins: prof.coins, xp: prof.xp, owned: ownedTokens().join(','), updated_at: new Date().toISOString() }, { onConflict: 'nickname' });
     if (r.error) await sb.from('scores').upsert({ nickname: myName, kills, deaths, updated_at: new Date().toISOString() }, { onConflict: 'nickname' });
   } catch(e){}
 }
@@ -2069,7 +2169,7 @@ function respawn(){
   player.pos.set(s.x, 0, s.z); player.vel.set(0,0,0);
   player.hp = 100; player.dead = false; player.pitch = 0;
   lm.mask = 0; lm.limbDmg = {};
-  WEAPONS.forEach((w, i) => { ammo[i].mag = w.mag; ammo[i].res = w.res; });
+  WEAPONS.forEach((w, i) => { ammo[i].mag = magCap(i); ammo[i].res = w.res; });
   $('death').style.display = 'none';
   sendPos(true);
 }
@@ -2154,7 +2254,7 @@ document.addEventListener('wheel', e => {
 
 /* ---------- 코인 / 경험치 / 상점 ---------- */
 const PRICE = { akm: 0, m416: 800, awm: 2500, s12k: 1500, m249: 2200, katana: 600 };   // 무기 가격은 여기서 조절
-const prof = { coins: 0, xp: 0, owned: ['akm'] };
+const prof = { coins: 0, xp: 0, owned: ['akm'], parts: [], eq: {} };
 const levelOf = xp => Math.floor(Math.sqrt(xp / 100)) + 1;
 const lvStart = lv => (lv - 1) * (lv - 1) * 100;
 const isOwned = i => prof.owned.indexOf(WEAPONS[i].id) !== -1;
@@ -2229,6 +2329,127 @@ function openShop(){
   renderShop(); $('shop').classList.add('on');
 }
 function closeShop(){ shopOpen = false; $('shop').classList.remove('on'); }
+  /* ===== 무기 파츠 ===== */
+const PARTS = [   // 가격·성능은 여기서 조절
+  { id: 'extmag',   slot: 'mag',   name: '대용량 탄창',          short: 'EXT', price: 600,  cap: 1.5, desc: '탄창 용량 +50%' },
+  { id: 'quickmag', slot: 'mag',   name: '퀵드로우 탄창',        short: 'QD',  price: 500,  rel: .65, desc: '재장전 시간 -35%' },
+  { id: 'extquick', slot: 'mag',   name: '대용량 퀵드로우 탄창', short: 'EQ',  price: 1100, cap: 1.3, rel: .8, desc: '탄창 +30% · 재장전 시간 -20%' },
+  { id: 'reddot',   slot: 'sight', name: '레드닷 사이트',        short: 'RDS', price: 400,  mag: 1, zoom: 1.25, L: .07, e: .12,  desc: '붉은 점으로 조준 (배율 없음)' },
+  { id: 'x2',       slot: 'sight', name: '2배율 스코프',         short: '2x',  price: 700,  mag: 2, zoom: 1.4,  L: .09, e: .075, desc: '조준 시 렌즈 안쪽만 2배 확대' },
+  { id: 'x3',       slot: 'sight', name: '3배율 스코프',         short: '3x',  price: 1000, mag: 3, zoom: 1.4,  L: .11, e: .075, desc: '조준 시 렌즈 안쪽만 3배 확대' },
+  { id: 'x4',       slot: 'sight', name: '4배율 스코프',         short: '4x',  price: 1400, mag: 4, zoom: 1.4,  L: .13, e: .075, desc: '조준 시 렌즈 안쪽만 4배 확대' },
+  { id: 'x6',       slot: 'sight', name: '6배율 스코프',         short: '6x',  price: 2000, mag: 6, zoom: 1.4,  L: .15, e: .075, desc: '조준 시 렌즈 안쪽만 6배 확대' }
+];
+const PARTS_BY_ID = {}; PARTS.forEach(p => { PARTS_BY_ID[p.id] = p; });
+const eqOf = i => prof.eq[WEAPONS[i].id] || {};
+function magCap(i){ const w = WEAPONS[i], p = PARTS_BY_ID[eqOf(i).mag]; return p && p.cap ? Math.max(w.mag + 1, Math.round(w.mag * p.cap)) : w.mag; }
+function reloadTime(i){ const p = PARTS_BY_ID[eqOf(i).mag]; return WEAPONS[i].reload * (p && p.rel ? p.rel : 1); }
+function partFits(p, wid){ const w = WEAPONS.find(x => x.id === wid); return !!w && !w.melee && (p.slot === 'mag' || RAIL[wid] !== undefined); }
+function partTag(i){
+  const e = eqOf(i), a = [];
+  if (e.sight && PARTS_BY_ID[e.sight]) a.push(PARTS_BY_ID[e.sight].short);
+  if (e.mag && PARTS_BY_ID[e.mag]) a.push(PARTS_BY_ID[e.mag].short);
+  return a.length ? ' · ' + a.join('+') : '';
+}
+function fixAmmo(i){ const a = ammo[i], c = magCap(i); if (a.mag > c){ a.res += a.mag - c; a.mag = c; } }
+function ownedTokens(){   // 무기 + 보유 파츠(p_) + 장착(e_무기_파츠)을 한 목록으로 저장
+  const a = prof.owned.slice();
+  prof.parts.forEach(p => a.push('p_' + p));
+  for (const wid in prof.eq){ const e = prof.eq[wid]; for (const s in e) if (e[s]) a.push('e_' + wid + '_' + e[s]); }
+  return a;
+}
+function startReload(){
+  const w = WEAPONS[cur], a = ammo[cur];
+  if (reloading || drawT > 0 || a.mag >= magCap(cur) || a.res <= 0 || player.dead) return;
+  reloading = true; reloadEnd = now() + reloadTime(cur);
+}
+function applyProf(o){
+  prof.coins = Math.max(0, (o && +o.coins) || 0);
+  prof.xp = Math.max(0, (o && +o.xp) || 0);
+  const raw = (o ? (typeof o.owned === 'string' ? o.owned.split(',') : (Array.isArray(o.owned) ? o.owned : [])) : []).map(String);
+  const ow = [], pa = [], eq = {};
+  raw.forEach(t => {
+    if (t in PRICE) ow.push(t);
+    else if (t.indexOf('p_') === 0 && PARTS_BY_ID[t.slice(2)]) pa.push(t.slice(2));
+  });
+  raw.forEach(t => {
+    if (t.indexOf('e_') !== 0) return;
+    const s = t.split('_'), pt = PARTS_BY_ID[s[2]];
+    if (pt && pa.indexOf(pt.id) !== -1 && s[1] in PRICE && partFits(pt, s[1])) (eq[s[1]] = eq[s[1]] || {})[pt.slot] = pt.id;
+  });
+  if (ow.indexOf('akm') === -1) ow.push('akm');
+  prof.owned = ow; prof.parts = pa; prof.eq = eq;
+  WEAPONS.forEach((w, i) => { if (ammo[i].mag === w.mag) ammo[i].mag = magCap(i); fixAmmo(i); });
+}
+function saveLocalProf(){ try { localStorage.setItem('is_prof_' + myName, JSON.stringify({ coins: prof.coins, xp: prof.xp, owned: ownedTokens() })); } catch(e){} }
+function refreshGun(){   // 파츠를 바꾸면 손에 든 총 모델만 다시 만듦
+  if (gunGroup) gunCam.remove(gunGroup);
+  gunGroup = buildGun(cur); gunCam.add(gunGroup);
+  drawDur = .3; drawT = 1; reloading = false;
+}
+function equipPart(wi, id){
+  const w = WEAPONS[wi], p = PARTS_BY_ID[id];
+  if (!p || !partFits(p, w.id) || prof.parts.indexOf(id) === -1) return;
+  const e = prof.eq[w.id] || (prof.eq[w.id] = {});
+  if (e[p.slot] === id) delete e[p.slot]; else e[p.slot] = id;
+  fixAmmo(wi);
+  if (wi === cur) refreshGun();
+  saveScore(); renderShop(); beep(600, .06, .05);
+}
+function buyPart(id){
+  const p = PARTS_BY_ID[id];
+  if (!p || prof.parts.indexOf(id) !== -1 || prof.coins < p.price) return;
+  prof.coins -= p.price; prof.parts.push(id);
+  updateWallet(); beep(880, .12, .08);
+  equipPart(shopSel, id);   // 사자마자 선택한 총에 장착 (저장·화면 갱신 포함)
+}
+let shopTab = 0, shopSel = 0;
+function renderShop(){
+  $('shopCoin').textContent = '🪙 ' + prof.coins.toLocaleString();
+  $('tabW').classList.toggle('on', shopTab === 0); $('tabP').classList.toggle('on', shopTab === 1);
+  const box = $('shopList'); box.innerHTML = '';
+  if (shopTab === 0){
+    WEAPONS.forEach((w, i) => {
+      const own = isOwned(i), row = document.createElement('div'); row.className = 'si';
+      const info = document.createElement('div');
+      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = w.name;
+      const sm = document.createElement('small');
+      sm.textContent = w.melee ? '근접 · 피해 ' + w.dmg : '피해 ' + w.dmg + ' · 탄창 ' + magCap(i) + ' · 예비 ' + w.res + partTag(i);
+      info.append(nm, sm);
+      const btn = document.createElement('button');
+      if (own){ btn.textContent = i === cur ? '장착중' : '장착'; btn.disabled = i === cur; btn.onclick = () => { equip(i); renderShop(); }; }
+      else { btn.textContent = '🪙 ' + PRICE[w.id]; btn.disabled = prof.coins < PRICE[w.id]; btn.onclick = () => buyWeapon(i); }
+      row.append(info, btn); box.appendChild(row);
+    });
+    return;
+  }
+  if (!isOwned(shopSel) || WEAPONS[shopSel].melee) shopSel = WEAPONS.findIndex((w, i) => isOwned(i) && !w.melee);
+  const chips = document.createElement('div'); chips.className = 'wchips';
+  WEAPONS.forEach((w, i) => {
+    if (!isOwned(i) || w.melee) return;
+    const b = document.createElement('button'); b.textContent = w.short + partTag(i); if (i === shopSel) b.className = 'on';
+    b.onclick = () => { shopSel = i; renderShop(); }; chips.appendChild(b);
+  });
+  box.appendChild(chips);
+  const sw = WEAPONS[shopSel], se = prof.eq[sw.id] || {};
+  PARTS.forEach(p => {
+    const own = prof.parts.indexOf(p.id) !== -1, ok = partFits(p, sw.id), on = se[p.slot] === p.id;
+    const row = document.createElement('div'); row.className = 'si';
+    const info = document.createElement('div');
+    const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = p.name;
+    const tg = document.createElement('span'); tg.className = 'tag'; tg.textContent = p.slot === 'mag' ? '탄창' : '조준경';
+    const sm = document.createElement('small'); sm.textContent = p.desc + (own ? ' · 보유중' : '');
+    info.append(nm, tg, sm);
+    const btn = document.createElement('button');
+    if (!own){ btn.textContent = '🪙 ' + p.price; btn.disabled = prof.coins < p.price; btn.onclick = () => buyPart(p.id); }
+    else if (!ok){ btn.textContent = '장착 불가'; btn.disabled = true; }
+    else if (on){ btn.textContent = '해제'; btn.className = 'off'; btn.onclick = () => equipPart(shopSel, p.id); }
+    else { btn.textContent = '장착'; btn.className = 'eq'; btn.onclick = () => equipPart(shopSel, p.id); }
+    row.append(info, btn); box.appendChild(row);
+  });
+}
+$('tabW').addEventListener('click', () => { shopTab = 0; renderShop(); });
+$('tabP').addEventListener('click', () => { shopTab = 1; if (!WEAPONS[cur].melee) shopSel = cur; renderShop(); });
 $('wallet').addEventListener('touchstart', e => { e.preventDefault(); openShop(); }, { passive: false });
 $('wallet').addEventListener('click', openShop);
 $('shopOpen').addEventListener('click', openShop);
@@ -2849,7 +3070,7 @@ function loop(){
     if (!player.onGround) fallV = Math.min(fallV, player.vel.y);
     else { if (fallV < -5) camLand = Math.min(.2, -fallV * .011) * shake; fallV = 0; }
     if (reloading && t >= reloadEnd){
-      const need = w.mag - a.mag, take = Math.min(need, a.res);
+      const need = magCap(cur) - a.mag, take = Math.min(need, a.res);
       a.mag += take; a.res -= take; reloading = false;
     }
     if (firing && !reloading && drawT <= 0 && t - lastShot >= w.delay){
@@ -2884,11 +3105,12 @@ function loop(){
   camRoll += (clamp(-lat2 * .0035, -.03, .03) * shake - camRoll) * clamp(7 * dt, 0, 1);
   camera.position.set(player.pos.x, player.pos.y + eye + Math.sin(camBob) * camBobA - camLand, player.pos.z);
   camera.rotation.set(player.pitch, player.yaw, player.dead ? 0.9 : camRoll + Math.cos(camBob * .5) * camBobA * .12);
-  const targetFov = ads ? 75 / w.zoom : 75 + spr * 6;
+  const sgt = sightOf(cur);
+  const targetFov = ads ? 75 / (sgt ? sgt.zoom : w.zoom) : 75 + spr * 6;
   if (Math.abs(camera.fov - targetFov) > 0.05){ camera.fov += (targetFov - camera.fov) * clamp(14 * dt, 0, 1); camera.updateProjectionMatrix(); }
   const scoped = ads && w.id === 'awm' && camera.fov < 30;
   $('scope').style.display = scoped ? 'block' : 'none';
-  $('cross').style.display = (scoped || player.dead) ? 'none' : 'block';
+  $('cross').style.display = (scoped || player.dead || (ads && sightOf(cur))) ? 'none' : 'block';
 
   // 총 뷰모델
   if (gunGroup){
@@ -2906,8 +3128,9 @@ function loop(){
     swayX += (clamp(yawRate * .012, -.07, .07) * sk * shake - swayX) * ks;
     swayY += (clamp(-pitRate * .010, -.05, .05) * sk * shake - swayY) * ks;
     const lat = player.vel.x * Math.cos(player.yaw) - player.vel.z * Math.sin(player.yaw);
-    const tx = ads ? 0 : .24 - spr * .1, ty = ads ? -.15 : -.22 - spr * .07, tz = ads ? -.36 : -.5 + spr * .08;
-    const rp = reloading ? Math.min(1, (reloadEnd - t) / w.reload) : 0;
+    const sgs = sightOf(cur), sa = ads && sgs ? sgs : null;
+    const tx = ads ? 0 : .24 - spr * .1, ty = ads ? (sa ? sa.y : -.15) : -.22 - spr * .07, tz = ads ? (sa ? sa.z : -.36) : -.5 + spr * .08;
+    const rp = reloading ? Math.min(1, (reloadEnd - t) / reloadTime(cur)) : 0;
     const dip = reloading ? Math.sin(Math.min(1, 1 - rp) * Math.PI) : 0;
     drawT = Math.max(0, drawT - dt / drawDur);
     const dw = drawT * drawT * (3 - 2 * drawT);
