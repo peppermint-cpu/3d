@@ -1,4 +1,56 @@
-<!DOCTYPE html>
+ath.cos(dyw));
+    const yawRate = dyw / Math.max(dt, .001), pitRate = (player.pitch - prevPitch) / Math.max(dt, .001);
+    prevYaw = player.yaw; prevPitch = player.pitch;
+    const sk = ads ? .35 : 1, ks = clamp(9 * dt, 0, 1);
+    swayX += (clamp(yawRate * .012, -.07, .07) * sk * shake - swayX) * ks;
+    swayY += (clamp(-pitRate * .010, -.05, .05) * sk * shake - swayY) * ks;
+    const lat = player.vel.x * Math.cos(player.yaw) - player.vel.z * Math.sin(player.yaw);
+    const sgs = sightOf(cur), sa = ads && sgs ? sgs : null;
+    const tx = ads ? 0 : .24 - spr * .1, ty = ads ? (sa ? sa.y : -.15) : -.22 - spr * .07, tz = ads ? (sa ? sa.z : -.36) : -.5 + spr * .08;
+    const rp = reloading ? Math.min(1, (reloadEnd - t) / reloadTime(cur)) : 0;
+    const dip = reloading ? Math.sin(Math.min(1, 1 - rp) * Math.PI) : 0;
+    drawT = Math.max(0, drawT - dt / drawDur);
+    const dw = drawT * drawT * (3 - 2 * drawT);
+    const gp = gunGroup.position, k2 = clamp(16 * dt, 0, 1);
+    gp.x += (tx + swayX + Math.cos(bobT * .5) * bob * .9 - lat * .004 * shake + dw * .1 - gp.x) * k2;
+    gp.y += (ty + swayY + Math.sin(bobT) * bob - dip * .18 - camLand * 1.1 - dw * .38 - gp.y) * k2;
+    gp.z += (tz + kick * .06 + Math.abs(Math.sin(bobT * .5)) * bob * .6 + dw * .12 - gp.z) * k2;
+    gunGroup.rotation.x = kick * .12 - dip * .7 + spr * .38 + swayY * 1.6 - camLand * 2 - dw * 1.0;
+    gunGroup.rotation.y = spr * .75 - swayX * 2.4 + dw * .4;
+    // 재장전: 총을 기울이고 → 탄창 분리·낙하 → 새 탄창 장착
+    const mg = gunGroup.userData.mag, mp = gunGroup.userData.mp, pr = reloading ? 1 - rp : 0;
+    gunGroup.rotation.z = (reloading ? -Math.sin(Math.min(1, pr / 0.85) * Math.PI) * 0.45 : 0) + spr * .3 - swayX * 1.8 - lat * .006 * shake + Math.cos(bobT * .5) * bob * 2 + dw * .5;
+    if (w.melee){ swing = Math.max(0, swing - dt * 3.2); const q = 1 - swing, sw = swing > 0 ? Math.sin(q * Math.PI) : 0; gunGroup.rotation.z = swing > 0 ? (1 - q * 2) * 1.2 : 0; gunGroup.rotation.y = -sw * 0.8; gunGroup.rotation.x -= sw * 0.5; }
+    if (gunGroup.userData.belt) updateBelt(gunGroup.userData.belt, dt, a.mag, reloading);
+    if (gunGroup.userData.bolt) updateBolt(gunGroup.userData.bolt, w, a, t, reloading, pr);
+    if (mg){
+      if (!reloading || pr >= 0.8){ mg.visible = true; mg.position.copy(mp); }
+      else if (pr < 0.3){ mg.visible = true; mg.position.set(mp.x, mp.y - pr / 0.3 * 0.35, mp.z); }
+      else if (pr < 0.5){ if (mg.visible){ mg.visible = false; dropMag(mg); } }
+      else { mg.visible = true; mg.position.set(mp.x, mp.y - (0.8 - pr) / 0.3 * 0.35, mp.z); }
+    }
+  }
+  const spread = armPen() * w.spread * (ads ? 0.35 : 1) * (Math.hypot(player.vel.x, player.vel.z) > 1 ? 1.8 : 1) * (player.onGround ? 1 : 2.5);
+  $('cross').style.setProperty('--g', (5 + spread * 900) + 'px');
+
+  // 네트워크 전송
+  sendT += dt;
+  if (sendT >= 0.1){ sendT = 0; sendPos(); }
+
+  updateHud();
+  renderFrame();
+}
+equip(0);
+// 내 그림자 전용 몸체 (화면에는 안 보이고 그림자만 드리움)
+const selfAv = makeAvatar('', 0x3b82f6, {});
+selfAv.label.visible = false; selfAv.group.visible = false;
+selfAv.group.traverse(o => { if (o.material){ o.material.colorWrite = false; o.material.depthWrite = false; } });
+if (gunGroup) gunGroup.visible = false;
+loop();
+})();
+</script>
+</body>
+      </html><!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -1008,13 +1060,14 @@ GD.m416 = [
   [.016,.016,.016,0,.062,-.395,0x1a1a1a,'m'], [.006,.03,.006,0,.078,-.395,0x0a0a0a],
   [.03,.012,.07,0,.062,-.03,0x0e0e0e,'m'], [.038,.04,.09,0,.083,-.03,0x151515,'m'],
   [.03,.03,.004,0,.085,-.076,0x66b3ff,'g'], [.03,.028,.004,0,.085,.017,0x224466,'g'], [.004,.004,.003,0,.085,.019,0xff2222,'e'],
-  [.03,.012,.03,0,.04,.14,0x151515,'m'], [.006,.012,.025,-.0325,0,.06,0x0a0a0a,'m'],
+  [.03,.012,.03,0,.04,.14,0x151515,'mB'], [.006,.012,.025,-.0325,0,.06,0x0a0a0a,'m'],
   [.008,.008,.07,0,-.082,.04,0x151515,'m'], [.008,.034,.008,0,-.063,.005,0x151515,'m'], [.006,.024,.008,0,-.062,.04,0x050505,'m'],
   [.052,.09,.02,0,-.01,.355,0x0a0a0a], [.012,.02,.14,-.0265,-.012,.25,0x1a1a1a],
   ...rep(4, i => [.003,.006,.05,-.0215,.05 - i * .03,0,0x2a2a2a,'M']), [.044,.012,.075,0,-.081,0,0x0d0d0d,'mM'],
   [.056,.07,.07,0,-.095,.10,SKIN]
 ];
 GD.akm = [
+  [.018,.014,.03,.036,.052,-.05,0x1a1a1a,'mB'], [.012,.01,.045,.03,.047,-.035,0x1a1a1a,'mB'],   // 장전 손잡이 (AK는 쏠 때마다 같이 왕복해요)
   [.052,.012,.34,0,.046,-.07,0x2a2a2a,'m'],
   ...rep(4, i => [.054,.004,.01,0,.0535,-.2 + i * .08,0x1a1a1a]),
   [.02,0,.26,0,.03,-.34,0x1c1c1c,'cm'], [.03,0,.03,0,.012,-.47,0x1c1c1c,'cm'], [.05,.02,.2,0,.035,-.32,0x7a4a21,'w'],
@@ -1037,7 +1090,7 @@ GD.awm = [
   [.01,.004,.4,0,.028,-.6,0x2a2a2a,'m'],
   [.044,.03,.03,0,-.018,-.62,0x1a1a1a,'m'], [.01,.012,.16,-.018,-.03,-.62,0x1a1a1a,'m'], [.01,.012,.16,.018,-.03,-.62,0x1a1a1a,'m'],
   [.045,.05,.30,0,-.03,-.28,0x3d4a2f],
-  [.04,.012,.012,.035,.03,.07,0x151515,'m'], [.02,.02,.02,.058,.03,.07,0x151515,'m'],
+  [.04,.012,.012,.035,.03,.07,0x151515,'mB'], [.02,.02,.02,.058,.03,.07,0x151515,'mB'],
   [.05,.03,.18,0,.055,.31,0x2a3322], [.056,.1,.02,0,-.01,.485,0x0a0a0a],
   [.008,.008,.08,0,-.075,.035,0x151515,'m'], [.008,.03,.008,0,-.06,-.005,0x151515,'m'], [.006,.022,.008,0,-.058,.04,0x050505,'m'],
   [.044,.012,.055,0,-.056,0,0x0d0d0d,'mM'],
@@ -1050,7 +1103,7 @@ GD.s12k = [
   ...rep(5, i => [.004,.012,.014,-.0265,.012,-.28 - i * .03,0x000000]),
   [.05,0,.04,0,.012,-.53,0x0d0d0d,'cm'],
   [.016,.02,.016,0,.042,-.46,0x1a1a1a,'m'], [.008,.03,.008,0,.065,-.46,0x0a0a0a],
-  [.04,.02,.03,0,.066,.10,0x1a1a1a,'m'], [.01,.012,.04,-.04,.03,0,0x151515,'m'],
+  [.04,.02,.03,0,.066,.10,0x1a1a1a,'m'], [.01,.012,.04,-.04,.03,0,0x151515,'mB'],
   [.008,.008,.07,0,-.075,.035,0x151515,'m'], [.008,.034,.008,0,-.058,0,0x151515,'m'], [.006,.022,.008,0,-.056,.035,0x050505,'m'],
   [.052,.08,.015,0,-.01,.335,0x0a0a0a],
   ...rep(4, i => [.004,.008,.12,-.032,.04 - i * .03,0,0x2a2a2a,'M']), [.064,.012,.145,0,-.066,0,0x0d0d0d,'mM'],
@@ -1062,7 +1115,7 @@ GD.m249 = [
   [.02,.012,.16,0,.095,-.42,0x151515,'m'], [.012,.055,.012,0,.0625,-.50,0x151515,'m'], [.012,.055,.012,0,.0625,-.34,0x151515,'m'],
   [.05,.03,.03,0,-.025,-.55,0x1a1a1a,'m'], [.01,.012,.16,-.02,-.04,-.55,0x1a1a1a,'m'], [.01,.012,.16,.02,-.04,-.55,0x1a1a1a,'m'],
   [.04,0,.06,0,.012,-.69,0x0f0f0f,'cm'], [.008,.03,.008,0,.04,-.66,0x0a0a0a],
-  [.04,.02,.03,0,.075,.04,0x151515,'m'], [.01,.014,.05,-.04,.02,-.05,0x151515,'m'],
+  [.04,.02,.03,0,.075,.04,0x151515,'m'], [.01,.014,.05,-.04,.02,-.05,0x151515,'mB'],
   [.052,.09,.015,0,-.01,.395,0x0a0a0a],
   [.008,.008,.07,0,-.075,.035,0x151515,'m'], [.008,.034,.008,0,-.058,0,0x151515,'m'], [.006,.022,.008,0,-.056,.035,0x050505,'m'],
   ...rep(3, i => [.004,.01,.12,-.0465,.04 - i * .04,0,0x2a2a2a,'M']), [.094,.012,.145,0,-.066,0,0x0d0d0d,'mM'],
@@ -1138,6 +1191,24 @@ function updateBelt(B, dt, mag, rl){
     r.scale.setScalar(clamp((BELT.L - s) / .02, .15, 1));
   });
 }
+/* 노리쇠/장전 손잡이: tr=뒤로 빠지는 거리, fire=1 쏠 때마다 왕복(AK) / 2 볼트액션(AWM) / 0 장전 때만 */
+const BOLT = { akm: { tr: .10, fire: 1 }, m416: { tr: .05, fire: 0 }, awm: { tr: .07, fire: 2 }, s12k: { tr: .06, fire: 0 }, m249: { tr: .07, fire: 0 } };
+const _sm = u => u * u * (3 - 2 * u);
+function updateBolt(B, w, a, t, rl, pr){
+  let x = 0;
+  if (rl){   // 장전: 탄창을 끼운 뒤 손잡이를 당겼다 놓음 (빈 총이면 열려 있다가 닫힘)
+    const open = a.mag === 0 ? 1 : 0;
+    if (pr < .76) x = open;
+    else if (pr < .86) x = open + (1 - open) * _sm((pr - .76) / .1);
+    else if (pr < .91) x = 1;
+    else x = 1 - _sm(clamp((pr - .91) / .05, 0, 1));
+  } else if (B.userData.fire){
+    const u = t - lastShot;
+    if (B.userData.fire === 2) x = u < .25 ? 0 : u < .45 ? _sm((u - .25) / .2) : u < .7 ? 1 : u < .9 ? 1 - _sm((u - .7) / .2) : 0;
+    else { const c = Math.min(w.delay * .9, .09); x = u < c ? Math.sin(u / c * Math.PI) : 0; if (a.mag === 0 && u >= c) x = 1; }   // 총알이 떨어지면 노리쇠가 뒤에 걸려 있음
+  }
+  B.position.z = x * B.userData.tr;
+}
 function buildGun(i){
   const spec = GUNS[WEAPONS[i].id];
   const g = new THREE.Group();
@@ -1147,7 +1218,13 @@ function buildGun(i){
   };
   for (const p of spec.parts) add(p, g);
   const mg = g.children[MAGIDX[WEAPONS[i].id]]; if (mg){ g.userData.mag = mg; g.userData.mp = mg.position.clone(); }
-  (spec.d || []).forEach(p => add(p, ((p[7] || '').indexOf('M') >= 0 && mg) ? mg : g));
+  let bolt = null;
+  const bc = BOLT[WEAPONS[i].id];
+  (spec.d || []).forEach(p => {
+    const fl = p[7] || '';
+    if (fl.indexOf('B') >= 0 && bc){ if (!bolt){ bolt = new THREE.Group(); bolt.userData.tr = bc.tr; bolt.userData.fire = bc.fire; g.add(bolt); g.userData.bolt = bolt; } add(p, bolt); }
+    else add(p, (fl.indexOf('M') >= 0 && mg) ? mg : g);
+  });
   if (!WEAPONS[i].melee){   // 손 뒤로 이어지는 팔 (손만 공중에 떠 있지 않게)
     const hl = spec.parts[spec.parts.length - 1];
     const rh = (spec.d && spec.d[spec.d.length - 1]) || hl;
@@ -3293,55 +3370,4 @@ function loop(){
     spr += ((sprinting ? 1 : 0) - spr) * clamp((sprinting ? 9 : 25) * dt, 0, 1);
     bobT += dt * (moving ? (sprinting ? 14 : 10) : 1.8);
     const bob = (moving ? (ads ? .004 : .012) : .0025) * (1 + spr * .8) * shake;
-    let dyw = player.yaw - prevYaw; dyw = Math.atan2(Math.sin(dyw), Math.cos(dyw));
-    const yawRate = dyw / Math.max(dt, .001), pitRate = (player.pitch - prevPitch) / Math.max(dt, .001);
-    prevYaw = player.yaw; prevPitch = player.pitch;
-    const sk = ads ? .35 : 1, ks = clamp(9 * dt, 0, 1);
-    swayX += (clamp(yawRate * .012, -.07, .07) * sk * shake - swayX) * ks;
-    swayY += (clamp(-pitRate * .010, -.05, .05) * sk * shake - swayY) * ks;
-    const lat = player.vel.x * Math.cos(player.yaw) - player.vel.z * Math.sin(player.yaw);
-    const sgs = sightOf(cur), sa = ads && sgs ? sgs : null;
-    const tx = ads ? 0 : .24 - spr * .1, ty = ads ? (sa ? sa.y : -.15) : -.22 - spr * .07, tz = ads ? (sa ? sa.z : -.36) : -.5 + spr * .08;
-    const rp = reloading ? Math.min(1, (reloadEnd - t) / reloadTime(cur)) : 0;
-    const dip = reloading ? Math.sin(Math.min(1, 1 - rp) * Math.PI) : 0;
-    drawT = Math.max(0, drawT - dt / drawDur);
-    const dw = drawT * drawT * (3 - 2 * drawT);
-    const gp = gunGroup.position, k2 = clamp(16 * dt, 0, 1);
-    gp.x += (tx + swayX + Math.cos(bobT * .5) * bob * .9 - lat * .004 * shake + dw * .1 - gp.x) * k2;
-    gp.y += (ty + swayY + Math.sin(bobT) * bob - dip * .18 - camLand * 1.1 - dw * .38 - gp.y) * k2;
-    gp.z += (tz + kick * .06 + Math.abs(Math.sin(bobT * .5)) * bob * .6 + dw * .12 - gp.z) * k2;
-    gunGroup.rotation.x = kick * .12 - dip * .7 + spr * .38 + swayY * 1.6 - camLand * 2 - dw * 1.0;
-    gunGroup.rotation.y = spr * .75 - swayX * 2.4 + dw * .4;
-    // 재장전: 총을 기울이고 → 탄창 분리·낙하 → 새 탄창 장착
-    const mg = gunGroup.userData.mag, mp = gunGroup.userData.mp, pr = reloading ? 1 - rp : 0;
-    gunGroup.rotation.z = (reloading ? -Math.sin(Math.min(1, pr / 0.85) * Math.PI) * 0.45 : 0) + spr * .3 - swayX * 1.8 - lat * .006 * shake + Math.cos(bobT * .5) * bob * 2 + dw * .5;
-    if (w.melee){ swing = Math.max(0, swing - dt * 3.2); const q = 1 - swing, sw = swing > 0 ? Math.sin(q * Math.PI) : 0; gunGroup.rotation.z = swing > 0 ? (1 - q * 2) * 1.2 : 0; gunGroup.rotation.y = -sw * 0.8; gunGroup.rotation.x -= sw * 0.5; }
-    if (gunGroup.userData.belt) updateBelt(gunGroup.userData.belt, dt, a.mag, reloading);
-    if (mg){
-      if (!reloading || pr >= 0.8){ mg.visible = true; mg.position.copy(mp); }
-      else if (pr < 0.3){ mg.visible = true; mg.position.set(mp.x, mp.y - pr / 0.3 * 0.35, mp.z); }
-      else if (pr < 0.5){ if (mg.visible){ mg.visible = false; dropMag(mg); } }
-      else { mg.visible = true; mg.position.set(mp.x, mp.y - (0.8 - pr) / 0.3 * 0.35, mp.z); }
-    }
-  }
-  const spread = armPen() * w.spread * (ads ? 0.35 : 1) * (Math.hypot(player.vel.x, player.vel.z) > 1 ? 1.8 : 1) * (player.onGround ? 1 : 2.5);
-  $('cross').style.setProperty('--g', (5 + spread * 900) + 'px');
-
-  // 네트워크 전송
-  sendT += dt;
-  if (sendT >= 0.1){ sendT = 0; sendPos(); }
-
-  updateHud();
-  renderFrame();
-}
-equip(0);
-// 내 그림자 전용 몸체 (화면에는 안 보이고 그림자만 드리움)
-const selfAv = makeAvatar('', 0x3b82f6, {});
-selfAv.label.visible = false; selfAv.group.visible = false;
-selfAv.group.traverse(o => { if (o.material){ o.material.colorWrite = false; o.material.depthWrite = false; } });
-if (gunGroup) gunGroup.visible = false;
-loop();
-})();
-</script>
-</body>
-</html>
+    let dyw = player.yaw - prevYaw; dyw = Math.atan2(Math.sin(dyw), M
