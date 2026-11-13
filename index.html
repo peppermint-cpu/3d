@@ -986,7 +986,7 @@ GD.s12k = [
 ];
 GD.m249 = [
   [.06,.02,.22,0,.058,-.05,0x1e231c,'m'], [.05,.012,.10,0,.052,-.18,0x151515,'m'],
-  [.045,0,.22,0,.012,-.45,0x15190f,'cm'], ...rep(5, i => [.01,.004,.014,0,.036,-.36 - i * .035,0x000000]),
+  [.045,0,.34,0,.012,-.43,0x15190f,'cm'], [.042,.03,.10,0,-.022,-.30,0x1a1a1a,'m'], ...rep(5, i => [.01,.004,.014,0,.036,-.36 - i * .035,0x000000]),
   [.02,.012,.16,0,.095,-.42,0x151515,'m'], [.012,.055,.012,0,.0625,-.50,0x151515,'m'], [.012,.055,.012,0,.0625,-.34,0x151515,'m'],
   [.05,.03,.03,0,-.025,-.55,0x1a1a1a,'m'], [.01,.012,.16,-.02,-.04,-.55,0x1a1a1a,'m'], [.01,.012,.16,.02,-.04,-.55,0x1a1a1a,'m'],
   [.04,0,.06,0,.012,-.69,0x0f0f0f,'cm'], [.008,.03,.008,0,.04,-.66,0x0a0a0a],
@@ -1078,8 +1078,10 @@ function buildGun(i){
   (spec.d || []).forEach(p => add(p, ((p[7] || '').indexOf('M') >= 0 && mg) ? mg : g));
   if (!WEAPONS[i].melee){   // 손 뒤로 이어지는 팔 (손만 공중에 떠 있지 않게)
     const hl = spec.parts[spec.parts.length - 1];
-    add([.05,.05,.26,hl[3] - .02,hl[4] - .012,hl[5] + .18,0x2b4f94], g);
-    add([.06,.06,.24,0,-.105,.28,0x2b4f94], g);
+    const rh = (spec.d && spec.d[spec.d.length - 1]) || hl;
+    const arm = (p, d, len, th) => { const v = d.clone().normalize(), m = new THREE.Mesh(new THREE.BoxGeometry(th, th, len), gunMat(0x2b4f94, '')); m.position.set(p[0], p[1], p[2]).addScaledVector(v, len / 2); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), v); g.add(m); };
+    arm([hl[3], hl[4] - .005, hl[5] + .03], new THREE.Vector3(-.35, -.28, .8), .95, .055);
+    arm([rh[3], rh[4] - .005, rh[5] + .03], new THREE.Vector3(.3, -.32, .85), .95, .06);
   }
   const mf = new THREE.Mesh(new THREE.BoxGeometry(.13,.13,.05), new THREE.MeshBasicMaterial({ color: 0xffd27a, depthTest: false, transparent: true, opacity: .9 }));
   mf.position.set(0,.015,spec.tip - .04); mf.renderOrder = 1000; mf.visible = false;
