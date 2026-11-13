@@ -443,6 +443,17 @@ scene.add(sun, sun.target);
 const fill = new THREE.DirectionalLight(0x9fbbe0, 0.20);   // [광원] 해 반대편의 은은한 푸른 보조광 (그림자 없음) – 그늘이 시커멓게 죽지 않게
 fill.position.set(-0.62, 0.35, -0.38);
 scene.add(fill);
+/* 1인칭 총 전용 장면: 월드를 먼저 그린 뒤 깊이값만 지우고 총을 따로 그림
+   → 총이 벽에 파묻히지 않으면서, 총 부품끼리는 깊이로 정확하게 가려져요 (속이 비쳐 보이던 문제 해결) */
+const gunScene = new THREE.Scene();
+const gunCam = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.02, 6);
+gunCam.rotation.order = 'YXZ';
+gunScene.add(gunCam);
+gunScene.add(new THREE.HemisphereLight(0xbcd6f2, 0x5a5a3c, 0.75));
+const gunSun = new THREE.DirectionalLight(0xffe9c8, 1.25);
+gunSun.position.copy(SUN_DIR); gunScene.add(gunSun, gunSun.target);
+const gunFill = new THREE.DirectionalLight(0x9fbbe0, 0.25);
+gunFill.position.set(-0.62, 0.35, -0.38); gunScene.add(gunFill);
 const _sr = new THREE.Vector3(0,1,0).cross(SUN_DIR).normalize();
 const _su = new THREE.Vector3().crossVectors(SUN_DIR, _sr), _st = new THREE.Vector3();
 /* [그림자] 시야 쪽만 그리고, 필요할 때만 다시 그림
@@ -849,7 +860,6 @@ function renderFrame(){
     refl = _fr.intersectsSphere(_fs);
   }
   if (refl){
-    const gv = gunGroup ? gunGroup.visible : false; if (gunGroup) gunGroup.visible = false;
     water.visible = bed.visible = false;
     reflCam.position.set(camera.position.x, 2 * WATER_Y - camera.position.y, camera.position.z);   // 수면 아래로 뒤집은 카메라
     reflCam.rotation.set(-camera.rotation.x, camera.rotation.y, 0);
@@ -858,11 +868,16 @@ function renderFrame(){
     sky.position.copy(reflCam.position);                 // [1단계] 반사 렌더 때는 하늘을 반사 카메라로 이동
     renderer.setRenderTarget(reflRT); renderer.render(scene, reflCam); renderer.setRenderTarget(null);
     sky.position.copy(camera.position);
-    water.visible = bed.visible = true; if (gunGroup) gunGroup.visible = gv;
+    water.visible = bed.visible = true;
   }
   wu.uUse.value = refl ? 1 : 0;
   // [그림자] 갱신 여부는 updateSun()이 needsUpdate로 정함 (예전 autoUpdate = !refl 방식은 호수가 보이면 그림자가 멈추는 버그가 있었음)
   renderer.render(scene, camera);
+  if (gunGroup){   // 총 카메라를 플레이어 카메라와 똑같이 맞춰서 그림 (총구 위치 계산도 이 값을 씀)
+    gunCam.position.copy(camera.position); gunCam.quaternion.copy(camera.quaternion);
+    gunCam.fov = camera.fov; gunCam.aspect = camera.aspect; gunCam.updateProjectionMatrix();
+    if (gunGroup.visible){ renderer.autoClear = false; renderer.clearDepth(); renderer.render(gunScene, gunCam); renderer.autoClear = true; }
+  }
 }
 
 const R = 0.4; // 플레이어 반경
@@ -901,7 +916,7 @@ const SKIN = 0xd9a98a;
 const GUNS = {
   m416:  { tip:-0.62, parts:[[.06,.09,.40,0,0,-.05,0x2b2b2b],[.025,.025,.28,0,.012,-.42,0x111111],[.05,.06,.22,0,0,-.30,0x3a3a3a],[.04,.15,.07,0,-.12,-.02,0x1a1a1a],[.05,.08,.20,0,-.01,.25,0x2b2b2b],[.04,.10,.05,0,-.10,.10,0x222222],[.03,.04,.07,0,.07,-.10,0x111111],[.06,.05,.10,0,-.06,-.28,SKIN]] },
   akm:   { tip:-0.64, parts:[[.06,.08,.38,0,0,-.05,0x2f2f2f],[.025,.025,.30,0,.012,-.44,0x111111],[.055,.06,.24,0,-.005,-.30,0x7a4a21],[.04,.14,.07,0,-.12,-.05,0x1a1a1a],[.05,.09,.22,0,-.015,.26,0x7a4a21],[.04,.10,.05,0,-.10,.10,0x222222],[.06,.05,.10,0,-.06,-.28,SKIN]] },
-  awm:   { tip:-1.00, parts:[[.055,.09,.45,0,0,-.05,0x3d4a2f],[.03,.03,.70,0,.012,-.62,0x1b1b1b],[.045,.05,.22,0,.10,-.05,0x111111],[.055,.10,.30,0,-.01,.32,0x3d4a2f],[.04,.10,.05,0,-.10,.10,0x222222],[.06,.05,.10,0,-.06,-.30,SKIN]] },
+  awm:   { tip:-1.00, parts:[[.055,.09,.45,0,0,-.05,0x3d4a2f],[.03,.03,.70,0,.012,-.62,0x1b1b1b],[.03,.03,.14,0,.06,-.05,0x111111],[.055,.10,.30,0,-.01,.32,0x3d4a2f],[.04,.10,.05,0,-.10,.10,0x222222],[.06,.05,.10,0,-.06,-.30,SKIN]] },
   s12k:  { tip:-0.55, parts:[[.07,.09,.42,0,0,-.05,0x1f1f1f],[.045,.045,.26,0,.012,-.38,0x111111],[.06,.12,.14,0,-.10,-.02,0x2a2a2a],[.05,.08,.18,0,-.01,.24,0x1f1f1f],[.04,.10,.05,0,-.10,.10,0x222222],[.06,.05,.10,0,-.06,-.26,SKIN]] },
   m249:  { tip:-0.72, parts:[[.07,.10,.42,0,0,-.05,0x2a2f25],[.03,.03,.36,0,.012,-.50,0x111111],[.09,.12,.14,0,-.11,-.02,0x3d4a2f],[.05,.08,.22,0,-.01,.28,0x2a2f25],[.04,.10,.05,0,-.10,.12,0x222222],[.06,.05,.10,0,-.06,-.30,SKIN]] },
   katana:{ tip:-0.9,  parts:[[.012,.05,.80,0,0,-.55,0xdfe6ee],[.07,.07,.02,0,0,-.14,0x222222],[.03,.04,.22,0,0,-.02,0x3b2417],[.06,.05,.10,0,-.01,0,SKIN]] }
@@ -929,9 +944,9 @@ GD.m416 = [
 GD.akm = [
   [.052,.012,.34,0,.046,-.07,0x2a2a2a,'m'],
   ...rep(4, i => [.054,.004,.01,0,.0535,-.2 + i * .08,0x1a1a1a]),
-  [.02,0,.26,0,.04,-.34,0x1c1c1c,'cm'], [.05,.02,.2,0,.035,-.32,0x7a4a21,'w'],
+  [.02,0,.26,0,.03,-.34,0x1c1c1c,'cm'], [.03,0,.03,0,.012,-.47,0x1c1c1c,'cm'], [.05,.02,.2,0,.035,-.32,0x7a4a21,'w'],
   [.058,.064,.012,0,-.005,-.20,0x1a1a1a,'m'], [.058,.064,.012,0,-.005,-.40,0x1a1a1a,'m'],
-  [.014,.04,.014,0,.045,-.56,0x151515,'m'], [.032,0,.04,0,.012,-.62,0x0f0f0f,'cm'],
+  [.014,.04,.014,0,.045,-.56,0x151515,'m'], [.032,0,.05,0,.012,-.615,0x0f0f0f,'cm'],
   [.03,.02,.06,0,.055,-.17,0x1a1a1a,'m'], [.02,.01,.05,0,.063,-.19,0x1a1a1a,'m'],
   [.004,.012,.2,-.031,.02,-.05,0x0a0a0a],
   [.008,.008,.07,0,-.075,.035,0x151515,'m'], [.008,.034,.008,0,-.058,.0,0x151515,'m'], [.006,.022,.008,0,-.055,.035,0x050505,'m'],
@@ -941,13 +956,14 @@ GD.akm = [
   [.056,.07,.07,0,-.095,.10,SKIN]
 ];
 GD.awm = [
-  [.03,.035,.02,0,.06,-.12,0x0f0f0f,'m'], [.03,.035,.02,0,.06,0,0x0f0f0f,'m'],
+  [.034,.05,.02,0,.067,-.12,0x0f0f0f,'m'], [.034,.05,.02,0,.067,0,0x0f0f0f,'m'],
   [.04,0,.30,0,.105,-.06,0x151515,'cm'], [.06,0,.07,0,.105,-.20,0x0f0f0f,'cm'], [.05,0,.05,0,.105,.10,0x0f0f0f,'cm'],
   [.052,0,.004,0,.105,-.236,0x6aa0ff,'cg'], [.04,0,.004,0,.105,.126,0x203040,'cg'],
   [.022,.025,0,0,.1375,-.06,0x1a1a1a,'ym'], [.024,.02,.02,.03,.105,-.06,0x1a1a1a,'m'],
   [.04,0,.10,0,.012,-.95,0x111111,'cm'], ...rep(3, i => [.044,0,.01,0,.012,-.92 - i * .03,0x050505,'cm']),
   [.01,.004,.4,0,.028,-.6,0x2a2a2a,'m'],
-  [.01,.012,.16,-.018,-.03,-.62,0x1a1a1a,'m'], [.01,.012,.16,.018,-.03,-.62,0x1a1a1a,'m'],
+  [.044,.03,.03,0,-.018,-.62,0x1a1a1a,'m'], [.01,.012,.16,-.018,-.03,-.62,0x1a1a1a,'m'], [.01,.012,.16,.018,-.03,-.62,0x1a1a1a,'m'],
+  [.045,.05,.30,0,-.03,-.28,0x3d4a2f],
   [.04,.012,.012,.035,.03,.07,0x151515,'m'], [.02,.02,.02,.058,.03,.07,0x151515,'m'],
   [.05,.03,.18,0,.055,.31,0x2a3322], [.056,.1,.02,0,-.01,.485,0x0a0a0a],
   [.008,.008,.08,0,-.075,.035,0x151515,'m'], [.008,.03,.008,0,-.06,-.005,0x151515,'m'], [.006,.022,.008,0,-.058,.04,0x050505,'m'],
@@ -960,8 +976,8 @@ GD.s12k = [
   ...rep(6, i => [.012,.004,.014,0,.039,-.28 - i * .03,0x000000]),
   ...rep(5, i => [.004,.012,.014,-.0265,.012,-.28 - i * .03,0x000000]),
   [.05,0,.04,0,.012,-.53,0x0d0d0d,'cm'],
-  [.016,.016,.016,0,.052,-.46,0x1a1a1a,'m'], [.008,.03,.008,0,.07,-.46,0x0a0a0a],
-  [.04,.02,.03,0,.062,.10,0x1a1a1a,'m'], [.01,.012,.04,-.04,.03,0,0x151515,'m'],
+  [.016,.02,.016,0,.042,-.46,0x1a1a1a,'m'], [.008,.03,.008,0,.065,-.46,0x0a0a0a],
+  [.04,.02,.03,0,.066,.10,0x1a1a1a,'m'], [.01,.012,.04,-.04,.03,0,0x151515,'m'],
   [.008,.008,.07,0,-.075,.035,0x151515,'m'], [.008,.034,.008,0,-.058,0,0x151515,'m'], [.006,.022,.008,0,-.056,.035,0x050505,'m'],
   [.052,.08,.015,0,-.01,.335,0x0a0a0a],
   ...rep(4, i => [.004,.008,.12,-.032,.04 - i * .03,0,0x2a2a2a,'M']), [.064,.012,.145,0,-.066,0,0x0d0d0d,'mM'],
@@ -971,7 +987,7 @@ GD.m249 = [
   [.06,.02,.22,0,.058,-.05,0x1e231c,'m'], [.05,.012,.10,0,.052,-.18,0x151515,'m'],
   [.045,0,.22,0,.012,-.45,0x15190f,'cm'], ...rep(5, i => [.01,.004,.014,0,.036,-.36 - i * .035,0x000000]),
   [.02,.012,.16,0,.095,-.42,0x151515,'m'], [.012,.055,.012,0,.0625,-.50,0x151515,'m'], [.012,.055,.012,0,.0625,-.34,0x151515,'m'],
-  [.01,.012,.16,-.02,-.04,-.55,0x1a1a1a,'m'], [.01,.012,.16,.02,-.04,-.55,0x1a1a1a,'m'],
+  [.05,.03,.03,0,-.025,-.55,0x1a1a1a,'m'], [.01,.012,.16,-.02,-.04,-.55,0x1a1a1a,'m'], [.01,.012,.16,.02,-.04,-.55,0x1a1a1a,'m'],
   [.04,0,.06,0,.012,-.69,0x0f0f0f,'cm'], [.008,.03,.008,0,.04,-.66,0x0a0a0a],
   [.04,.02,.03,0,.075,.04,0x151515,'m'], [.01,.014,.05,-.04,.02,-.05,0x151515,'m'],
   [.052,.09,.015,0,-.01,.395,0x0a0a0a],
@@ -1011,9 +1027,9 @@ function gunGeo(p, fl){
   return new THREE.BoxGeometry(p[0], p[1], p[2]);
 }
 function gunMat(color, fl){
-  const o = { color, depthTest: false, transparent: true };
+  const o = { color };
   if (fl.indexOf('w') >= 0 || color === 0x7a4a21) return new THREE.MeshPhongMaterial(Object.assign(o, { color: 0xffffff, map: woodTex(), specular: 0x2a2018, shininess: 18 }));
-  if (fl.indexOf('g') >= 0) return new THREE.MeshPhongMaterial(Object.assign(o, { specular: 0xffffff, shininess: 120, opacity: .6 }));
+  if (fl.indexOf('g') >= 0) return new THREE.MeshPhongMaterial(Object.assign(o, { specular: 0xffffff, shininess: 120, transparent: true, opacity: .6, depthWrite: false }));
   if (color === SKIN) return new THREE.MeshLambertMaterial(o);
   const metal = fl.indexOf('m') >= 0;
   const m = new THREE.MeshPhongMaterial(Object.assign(o, { specular: metal ? 0x777777 : 0x3a3a3a, shininess: metal ? 60 : 35 }));
@@ -1023,13 +1039,18 @@ function gunMat(color, fl){
 function buildGun(i){
   const spec = GUNS[WEAPONS[i].id];
   const g = new THREE.Group();
-  const add = (p, parent, ro) => {
+  const add = (p, parent) => {
     const fl = p[7] || '', m = new THREE.Mesh(gunGeo(p, fl), gunMat(p[6], fl));
-    m.position.set(p[3], p[4], p[5]); m.renderOrder = ro; parent.add(m);
+    m.position.set(p[3], p[4], p[5]); parent.add(m);
   };
-  for (const p of spec.parts) add(p, g, 999);
+  for (const p of spec.parts) add(p, g);
   const mg = g.children[MAGIDX[WEAPONS[i].id]]; if (mg){ g.userData.mag = mg; g.userData.mp = mg.position.clone(); }
-  (spec.d || []).forEach((p, k) => add(p, ((p[7] || '').indexOf('M') >= 0 && mg) ? mg : g, 999.5 + k * .0005));
+  (spec.d || []).forEach(p => add(p, ((p[7] || '').indexOf('M') >= 0 && mg) ? mg : g));
+  if (!WEAPONS[i].melee){   // 손 뒤로 이어지는 팔 (손만 공중에 떠 있지 않게)
+    const hl = spec.parts[spec.parts.length - 1];
+    add([.05,.05,.26,hl[3] - .02,hl[4] - .012,hl[5] + .18,0x2b4f94], g);
+    add([.06,.06,.24,0,-.105,.28,0x2b4f94], g);
+  }
   const mf = new THREE.Mesh(new THREE.BoxGeometry(.13,.13,.05), new THREE.MeshBasicMaterial({ color: 0xffd27a, depthTest: false, transparent: true, opacity: .9 }));
   mf.position.set(0,.015,spec.tip - .04); mf.renderOrder = 1000; mf.visible = false;
   g.add(mf); g.userData.flash = mf;
@@ -1057,10 +1078,10 @@ const raycaster = new THREE.Raycaster();
 
 function equip(i){
   if (!isOwned(i)){ showMsg('상점에서 먼저 구매하세요', 1000); return; }
-  if (gunGroup) camera.remove(gunGroup);
+  if (gunGroup) gunCam.remove(gunGroup);
   cur = i; reloading = false; semiReady = false;
   gunGroup = buildGun(i);
-  camera.add(gunGroup);
+  gunCam.add(gunGroup);
   buildSlots();
 }
 function buildSlots(){
