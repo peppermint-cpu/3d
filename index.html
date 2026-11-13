@@ -264,6 +264,7 @@ background:radial-gradient(circle,rgba(255,246,222,.95) 0,rgba(255,230,180,.55) 
     <div class="sub">3D 온라인 총게임 · 4분마다 라운드 승자 발표</div>
     <div id="nickrow"><input id="nick" maxlength="12" placeholder="닉네임 입력 (최대 12자)" autocomplete="off"></div>
     <div class="set"><label><span>시점 감도</span><b id="sensVal">1.0</b></label><input type="range" id="sens" min="0.3" max="3" step="0.1" value="1"></div>
+    <div class="set"><label><span>화면 흔들림 (0%면 안 흔들려요)</span><b id="shakeVal">100%</b></label><input type="range" id="shake" min="0" max="1" step="0.05" value="1"></div>
     <div class="set"><label><span>피 효과 (끄면 더 가벼워요)</span><input type="checkbox" id="gorefx" checked style="width:auto;margin:0;padding:0"></label></div>
     <div class="set"><label><span>그림자 (끄면 더 가벼워요)</span><input type="checkbox" id="shadowfx" checked style="width:auto;margin:0;padding:0"></label></div>
     <div class="set"><label><span>물 반사 (끄면 더 가벼워요)</span><input type="checkbox" id="reflfx" checked style="width:auto;margin:0;padding:0"></label></div>
@@ -1104,7 +1105,7 @@ let cur = 0;
 let joined = false, locked = false;
 let firing = false, semiReady = false, mouseR = false, ads = false;
 let lastShot = 0, reloading = false, reloadEnd = 0;
-let kick = 0, bobT = 0;
+let kick = 0, bobT = 0, shake = 1;
 let swayX = 0, swayY = 0, prevYaw = 0, prevPitch = 0, spr = 0, fallV = 0, camLand = 0, camBob = 0, camBobA = 0, camRoll = 0;
 const keys = {};
 const stick = { x: 0, y: 0, id: null };   // 모바일 조이스틱
@@ -1844,6 +1845,8 @@ function fire(){
   scene.updateMatrixWorld(true);
   const origin = camera.getWorldPosition(new THREE.Vector3());
   const muzzle = gunGroup.userData.tip.getWorldPosition(new THREE.Vector3());
+  if (spr > .05) muzzle.copy(new THREE.Vector3(.24, -.18, -.8).applyQuaternion(camera.quaternion).add(origin));
+  spr = 0;
   const targets = collectTargets();
   const agg = {};
   let firstEnd = null, anyHit = false, anyHead = false, firstPart = '';
@@ -2116,6 +2119,13 @@ $('sens').addEventListener('input', () => {
 $('gorefx').addEventListener('change', () => {
   goreFx = $('gorefx').checked;
   try { localStorage.setItem('is_gore', goreFx ? '1' : '0'); } catch(e){}
+});
+try { const v = parseFloat(localStorage.getItem('is_shake')); if (v >= 0 && v <= 1) shake = v; } catch(e){}
+$('shake').value = shake; $('shakeVal').textContent = Math.round(shake * 100) + '%';
+$('shake').addEventListener('input', () => {
+  const v = parseFloat($('shake').value); shake = v >= 0 ? v : 1;
+  $('shakeVal').textContent = Math.round(shake * 100) + '%';
+  try { localStorage.setItem('is_shake', String(shake)); } catch(e){}
 });
 let shadowFx = true;
 try { if (localStorage.getItem('is_shadow') === '0') shadowFx = false; } catch(e){}
@@ -2498,7 +2508,7 @@ function loop(){
     if (noLock) edgeLook(dt);
     updatePlayer(dt);
     if (!player.onGround) fallV = Math.min(fallV, player.vel.y);
-    else { if (fallV < -5) camLand = Math.min(.2, -fallV * .011); fallV = 0; }
+    else { if (fallV < -5) camLand = Math.min(.2, -fallV * .011) * shake; fallV = 0; }
     if (reloading && t >= reloadEnd){
       const need = w.mag - a.mag, take = Math.min(need, a.res);
       a.mag += take; a.res -= take; reloading = false;
@@ -2527,10 +2537,10 @@ function loop(){
   const eye = eyeH;
   const cs = Math.hypot(player.vel.x, player.vel.z), cm = player.onGround && !player.dead && cs > 1;
   camBob += dt * (cm ? (cs > 7 ? 13 : 9.5) : 0);
-  camBobA += ((cm ? (ads ? .004 : cs > 7 ? .04 : .022) : 0) - camBobA) * clamp(8 * dt, 0, 1);
+  camBobA += ((cm ? (ads ? .004 : cs > 7 ? .04 : .022) : 0) * shake - camBobA) * clamp(8 * dt, 0, 1);
   camLand *= Math.exp(-7 * dt);
   const lat2 = player.vel.x * Math.cos(player.yaw) - player.vel.z * Math.sin(player.yaw);
-  camRoll += (clamp(-lat2 * .0035, -.03, .03) - camRoll) * clamp(7 * dt, 0, 1);
+  camRoll += (clamp(-lat2 * .0035, -.03, .03) * shake - camRoll) * clamp(7 * dt, 0, 1);
   camera.position.set(player.pos.x, player.pos.y + eye + Math.sin(camBob) * camBobA - camLand, player.pos.z);
   camera.rotation.set(player.pitch, player.yaw, player.dead ? 0.9 : camRoll + Math.cos(camBob * .5) * camBobA * .12);
   const targetFov = ads ? 75 / w.zoom : 75 + spr * 6;
@@ -2544,29 +2554,29 @@ function loop(){
     gunGroup.visible = !scoped && !player.dead;
     kick = Math.max(0, kick - dt * 9);
     const vs = Math.hypot(player.vel.x, player.vel.z), moving = player.onGround && vs > 1;
-    const sprinting = moving && vs > 7 && !ads;
-    spr += ((sprinting ? 1 : 0) - spr) * clamp(9 * dt, 0, 1);
+    const sprinting = moving && vs > 7 && !ads && !firing && t - lastShot > .3;
+    spr += ((sprinting ? 1 : 0) - spr) * clamp((sprinting ? 9 : 25) * dt, 0, 1);
     bobT += dt * (moving ? (sprinting ? 14 : 10) : 1.8);
-    const bob = (moving ? (ads ? .004 : .012) : .0025) * (1 + spr * .8);
+    const bob = (moving ? (ads ? .004 : .012) : .0025) * (1 + spr * .8) * shake;
     let dyw = player.yaw - prevYaw; dyw = Math.atan2(Math.sin(dyw), Math.cos(dyw));
     const yawRate = dyw / Math.max(dt, .001), pitRate = (player.pitch - prevPitch) / Math.max(dt, .001);
     prevYaw = player.yaw; prevPitch = player.pitch;
     const sk = ads ? .35 : 1, ks = clamp(9 * dt, 0, 1);
-    swayX += (clamp(yawRate * .012, -.07, .07) * sk - swayX) * ks;
-    swayY += (clamp(-pitRate * .010, -.05, .05) * sk - swayY) * ks;
+    swayX += (clamp(yawRate * .012, -.07, .07) * sk * shake - swayX) * ks;
+    swayY += (clamp(-pitRate * .010, -.05, .05) * sk * shake - swayY) * ks;
     const lat = player.vel.x * Math.cos(player.yaw) - player.vel.z * Math.sin(player.yaw);
     const tx = ads ? 0 : .24 - spr * .1, ty = ads ? -.15 : -.22 - spr * .07, tz = ads ? -.36 : -.5 + spr * .08;
     const rp = reloading ? Math.min(1, (reloadEnd - t) / w.reload) : 0;
     const dip = reloading ? Math.sin(Math.min(1, 1 - rp) * Math.PI) : 0;
     const gp = gunGroup.position, k2 = clamp(16 * dt, 0, 1);
-    gp.x += (tx + swayX + Math.cos(bobT * .5) * bob * .9 - lat * .004 - gp.x) * k2;
+    gp.x += (tx + swayX + Math.cos(bobT * .5) * bob * .9 - lat * .004 * shake - gp.x) * k2;
     gp.y += (ty + swayY + Math.sin(bobT) * bob - dip * .18 - camLand * 1.1 - gp.y) * k2;
     gp.z += (tz + kick * .06 + Math.abs(Math.sin(bobT * .5)) * bob * .6 - gp.z) * k2;
     gunGroup.rotation.x = kick * .12 - dip * .7 + spr * .38 + swayY * 1.6 - camLand * 2;
     gunGroup.rotation.y = spr * .75 - swayX * 2.4;
     // 재장전: 총을 기울이고 → 탄창 분리·낙하 → 새 탄창 장착
     const mg = gunGroup.userData.mag, mp = gunGroup.userData.mp, pr = reloading ? 1 - rp : 0;
-    gunGroup.rotation.z = (reloading ? -Math.sin(Math.min(1, pr / 0.85) * Math.PI) * 0.45 : 0) + spr * .3 - swayX * 1.8 - lat * .006 + Math.cos(bobT * .5) * bob * 2;
+    gunGroup.rotation.z = (reloading ? -Math.sin(Math.min(1, pr / 0.85) * Math.PI) * 0.45 : 0) + spr * .3 - swayX * 1.8 - lat * .006 * shake + Math.cos(bobT * .5) * bob * 2;
     if (w.melee){ swing = Math.max(0, swing - dt * 3.2); const q = 1 - swing, sw = swing > 0 ? Math.sin(q * Math.PI) : 0; gunGroup.rotation.z = swing > 0 ? (1 - q * 2) * 1.2 : 0; gunGroup.rotation.y = -sw * 0.8; gunGroup.rotation.x -= sw * 0.5; }
     if (gunGroup.userData.belt) updateBelt(gunGroup.userData.belt, dt, a.mag, reloading);
     if (mg){
