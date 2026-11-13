@@ -993,7 +993,7 @@ GD.m249 = [
   [.052,.09,.015,0,-.01,.395,0x0a0a0a],
   [.008,.008,.07,0,-.075,.035,0x151515,'m'], [.008,.034,.008,0,-.058,0,0x151515,'m'], [.006,.022,.008,0,-.056,.035,0x050505,'m'],
   ...rep(3, i => [.004,.01,.12,-.0465,.04 - i * .04,0,0x2a2a2a,'M']), [.094,.012,.145,0,-.066,0,0x0d0d0d,'mM'],
-  ...rep(8, i => [.012,.014,.02,-.053,.055 - i * .0155,0,i % 2 ? 0x6b6b6b : 0xc9a227,'mM']),
+  
   [.056,.065,.07,0,-.10,.12,SKIN]
 ];
 GD.katana = [
@@ -1036,6 +1036,35 @@ function gunMat(color, fl){
   if (fl.indexOf('e') >= 0) m.emissive = new THREE.Color(color);
   return m;
 }
+/* M249 탄띠: 탄약통 → 급탄구로 한 발씩 끌려 들어감 */
+const BELT_PTS = [[-.052,-.075,-.005],[-.062,-.035,-.015],[-.052,.012,-.03],[-.03,.048,-.035],[-.004,.064,-.035]].map(p => new THREE.Vector3(p[0], p[1], p[2]));
+const BELT = { gap: .028, seg: [], L: 0, K: 0 };
+for (let i = 1; i < BELT_PTS.length; i++){ const l = BELT_PTS[i].distanceTo(BELT_PTS[i - 1]); BELT.seg.push(l); BELT.L += l; }
+BELT.K = Math.ceil(BELT.L / BELT.gap) + 2;
+const _bgA = new THREE.CylinderGeometry(.006, .006, .03, 8).rotateZ(Math.PI / 2);
+const _bgT = new THREE.CylinderGeometry(.0045, .0045, .012, 8).rotateZ(Math.PI / 2);
+const _bgL = new THREE.BoxGeometry(.01, .013, .016);
+const _bmA = new THREE.MeshPhongMaterial({ color: 0xc9a227, specular: 0xffe9a0, shininess: 90 });
+const _bmT = new THREE.MeshPhongMaterial({ color: 0x8a5a2b, specular: 0x777777, shininess: 60 });
+const _bmL = new THREE.MeshPhongMaterial({ color: 0x6b6b6b, specular: 0x999999, shininess: 50 });
+function beltAt(s, out){
+  for (let i = 0; i < BELT.seg.length; i++){
+    if (s <= BELT.seg[i] || i === BELT.seg.length - 1) return out.lerpVectors(BELT_PTS[i], BELT_PTS[i + 1], clamp(s / BELT.seg[i], 0, 1));
+    s -= BELT.seg[i];
+  }
+}
+function updateBelt(B, dt, mag, rl){
+  B.ph += (B.tg - B.ph) * Math.min(1, dt * 30);
+  const f = B.ph - Math.floor(B.ph), shake = (B.tg - B.ph) > .25 ? 1 : 0;
+  B.r.forEach((r, i) => {
+    const s = (i + f) * BELT.gap, left = Math.floor((BELT.L - s) / BELT.gap + .001);
+    const ok = !rl && s <= BELT.L && left < mag;
+    r.visible = ok; if (!ok) return;
+    beltAt(s, r.position);
+    r.position.y += shake * Math.sin(now() * 90 + i * 2) * .0007;
+    r.scale.setScalar(clamp((BELT.L - s) / .02, .15, 1));
+  });
+}
 function buildGun(i){
   const spec = GUNS[WEAPONS[i].id];
   const g = new THREE.Group();
@@ -1055,6 +1084,15 @@ function buildGun(i){
   mf.position.set(0,.015,spec.tip - .04); mf.renderOrder = 1000; mf.visible = false;
   g.add(mf); g.userData.flash = mf;
   const tipObj = new THREE.Object3D(); tipObj.position.set(0,.015,spec.tip); g.add(tipObj); g.userData.tip = tipObj;
+  if (WEAPONS[i].id === 'm249'){
+    const B = { ph: 0, tg: 0, r: [] };
+    for (let k = 0; k < BELT.K; k++){
+      const r = new THREE.Group(), a = new THREE.Mesh(_bgA, _bmA), t = new THREE.Mesh(_bgT, _bmT), l = new THREE.Mesh(_bgL, _bmL);
+      t.position.x = .021; l.position.x = -.004;
+      r.add(a); r.add(t); r.add(l); r.visible = false; g.add(r); B.r.push(r);
+    }
+    g.userData.belt = B;
+  }
   g.position.set(.24,-.22,-.5);
   return g;
 }
@@ -1067,6 +1105,7 @@ let joined = false, locked = false;
 let firing = false, semiReady = false, mouseR = false, ads = false;
 let lastShot = 0, reloading = false, reloadEnd = 0;
 let kick = 0, bobT = 0;
+let swayX = 0, swayY = 0, prevYaw = 0, prevPitch = 0, spr = 0, fallV = 0, camLand = 0, camBob = 0, camBobA = 0, camRoll = 0;
 const keys = {};
 const stick = { x: 0, y: 0, id: null };   // 모바일 조이스틱
 const mpos = { x: innerWidth / 2, y: innerHeight / 2 };  // 마우스 위치 (잠금 불가 시 가장자리 회전용)
@@ -1343,11 +1382,14 @@ function animateAvatar(av, dt, speed, vy, pitch){
     return;
   }
   if (air){
-    L.legL.rotation.x = .7; L.legR.rotation.x = -.35;      // 점프 자세
+    L.legL.rotation.x = .7; L.legR.rotation.x = -.35;
+    L.legL.scale.y = .85; L.legR.scale.y = 1;      // 점프 자세
   } else {
-    const amp = moving * (.55 + run * .45);
+    const amp = moving * (.55 + run * .45), lift = moving * (.1 + run * .1), cp = Math.cos(av.phase);
     L.legL.rotation.x = sw * amp;
     L.legR.rotation.x = -sw * amp;
+    L.legL.scale.y = 1 - Math.max(0, cp) * lift;
+    L.legR.scale.y = 1 - Math.max(0, -cp) * lift;
   }
   const br = Math.sin(av.breath * 2.2) * (1 - moving * .7);   // 숨쉬기
   const low = run * .45;                                      // 달릴 땐 총을 조금 내림
@@ -1357,6 +1399,7 @@ function animateAvatar(av, dt, speed, vy, pitch){
   P.gun.position.y = 1.22 + Math.sin(av.phase * 2) * .01 * moving + br * .01;
   P.gun.position.z = -.42 + kk * .06;
   P.torso.scale.y = 1 + br * .02;
+  av.pivot.position.x = Math.sin(av.breath * .8) * .012 * (1 - moving);
   P.head.position.y = 1.65 + Math.abs(sw) * .02 * moving + br * .012;
   P.head.rotation.x = pt * .5;
   av.pivot.position.y = air ? 0 : Math.abs(sw) * .06 * moving * (.6 + run * .6);   // 걸을 때 위아래 출렁임
@@ -1844,6 +1887,7 @@ function fire(){
   player.pitch = clamp(player.pitch + rc, -1.5, 1.5);
   player.yaw += (Math.random() - .5) * rc * 0.7;
   kick = 1;
+  if (gunGroup.userData.belt) gunGroup.userData.belt.tg++;
   if (a.mag === 0) startReload();
 }
 function damageBot(b, d, part){
@@ -2453,6 +2497,8 @@ function loop(){
   if (locked && !player.dead){
     if (noLock) edgeLook(dt);
     updatePlayer(dt);
+    if (!player.onGround) fallV = Math.min(fallV, player.vel.y);
+    else { if (fallV < -5) camLand = Math.min(.2, -fallV * .011); fallV = 0; }
     if (reloading && t >= reloadEnd){
       const need = w.mag - a.mag, take = Math.min(need, a.res);
       a.mag += take; a.res -= take; reloading = false;
@@ -2479,9 +2525,15 @@ function loop(){
   const crawling = (lm.mask & 24) === 24;
   eyeH += ((player.dead ? 0.4 : crawling ? 0.55 : crouch ? 1.05 : 1.6) - eyeH) * clamp(10 * dt, 0, 1);
   const eye = eyeH;
-  camera.position.set(player.pos.x, player.pos.y + eye, player.pos.z);
-  camera.rotation.set(player.pitch, player.yaw, player.dead ? 0.9 : 0);
-  const targetFov = ads ? 75 / w.zoom : 75;
+  const cs = Math.hypot(player.vel.x, player.vel.z), cm = player.onGround && !player.dead && cs > 1;
+  camBob += dt * (cm ? (cs > 7 ? 13 : 9.5) : 0);
+  camBobA += ((cm ? (ads ? .004 : cs > 7 ? .04 : .022) : 0) - camBobA) * clamp(8 * dt, 0, 1);
+  camLand *= Math.exp(-7 * dt);
+  const lat2 = player.vel.x * Math.cos(player.yaw) - player.vel.z * Math.sin(player.yaw);
+  camRoll += (clamp(-lat2 * .0035, -.03, .03) - camRoll) * clamp(7 * dt, 0, 1);
+  camera.position.set(player.pos.x, player.pos.y + eye + Math.sin(camBob) * camBobA - camLand, player.pos.z);
+  camera.rotation.set(player.pitch, player.yaw, player.dead ? 0.9 : camRoll + Math.cos(camBob * .5) * camBobA * .12);
+  const targetFov = ads ? 75 / w.zoom : 75 + spr * 6;
   if (Math.abs(camera.fov - targetFov) > 0.05){ camera.fov += (targetFov - camera.fov) * clamp(14 * dt, 0, 1); camera.updateProjectionMatrix(); }
   const scoped = ads && w.id === 'awm' && camera.fov < 30;
   $('scope').style.display = scoped ? 'block' : 'none';
@@ -2491,21 +2543,32 @@ function loop(){
   if (gunGroup){
     gunGroup.visible = !scoped && !player.dead;
     kick = Math.max(0, kick - dt * 9);
-    const moving = player.onGround && Math.hypot(player.vel.x, player.vel.z) > 1;
-    bobT += dt * (moving ? 10 : 2);
-    const bob = moving ? 0.012 : 0.003;
-    const tx = ads ? 0 : 0.24, ty = ads ? -0.15 : -0.22, tz = ads ? -0.36 : -0.5;
+    const vs = Math.hypot(player.vel.x, player.vel.z), moving = player.onGround && vs > 1;
+    const sprinting = moving && vs > 7 && !ads;
+    spr += ((sprinting ? 1 : 0) - spr) * clamp(9 * dt, 0, 1);
+    bobT += dt * (moving ? (sprinting ? 14 : 10) : 1.8);
+    const bob = (moving ? (ads ? .004 : .012) : .0025) * (1 + spr * .8);
+    let dyw = player.yaw - prevYaw; dyw = Math.atan2(Math.sin(dyw), Math.cos(dyw));
+    const yawRate = dyw / Math.max(dt, .001), pitRate = (player.pitch - prevPitch) / Math.max(dt, .001);
+    prevYaw = player.yaw; prevPitch = player.pitch;
+    const sk = ads ? .35 : 1, ks = clamp(9 * dt, 0, 1);
+    swayX += (clamp(yawRate * .012, -.07, .07) * sk - swayX) * ks;
+    swayY += (clamp(-pitRate * .010, -.05, .05) * sk - swayY) * ks;
+    const lat = player.vel.x * Math.cos(player.yaw) - player.vel.z * Math.sin(player.yaw);
+    const tx = ads ? 0 : .24 - spr * .1, ty = ads ? -.15 : -.22 - spr * .07, tz = ads ? -.36 : -.5 + spr * .08;
     const rp = reloading ? Math.min(1, (reloadEnd - t) / w.reload) : 0;
     const dip = reloading ? Math.sin(Math.min(1, 1 - rp) * Math.PI) : 0;
     const gp = gunGroup.position, k2 = clamp(16 * dt, 0, 1);
-    gp.x += (tx - gp.x) * k2;
-    gp.y += (ty + Math.sin(bobT) * bob - dip * 0.18 - gp.y) * k2;
-    gp.z += (tz + kick * 0.06 - gp.z) * k2;
-    gunGroup.rotation.x = kick * 0.12 - dip * 0.7;
+    gp.x += (tx + swayX + Math.cos(bobT * .5) * bob * .9 - lat * .004 - gp.x) * k2;
+    gp.y += (ty + swayY + Math.sin(bobT) * bob - dip * .18 - camLand * 1.1 - gp.y) * k2;
+    gp.z += (tz + kick * .06 + Math.abs(Math.sin(bobT * .5)) * bob * .6 - gp.z) * k2;
+    gunGroup.rotation.x = kick * .12 - dip * .7 + spr * .38 + swayY * 1.6 - camLand * 2;
+    gunGroup.rotation.y = spr * .75 - swayX * 2.4;
     // 재장전: 총을 기울이고 → 탄창 분리·낙하 → 새 탄창 장착
     const mg = gunGroup.userData.mag, mp = gunGroup.userData.mp, pr = reloading ? 1 - rp : 0;
-    gunGroup.rotation.z = reloading ? -Math.sin(Math.min(1, pr / 0.85) * Math.PI) * 0.45 : 0;
+    gunGroup.rotation.z = (reloading ? -Math.sin(Math.min(1, pr / 0.85) * Math.PI) * 0.45 : 0) + spr * .3 - swayX * 1.8 - lat * .006 + Math.cos(bobT * .5) * bob * 2;
     if (w.melee){ swing = Math.max(0, swing - dt * 3.2); const q = 1 - swing, sw = swing > 0 ? Math.sin(q * Math.PI) : 0; gunGroup.rotation.z = swing > 0 ? (1 - q * 2) * 1.2 : 0; gunGroup.rotation.y = -sw * 0.8; gunGroup.rotation.x -= sw * 0.5; }
+    if (gunGroup.userData.belt) updateBelt(gunGroup.userData.belt, dt, a.mag, reloading);
     if (mg){
       if (!reloading || pr >= 0.8){ mg.visible = true; mg.position.copy(mp); }
       else if (pr < 0.3){ mg.visible = true; mg.position.set(mp.x, mp.y - pr / 0.3 * 0.35, mp.z); }
