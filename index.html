@@ -1728,7 +1728,12 @@ function send(event, payload){
   if (channel && netReady) channel.send({ type: 'broadcast', event, payload });
 }
 function me(){ return { jt: zJoinT, name: myName, k: kills, d: deaths, rn: rnd.n, rk: rnd.k, rd: rnd.d, prk: rnd.pk, prd: rnd.pd }; }
-function trackMe(){ if (channel && netReady) channel.track(me()); }
+let trackT = 0, trackLast = 0;
+function trackMe(){   // 프레즌스 갱신은 서버 제한(초당 횟수)이 있어서 3초에 한 번으로 묶어 보냄
+  if (!channel || !netReady || trackT) return;
+  const wait = Math.max(0, 3000 - (Date.now() - trackLast));
+  trackT = setTimeout(() => { trackT = 0; trackLast = Date.now(); if (channel && netReady) channel.track(me()); }, wait);
+}
 
 function onPos(p){
   if (!p || p.id === myId) return;
@@ -1792,7 +1797,9 @@ async function openChannel(){
   const gen = ++netGen;   // 이전 채널에서 오는 상태 알림은 무시하기 위한 번호
   if (channel){
     const old = channel; channel = null;
-    try { await Promise.race([Promise.resolve(sb.removeChannel(old)), new Promise(r => setTimeout(r, 1500))]); } catch(e){}
+    try { await Promise.race([Promise.resolve(sb.removeChannel(old)), new Promise(r => setTimeout(r, 3000))]); } catch(e){}
+    if (gen !== netGen) return;
+    await new Promise(r => setTimeout(r, 300));
     if (gen !== netGen) return;
   }
   netAt = now();
@@ -1807,6 +1814,7 @@ async function openChannel(){
       syncBots();
       renderOnline();
     })
+    .on('system', {}, p => { if (gen !== netGen || !p) return; if (p.status === 'error' || /limit|too many|exceed/i.test(String(p.message || ''))) netDown('서버: ' + (p.message || p.extension || p.status)); })
     .on('broadcast', { event: 'pos' },  ({ payload }) => onPos(payload))
     .on('broadcast', { event: 'shot' }, ({ payload }) => onShot(payload))
     .on('broadcast', { event: 'hit' },  ({ payload }) => onHit(payload))
@@ -1825,7 +1833,8 @@ async function openChannel(){
         netReady = true; netTry = 0; ch.track(me()); setNet(true); sendPos(true);
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED'){
         if (netReady) netDown(status + (err && err.message ? ' ' + err.message : ''));
-        netReady = false; setNet(false); netRetry();
+        netReady = false; setNet(false);
+        if (status === 'CLOSED') netRetry(); // 오류/시간초과는 라이브러리가 자동 재접속 (안 되면 4초 점검이 새로 연결)
       }
     });
 }
@@ -2347,7 +2356,7 @@ function updatePlayer(dt){
   if (player.onGround && player.vel.y <= 0 && p.y > gy && p.y - gy < .4) p.y = gy;
   if (p.y <= gy){ p.y = gy; player.vel.y = 0; player.onGround = true; } else player.onGround = false;
   if (p.y < -20) { p.set(0, 0, 0); }
-}
+  }
 
 /* ---------- 입력 ---------- */
 addEventListener('keydown', e => {
@@ -3400,7 +3409,7 @@ function zTick(dt){
   zRender(dt); zAttackMe();
   if (host && netReady){
     zSendT += dt;
-    if (zSendT >= .1){
+    if (zSendT >= .15){
       zSendT = 0;
       zSN = (zSN + 1) % 5;
       send('zs', { b: zSN ? undefined : bars.map(b => [b.id, b.t, +b.x.toFixed(1), +b.z.toFixed(1), +b.w.toFixed(1), +b.d.toFixed(1), Math.round(b.hp), b.gun ? +b.gun.rotation.y.toFixed(2) : 0]), bi: zw.bi, w: zw.n, l: zw.left, c: Math.ceil(zw.cd), o: zw.over ? 1 : 0, i: zw.id,
@@ -3573,7 +3582,7 @@ function loop(){
 
   // 네트워크 전송
   sendT += dt;
-  if (sendT >= 0.12){ sendT = 0; sendPos(); }
+  if (sendT >= 0.15){ sendT = 0; sendPos(); }
 
   updateHud();
   renderFrame();
