@@ -104,9 +104,9 @@ html,body{touch-action:none;-webkit-touch-callout:none;-webkit-tap-highlight-col
 @media (orientation:portrait){ body.touch #rotate{display:flex} }
 body.touch .keys{display:none}
 body.touch .tkeys{display:grid}
-body.touch #online{top:6px;left:6px;min-width:0;padding:5px 9px;font-size:11px;pointer-events:auto}
+body.touch #online{top:6px;left:6px;min-width:0;max-width:calc(50vw - 140px);padding:5px 9px;font-size:11px;pointer-events:auto}
 body.touch #onlineList{display:none}
-body.touch #onlineCount{font-size:12px;margin:0}
+body.touch #onlineCount{font-size:11px;margin:0;word-break:break-all;line-height:1.25}
 body.touch #feed{top:36px;left:6px;right:auto;align-items:flex-start}
 body.touch .fi{font-size:11px;padding:3px 8px}
 body.touch #hpwrap{left:50%;transform:translateX(-50%);bottom:8px;width:190px}
@@ -1721,6 +1721,7 @@ let srvWhy = '', srvAt = 0, joinedAt = 0, sendN = 0, sendRate = 0;   // 끊김 �
 setInterval(() => { sendRate = sendN; sendN = 0; }, 1000);
 const remotes = {};
 let onlineList = [];
+const peerStats = {};   // 다른 플레이어의 킬/데스/라운드 기록 (위치 메시지로 전달됨)
 
 function removeRemote(id){
   const r = remotes[id]; if (!r) return;
@@ -1729,16 +1730,25 @@ function removeRemote(id){
 function send(event, payload){
   if (channel && netReady){ sendN++; channel.send({ type: 'broadcast', event, payload }); }
 }
-function me(){ return { jt: zJoinT, name: myName, k: kills, d: deaths, rn: rnd.n, rk: rnd.k, rd: rnd.d, prk: rnd.pk, prd: rnd.pd }; }
-let trackT = 0, trackLast = 0;
-function trackMe(){   // 프레즌스 갱신은 서버 제한(초당 횟수)이 있어서 3초에 한 번으로 묶어 보냄
-  if (!channel || !netReady || trackT) return;
-  const wait = Math.max(0, 3000 - (Date.now() - trackLast));
-  trackT = setTimeout(() => { trackT = 0; trackLast = Date.now(); if (channel && netReady) channel.track(me()); }, wait);
+function me(){ return { jt: zJoinT, name: myName }; }   // 프레즌스에는 바뀌지 않는 값만 (자주 갱신하면 서버가 연결을 끊음)
+let trackKey = '';
+function trackMe(){   // 이름이 바뀐 때만 프레즌스를 다시 등록
+  if (!channel || !netReady) return;
+  const k = zJoinT + '|' + myName;
+  if (k === trackKey) return;
+  trackKey = k; channel.track(me());
 }
 
 function onPos(p){
   if (!p || p.id === myId) return;
+  if (p.s && p.s.length >= 7){
+    const sk = p.s.join(','), old = peerStats[p.id];
+    if (!old || old.key !== sk){
+      const o = { key: sk, k: p.s[0] | 0, d: p.s[1] | 0, rn: p.s[2], rk: p.s[3] | 0, rd: p.s[4] | 0, prk: p.s[5] | 0, prd: p.s[6] | 0 };
+      peerStats[p.id] = o;
+      const e = onlineList.find(x => x.id === p.id); if (e){ Object.assign(e, o); renderOnline(); }
+    }
+  }
   let r = remotes[p.id];
   if (!r){
     const av = makeAvatar(p.n || 'Player', 0x3b82f6, { kind: 'player', id: p.id });
@@ -1816,7 +1826,8 @@ async function openChannel(){
     .on('presence', { event: 'sync' }, () => {
       if (gen !== netGen) return;
       const st = ch.presenceState();
-      onlineList = Object.keys(st).map(id => Object.assign({ id }, (st[id] && st[id][0]) || {}));
+      onlineList = Object.keys(st).map(id => Object.assign({ id }, (st[id] && st[id][0]) || {}, peerStats[id] || {}));
+      for (const id in peerStats) if (!st[id]) delete peerStats[id];
       for (const id in remotes){ const r = remotes[id]; if (!st[id]) r.gone = r.gone || now(); else r.gone = 0; }   // 바로 지우지 않고 잠깐 기다림
       syncBots();
       renderOnline();
@@ -1837,7 +1848,7 @@ async function openChannel(){
     .subscribe((status, err) => {
       if (gen !== netGen) return;
       if (status === 'SUBSCRIBED'){
-        netReady = true; netTry = 0; joinedAt = now(); ch.track(me()); setNet(true); sendPos(true);
+        netReady = true; netTry = 0; joinedAt = now(); trackKey = zJoinT + '|' + myName; ch.track(me()); setNet(true); sendPos(true);
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED'){
         if (netReady) netDown(status + (err && err.message ? ' ' + err.message : ''));
         netReady = false; setNet(false);
@@ -3441,7 +3452,7 @@ let sendT = 0;
 let lastPosKey = '', lastPosAt = 0, lastShotSend = 0;
 function sendPos(force){
   if (!netReady) return;
-  const o = { id: myId, n: myName, x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2), z: +player.pos.z.toFixed(2), r: +player.yaw.toFixed(3), w: cur, d: player.dead ? 1 : 0, m: lm.mask, p: +player.pitch.toFixed(2), c: crouch ? 1 : 0 };
+  const o = { id: myId, n: myName, x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2), z: +player.pos.z.toFixed(2), r: +player.yaw.toFixed(3), w: cur, d: player.dead ? 1 : 0, m: lm.mask, p: +player.pitch.toFixed(2), c: crouch ? 1 : 0, s: [kills, deaths, rnd.n, rnd.k, rnd.d, rnd.pk, rnd.pd] };
   const key = o.x + ',' + o.y + ',' + o.z + ',' + o.r + ',' + o.w + ',' + o.d + ',' + o.m + ',' + o.p + ',' + o.c, t = now();
   if (!force && key === lastPosKey && t - lastPosAt < 1) return;   // 안 움직이면 1초에 한 번만
   lastPosKey = key; lastPosAt = t;
