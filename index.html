@@ -221,7 +221,7 @@ body.touch #shopBtn small{display:none}
 .si button.off{background:rgba(255,255,255,.22)}
 /* ===== [대기] 태양 빛번짐 ===== */
 #sunGlow{position:fixed;left:0;top:0;width:130vmin;height:130vmin;margin:-65vmin 0 0 -65vmin;z-index:3;pointer-events:none;opacity:0;mix-blend-mode:screen;will-change:transform,opacity;
-background:radial-gradient(circle,rgba(255,246,222,.95) 0,rgba(255,230,180,.55) 5%,rgba(255,212,152,.24) 16%,rgba(255,200,140,.09) 36%,rgba(255,200,140,0) 62%)}
+background:radial-gradient(circle,rgba(255,246,226,.78) 0,rgba(255,234,200,.34) 4%,rgba(255,224,182,.15) 12%,rgba(255,214,160,.06) 30%,rgba(255,210,150,0) 60%)}
 </style>
 </head>
 <body>
@@ -352,23 +352,62 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = isTouch ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.08;   // [광원] 햇빛이 강해진 만큼 살짝 낮춤
+renderer.toneMappingExposure = 1.0;   // [광원] 낮은 해 + 하늘빛 보조광 기준으로 맞춤
 $('game').appendChild(renderer.domElement);
 const canvas = renderer.domElement;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x86a9cc);   // [1단계] 호수 반사의 기본 하늘색으로도 쓰임 (차분한 톤)
-scene.fog = new THREE.Fog(0xc7d9e6, 30, 150);   // [1단계] 하늘 지평선색과 동일하게 맞춤 / [대기] 더 길고 부드럽게
+scene.background = new THREE.Color(.50, .64, .76);   // 호수 반사의 기본 하늘색 (새 하늘의 중간 톤)
+scene.fog = new THREE.Fog(0xc6d3de, 30, 150);   // 안개 켜기용 (실제 색·농도는 아래 [대기] 산란 식이 계산해요)
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 300);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
-scene.add(new THREE.HemisphereLight(0xbcd6f2, 0x5a5a3c, 0.60)); // [광원] 푸른 하늘빛(그림자 안쪽) + 풀밭에서 올라오는 따뜻한 반사광
-const sun = new THREE.DirectionalLight(0xffe9c8, 1.20);        // [광원] 더 따뜻하고 강한 햇빛
+scene.add(new THREE.HemisphereLight(0xa9c1e2, 0x6a6350, 0.66)); // [광원] 하늘 전체에서 오는 푸른 빛(그림자 안쪽) + 풀밭에서 올라오는 따뜻한 반사광
+const sun = new THREE.DirectionalLight(0xfff0d9, 1.45);        // [광원] 낮은 해(33°)에 맞춘 약간 따뜻한 햇빛
 const SHADOW_RES = isTouch ? 1024 : 2048, SHADOW_R = isTouch ? 30 : 42;   // [그림자] 모바일은 범위를 줄여 더 또렷하고 가볍게
-const SUN_DIR = new THREE.Vector3(0.62, 0.62, 0.38).normalize(); // y를 줄이면 그림자가 길어져요
+const SUN_DIR = new THREE.Vector3(0.716, 0.545, 0.439).normalize(); // 해 높이 약 33° (y를 줄이면 그림자가 길어지고 노을빛에 가까워져요)
 
-/* ---------- [대기] 안개: 거리 안개 + 낮은 곳에 더 짙은 높이 안개 + 태양 쪽은 하늘처럼 따뜻하게 빛남 ---------- */
+/* ---------- [대기] 대기 산란 모델: 하늘·안개·물이 같은 식을 써서 지평선에서 자연스럽게 이어져요 ----------
+   (Preetham 계열 단일 산란 근사: 레일리 산란 = 푸른 하늘, 미 산란 = 해 주변의 부드러운 빛무리) */
+const ATM_GLSL = (() => {
+  const P = { turb: 2.6, ray: 1.25, mie: .0035, g: .8, expo: .6 };   // turb: 먼지·습기(클수록 뿌옇고 하얘짐) / expo: 하늘 밝기
+  const BR = [5.804542996261093e-6, 1.3562911419845635e-5, 3.0265902468824876e-5].map(v => v * P.ray);
+  const cM = .2 * P.turb * 1e-17, BM = [1.8399918514433978e14, 2.7798023919660528e14, 4.0790479543861094e14].map(v => .434 * cM * v * P.mie);
+  const sunE = 1000 * Math.max(0, 1 - Math.exp(-((Math.PI / 1.95 - Math.acos(SUN_DIR.y)) / 1.5)));
+  const tsun = clamp(Math.pow(1 - SUN_DIR.y, 5), 0, 1), E0 = Math.sin(3 * Math.PI / 180);
+  const fex = dy => { const za = Math.acos(clamp(dy, 0, 1)), iv = 1 / (Math.cos(za) + .15 * Math.pow(93.885 - za * 180 / Math.PI, -1.253)); return BR.map((b, i) => Math.exp(-(b * 8400 * iv + BM[i] * 1250 * iv))); };
+  const e = v => v.toExponential(8), v3 = a => 'vec3(' + a.map(e).join(',') + ')';
+  return `
+const vec3 aBR = ${v3(BR)};
+const vec3 aBM = ${v3(BM)};
+const vec3 aFH = ${v3(fex(E0))};
+const vec3 aSUN = ${v3(SUN_DIR.toArray())};
+const float aSUNE = ${sunE.toFixed(4)};
+const float aTS = ${tsun.toExponential(6)};
+const float aE0 = ${E0.toFixed(6)};
+const float aG = ${P.g.toFixed(3)};
+const float aEXP = ${P.expo.toFixed(3)};
+vec3 atmFex(float dy){ float za = acos(clamp(dy, 0., 1.)); float iv = 1. / (cos(za) + .15 * pow(93.885 - degrees(za), -1.253)); return exp(-(aBR * (8400. * iv) + aBM * (1250. * iv))); }
+vec3 atmCore(vec3 fx, float ct){
+  float rph = .05968310365946075 * (1. + ct * ct), g2 = aG * aG;
+  float mph = .07957747154594767 * ((1. - g2) / pow(1. - 2. * aG * ct + g2, 1.5));
+  vec3 ra = (aBR * rph + aBM * mph) / (aBR + aBM);
+  vec3 L = pow(aSUNE * ra * (1. - fx), vec3(1.5));
+  L *= mix(vec3(1.), sqrt(aSUNE * ra * fx), aTS);
+  return L + .1 * fx;
+}
+vec3 atmTM(vec3 L){
+  vec3 c = pow(max(L * .04 + vec3(0., .0003, .00075), 0.), vec3(.4166667)) * aEXP;
+  return clamp((c * (2.51 * c + .03)) / (c * (2.43 * c + .59) + .14), 0., 1.);
+}
+vec3 atmHaze(float ct){ return atmTM(atmCore(aFH, ct)); }   // 지평선 근처 하늘색 = 먼 물체가 녹아드는 색
+float atmAmt(float dist, float h){   // 거리 안개량: 가까이는 거의 없고(지수 감쇠), 낮은 곳일수록 짙고, 아주 멀면 하늘에 완전히 녹음
+  float f = 1. - exp(-dist * .0085 * exp(-max(h, 0.) * .07));
+  return 1. - (1. - f) * (1. - smoothstep(80., 170., dist));
+}
+`;
+})();
 {
-  const SC = THREE.ShaderChunk, sd = SUN_DIR.toArray().map(v => v.toFixed(4)).join(',');
+  const SC = THREE.ShaderChunk;
   SC.fog_pars_vertex = `#ifdef USE_FOG
 varying float vFogDepth;
 varying vec3 vFogV;
@@ -387,65 +426,63 @@ uniform float fogDensity;
 uniform float fogNear;
 uniform float fogFar;
 #endif
+${ATM_GLSL}
 #endif`;
   SC.fog_fragment = `#ifdef USE_FOG
 {
-  vec3 fgR = vec3(dot(viewMatrix[0].xyz, vFogV), dot(viewMatrix[1].xyz, vFogV), dot(viewMatrix[2].xyz, vFogV)); // 카메라→픽셀 방향(월드)
-  float fgY = cameraPosition.y + fgR.y;                                    // 픽셀의 월드 높이
-  float fgS = max(dot(normalize(fgR), vec3(${sd})), 0.);                   // 태양 방향과의 일치도
-  float fgB = smoothstep(fogNear, fogFar, vFogDepth);                      // 기본 거리 안개
-  float fgX = (1. - exp(-vFogDepth * .012)) * exp(-max(fgY, 0.) * .12) * .35; // 높이 안개 (땅 가까이 + 멀수록 짙음)
-  float fgF = clamp(fgB + fgX * (1. - fgB), 0., 1.);
-  vec3 fgC = fogColor + vec3(1., .86, .64) * pow(fgS, 5.) * .12 + vec3(1., .92, .76) * pow(fgS, 48.) * .30; // 하늘의 태양 빛무리와 동일
-  gl_FragColor.rgb = mix(gl_FragColor.rgb, fgC, fgF);
+  vec3 fgR = vec3(dot(viewMatrix[0].xyz, vFogV), dot(viewMatrix[1].xyz, vFogV), dot(viewMatrix[2].xyz, vFogV)); // 카메라→픽셀 (월드 방향)
+  float fgL = max(length(vFogV), .001);
+  float fgA = atmAmt(fgL, cameraPosition.y + fgR.y * .5);
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, atmHaze(dot(fgR / fgL, aSUN)), fgA);
 }
 #endif`;
 }
 
-/* ---------- [1단계] 하늘 돔 (그라데이션 + 태양 + 구름) ---------- */
+/* ---------- [1단계] 하늘 돔 (대기 산란 + 부드러운 해 + 구름) ---------- */
 const skyU = { uSun: { value: SUN_DIR }, uT: { value: 0 } };
 const sky = new THREE.Mesh(new THREE.SphereGeometry(200, 32, 16), new THREE.ShaderMaterial({
   uniforms: skyU, side: THREE.BackSide, depthWrite: false, depthTest: false,
   vertexShader: `varying vec3 vDir;
 void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-  fragmentShader: `uniform vec3 uSun; uniform float uT; varying vec3 vDir;
+  fragmentShader: `uniform float uT; varying vec3 vDir;
+` + ATM_GLSL + `
 float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
   return mix(mix(hash(i), hash(i + vec2(1., 0.)), f.x), mix(hash(i + vec2(0., 1.)), hash(i + vec2(1., 1.)), f.x), f.y); }
-float fbm(vec2 p){ float v = 0., a = .5; for (int i = 0; i < 5; i++){ v += a * noise(p); p = p * 2.03 + vec2(17.1, 9.7); a *= .5; } return v; }
+float fbm(vec2 p){ float v = 0., a = .5; for (int i = 0; i < @OCT@; i++){ v += a * noise(p); p = p * 2.03 + vec2(17.1, 9.7); a *= .5; } return v; }
+float fbm4(vec2 p){ float v = 0., a = .5; for (int i = 0; i < 4; i++){ v += a * noise(p); p = p * 2.03 + vec2(17.1, 9.7); a *= .5; } return v; }
 void main(){
   vec3 d = normalize(vDir);
-  float h = clamp(d.y, 0., 1.);
-  // 채도를 낮춘 부드러운 하늘색 (지평선은 뿌옇게, 위로 갈수록 차분한 푸른색)
-  vec3 hor = vec3(.78, .85, .90), mid = vec3(.52, .69, .87), zen = vec3(.30, .50, .78);
-  vec3 col = mix(hor, mid, smoothstep(0., .30, h));
-  col = mix(col, zen, smoothstep(.25, 1., h));
-  float sd = max(dot(d, uSun), 0.);
-  col += vec3(1., .86, .64) * pow(sd, 5.) * .12;          // 넓은 빛무리 (은은하게)
-  col += vec3(1., .92, .76) * pow(sd, 48.) * .30;         // 태양 주변 광채
-  float disc = smoothstep(.9994, .9998, sd);              // 태양 원반 (작게)
-  float cov = 0.;
-  vec3 cc = vec3(1.);
+  vec3 dd = normalize(vec3(d.x, max(d.y, aE0), d.z));          // 지평선 아래/근처는 지평선 색으로 (안개색과 같은 값)
+  float ct = dot(dd, aSUN);
+  vec3 fx = atmFex(dd.y);
+  vec3 base = atmTM(atmCore(fx, ct));
+  // 해: 아주 작고 가장자리가 부드러운 원반 (색은 대기를 통과하며 살짝 따뜻해짐). 큰 빛무리는 위 산란 식이 만들어요.
+  float disc = smoothstep(${Math.cos(.62 * Math.PI / 180 * 1.35).toFixed(8)}, ${Math.cos(.62 * Math.PI / 180 * .65).toFixed(8)}, dot(d, aSUN));
+  vec3 col = atmTM(atmCore(fx, ct) + aSUNE * fx * 60000. * disc);
   if (d.y > 0.){
-    // 하늘을 평면에 투영해서 구름을 그림 (큰 덩어리 + 모양을 살짝 일그러뜨려 자연스럽게)
-    vec2 uv = (d.xz / (d.y * .9 + .22)) * .55 + vec2(uT * .006, uT * .003);
-    vec2 w = vec2(noise(uv * .7 + 3.1), noise(uv * .7 + 8.7)) - .5;
+    // 얇은 높은 구름(권운)
+    vec2 cu = vec2(d.x / (d.y + .28) * .9 + uT * .01, d.z / (d.y + .28) * .3);
+    float ci = smoothstep(.52, .80, fbm4(cu * 1.3)) * smoothstep(.05, .35, d.y) * .22;
+    col = mix(col, vec3(1.), ci);
+    // 낮은 뭉게구름: 하늘을 평면에 투영 + 모양을 살짝 일그러뜨림
+    vec2 uv = (d.xz / (d.y * .9 + .22)) * .8 + vec2(uT * .006, uT * .003);
+    vec2 w = vec2(noise(uv * .7 + vec2(3.1, 8.7)), noise(uv * .7 + vec2(8.7, 3.1))) - .5;
     uv += w * 1.4;
     float c = fbm(uv);
-    float shape = smoothstep(.50, .86, c);                 // 부드러운 경계, 하늘 대부분은 맑게
-    cov = shape * smoothstep(.02, .30, d.y);
-    float c2 = fbm(uv + uSun.xz * .12);                    // 태양쪽으로 옮겨 읽어서 명암 계산
-    float light = clamp(.62 + (c - c2) * 3., 0., 1.);
-    vec3 lit = vec3(1., .99, .96), shade = vec3(.70, .75, .83);
-    cc = mix(lit, shade, shape * (1. - light) * .85);     // 두꺼운 부분의 그늘진 쪽이 어두워짐
-    cc += vec3(1., .88, .66) * pow(sd, 10.) * .18;         // 태양 쪽 가장자리 빛
-    cc = mix(hor, cc, smoothstep(0., .35, d.y));           // 멀리 있는 구름은 지평선색으로 흐려짐
+    float cov = smoothstep(.40, .66, c) * smoothstep(0., .22, d.y);
+    float c2 = fbm(uv + aSUN.xz * .10);                         // 해 쪽으로 옮겨 읽어 명암 계산
+    float light = clamp(.55 + (c - c2) * 3.5, 0., 1.);
+    float dens = smoothstep(.52, .80, c);
+    vec3 cc = mix(vec3(.62, .69, .80), vec3(1., .985, .95), light);   // 그늘진 쪽은 하늘빛이 섞인 회청색
+    cc *= 1. - dens * .18;                                           // 두꺼운 부분은 안쪽이 어두움
+    cc += vec3(1., .88, .66) * pow(clamp(ct, 0., 1.), 10.) * .20 * (1. - dens);   // 해 쪽 얇은 가장자리의 은빛 테두리
+    cc = mix(base, cc, smoothstep(0., .3, d.y));                     // 멀리 있는 구름은 지평선 하늘색으로 흐려짐
+    col = mix(col, cc, cov * .9);
   }
-  col += vec3(1., .97, .90) * disc * 2. * (1. - cov);      // 구름 뒤의 태양은 가려짐
-  col = mix(col, cc, cov * .88);
-  col = mix(col, vec3(dot(col, vec3(.333))), .08);        // 살짝 탈색해서 덜 쨍하게
+  col += (hash(gl_FragCoord.xy) - .5) / 255.;                       // 하늘 그라데이션의 띠 현상 방지 (디더링)
   gl_FragColor = vec4(col, 1.);
-}`
+}`.replace(/@OCT@/g, String(isTouch ? 4 : 5))
 }));
 sky.renderOrder = -1000; sky.frustumCulled = false;
 scene.add(sky);
@@ -454,10 +491,10 @@ sun.castShadow = true;
 sun.shadow.mapSize.set(SHADOW_RES, SHADOW_RES);
 { const c = sun.shadow.camera; c.near = 1; c.far = 220; c.left = c.bottom = -SHADOW_R; c.right = c.top = SHADOW_R; c.updateProjectionMatrix(); }
 sun.shadow.bias = -0.0004;
-sun.shadow.normalBias = 0.04;
+sun.shadow.normalBias = 0.055;   // 해가 낮아져서 그림자 줄무늬(아크네) 방지로 살짝 키움
 sun.shadow.radius = 2;   // [광원] 그림자 가장자리 번짐 (모바일 PCF 모드에서 적용)
 scene.add(sun, sun.target);
-const fill = new THREE.DirectionalLight(0x9fbbe0, 0.20);   // [광원] 해 반대편의 은은한 푸른 보조광 (그림자 없음) – 그늘이 시커멓게 죽지 않게
+const fill = new THREE.DirectionalLight(0x9fbbe0, 0.10);   // [광원] 해 반대편의 은은한 푸른 보조광 (그림자 없음) – 그늘이 시커멓게 죽지 않게
 fill.position.set(-0.62, 0.35, -0.38);
 scene.add(fill);
 /* 1인칭 총 전용 장면: 월드를 먼저 그린 뒤 깊이값만 지우고 총을 따로 그림
@@ -466,10 +503,10 @@ const gunScene = new THREE.Scene();
 const gunCam = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.02, 6);
 gunCam.rotation.order = 'YXZ';
 gunScene.add(gunCam);
-gunScene.add(new THREE.HemisphereLight(0xbcd6f2, 0x5a5a3c, 0.75));
-const gunSun = new THREE.DirectionalLight(0xffe9c8, 1.25);
+gunScene.add(new THREE.HemisphereLight(0xa9c1e2, 0x6a6350, 0.80));
+const gunSun = new THREE.DirectionalLight(0xfff0d9, 1.45);
 gunSun.position.copy(SUN_DIR); gunScene.add(gunSun, gunSun.target);
-const gunFill = new THREE.DirectionalLight(0x9fbbe0, 0.25);
+const gunFill = new THREE.DirectionalLight(0x9fbbe0, 0.12);
 gunFill.position.set(-0.62, 0.35, -0.38); gunScene.add(gunFill);
 const _sr = new THREE.Vector3(0,1,0).cross(SUN_DIR).normalize();
 const _su = new THREE.Vector3().crossVectors(SUN_DIR, _sr), _st = new THREE.Vector3();
@@ -849,7 +886,7 @@ const water = new THREE.Mesh(new THREE.CircleGeometry(LAKE.r + .6, 64), new THRE
   uniforms: wu, transparent: true, depthWrite: false,
   vertexShader: `uniform mat4 uTex; varying vec3 vW; varying vec4 vP; varying float vD;
 void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vP = uTex * w; vec4 mv = viewMatrix * w; vD = -mv.z; gl_Position = projectionMatrix * mv; }`,
-  fragmentShader: `uniform sampler2D uRefl; uniform float uT, uUse, uFogN, uFogF, uR; uniform vec3 uSun, uFog, uDeep, uShallow, uSky; uniform vec2 uC;
+  fragmentShader: ATM_GLSL + `uniform sampler2D uRefl; uniform float uT, uUse, uFogN, uFogF, uR; uniform vec3 uSun, uFog, uDeep, uShallow, uSky; uniform vec2 uC;
 varying vec3 vW; varying vec4 vP; varying float vD;
 float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
@@ -884,12 +921,8 @@ void main(){
   float fm = smoothstep(.55, .85, noise(p * 2.6 + vec2(uT * .35, -uT * .2)) * .75 + .25 * sin(rd * 70. - uT * 2.2) * .5 + .25);
   float foam = edge * fm;
   col = mix(col, vec3(.95, .97, .98), foam * .75);
-  float fb = smoothstep(uFogN, uFogF, vD);                    // [대기] 땅과 같은 안개 공식
-  float fx = (1. - exp(-vD * .012)) * exp(-max(vW.y, 0.) * .12) * .35;
-  float ff = clamp(fb + fx * (1. - fb), 0., 1.);
-  float fs = max(dot(-V, uSun), 0.);
-  vec3 fc = uFog + vec3(1., .86, .64) * pow(fs, 5.) * .12 + vec3(1., .92, .76) * pow(fs, 48.) * .30;
-  col = mix(col, fc, ff);
+  float wL = length(cameraPosition - vW);                      // [대기] 땅·하늘과 같은 산란 식
+  col = mix(col, atmHaze(dot(-V, aSUN)), atmAmt(wL, cameraPosition.y * .5 + vW.y * .5));
   float alpha = clamp(mix(.50, .96, depth * .65 + fr * .5) + foam * .4, 0., 1.);
   gl_FragColor = vec4(col, alpha);
 }`
@@ -918,7 +951,7 @@ function updateSunGlow(){
     }
   }
   sgVis += (target - sgVis) * .15;
-  sunGlowEl.style.opacity = sgVis < .004 ? 0 : (sgVis * .9).toFixed(3);
+  sunGlowEl.style.opacity = sgVis < .004 ? 0 : (sgVis * .6).toFixed(3);
 }
 function renderFrame(){
   let refl = false;
