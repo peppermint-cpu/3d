@@ -1148,8 +1148,8 @@ function updateBolt(B, w, a, t, rl, pr){
     const open = a.mag === 0 ? 1 : 0;
     if (pr < .76) x = open;
     else if (pr < .86) x = open + (1 - open) * _sm((pr - .76) / .1);
-    else if (pr < .91) x = 1;
-    else x = 1 - _sm(clamp((pr - .91) / .05, 0, 1));
+    else if (pr < .90) x = 1;
+    else x = 1 - _sm(clamp((pr - .90) / .04, 0, 1));
   } else if (B.userData.fire){
     const u = t - lastShot;
     if (B.userData.fire === 2) x = u < .25 ? 0 : u < .45 ? _sm((u - .25) / .2) : u < .7 ? 1 : u < .9 ? 1 - _sm((u - .7) / .2) : 0;
@@ -1157,28 +1157,61 @@ function updateBolt(B, w, a, t, rl, pr){
   }
   B.position.z = x * B.userData.tr;
 }
+/* 노리쇠를 잡는 손: 장전 때 손(기본 왼손, AWM은 오른손)이 장전 손잡이로 이동 → 잡고 당김 → 놓고 돌아옴. AWM은 쏜 뒤 볼트도 오른손으로 당김 */
+const BOLTHAND = {
+  m416: { h: 'l', p: [-.012, .072, .14] }, akm: { h: 'l', p: [.03, .088, -.045] }, awm: { h: 'r', p: [.072, .03, .075] },
+  s12k: { h: 'l', p: [-.068, .03, 0] },     m249: { h: 'l', p: [-.068, .022, -.05] }
+};
+const _hp = new THREE.Vector3(), _hs = new THREE.Vector3(), _hd = new THREE.Vector3(), _hT = new THREE.Vector3(), _hZ = new THREE.Vector3(0, 0, 1);
+function moveHand(H, k, tg){   // 손을 기본 자리 → 목표 사이로 옮기고, 팔도 어깨 쪽 고정점에 맞춰 다시 이어 줌
+  const A = H.a;
+  H.h.position.copy(A.h0).lerp(tg, k);
+  _hs.copy(H.h.position).add(A.o);
+  _hd.copy(A.S).sub(_hs); const L = Math.max(.05, _hd.length()); _hd.divideScalar(L);
+  A.m.position.copy(_hs).addScaledVector(_hd, L / 2); A.m.quaternion.setFromUnitVectors(_hZ, _hd); A.m.scale.z = L / A.len;
+}
+function updateHands(g, w, a, t, rl, pr){
+  const HS = g.userData.hands, bh = BOLTHAND[w.id], B = g.userData.bolt;
+  if (!HS || !bh || !B) return;
+  const H = HS[bh.h]; if (!H) return;
+  let k = 0;
+  if (rl){ k = pr < .66 ? 0 : pr < .76 ? _sm((pr - .66) / .1) : pr < .94 ? 1 : 1 - _sm(clamp((pr - .94) / .06, 0, 1)); }
+  else if (B.userData.fire === 2){ const u = t - lastShot; k = u < .08 ? 0 : u < .25 ? _sm((u - .08) / .17) : u < .9 ? 1 : u < 1.15 ? 1 - _sm((u - .9) / .25) : 0; }
+  if (k <= 0 && !H.moved) return;
+  H.moved = k > 0;
+  _hT.set(bh.p[0], bh.p[1], bh.p[2] + B.position.z);   // 손잡이가 뒤로 빠지는 만큼 같이 따라감
+  moveHand(H, k, _hT);
+}
 function buildGun(i){
   const spec = GUNS[WEAPONS[i].id];
   const g = new THREE.Group();
   const add = (p, parent) => {
     const fl = p[7] || '', m = new THREE.Mesh(gunGeo(p, fl), gunMat(p[6], fl));
-    m.position.set(p[3], p[4], p[5]); parent.add(m);
+    m.position.set(p[3], p[4], p[5]); parent.add(m); return m;
   };
   for (const p of spec.parts) add(p, g);
+  const lhM = g.children[spec.parts.length - 1];   // 앞쪽(왼손) 손 메쉬
+  let rhM = null;
   const mg = g.children[MAGIDX[WEAPONS[i].id]]; if (mg){ g.userData.mag = mg; g.userData.mp = mg.position.clone(); }
   let bolt = null;
   const bc = BOLT[WEAPONS[i].id];
   (spec.d || []).forEach(p => {
     const fl = p[7] || '';
     if (fl.indexOf('B') >= 0 && bc){ if (!bolt){ bolt = new THREE.Group(); bolt.userData.tr = bc.tr; bolt.userData.fire = bc.fire; g.add(bolt); g.userData.bolt = bolt; } add(p, bolt); }
-    else add(p, (fl.indexOf('M') >= 0 && mg) ? mg : g);
+    else { const m = add(p, (fl.indexOf('M') >= 0 && mg) ? mg : g); if (p[6] === SKIN) rhM = m; }
   });
   if (!WEAPONS[i].melee){   // 손 뒤로 이어지는 팔 (손만 공중에 떠 있지 않게)
     const hl = spec.parts[spec.parts.length - 1];
     const rh = (spec.d && spec.d[spec.d.length - 1]) || hl;
-    const arm = (p, d, len, th) => { const v = d.clone().normalize(), m = new THREE.Mesh(new THREE.BoxGeometry(th, th, len), gunMat(0x2b4f94, '')); m.position.set(p[0], p[1], p[2]).addScaledVector(v, len / 2); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), v); g.add(m); };
-    arm([hl[3], hl[4] - .005, hl[5] + .03], new THREE.Vector3(-.35, -.28, .8), .95, .055);
-    arm([rh[3], rh[4] - .005, rh[5] + .03], new THREE.Vector3(.3, -.32, .85), .95, .06);
+    const arm = (p, d, len, th, hm) => {
+      const v = d.clone().normalize(), m = new THREE.Mesh(new THREE.BoxGeometry(th, th, len), gunMat(0x2b4f94, ''));
+      m.position.set(p[0], p[1], p[2]).addScaledVector(v, len / 2); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), v); g.add(m);
+      const st = new THREE.Vector3(p[0], p[1], p[2]);   // S: 어깨 쪽 고정점 / o: 손 중심 → 팔 시작점 / h0: 손의 기본 위치
+      return { m, len, S: st.clone().addScaledVector(v, len), o: st.clone().sub(hm.position), h0: hm.position.clone() };
+    };
+    const la = arm([hl[3], hl[4] - .005, hl[5] + .03], new THREE.Vector3(-.35, -.28, .8), .95, .055, lhM);
+    const ra = rhM ? arm([rh[3], rh[4] - .005, rh[5] + .03], new THREE.Vector3(.3, -.32, .85), .95, .06, rhM) : null;
+    g.userData.hands = { l: { h: lhM, a: la }, r: rhM ? { h: rhM, a: ra } : null };
   }
   const mf = new THREE.Mesh(new THREE.BoxGeometry(.13,.13,.05), new THREE.MeshBasicMaterial({ color: 0xffd27a, depthTest: false, transparent: true, opacity: .9 }));
   mf.position.set(0,.015,spec.tip - .04); mf.renderOrder = 1000; mf.visible = false;
@@ -3342,7 +3375,7 @@ function loop(){
     gunGroup.rotation.z = (reloading ? -Math.sin(Math.min(1, pr / 0.85) * Math.PI) * 0.45 : 0) + spr * .3 - swayX * 1.8 - lat * .006 * shake + Math.cos(bobT * .5) * bob * 2 + dw * .5;
     if (w.melee){ swing = Math.max(0, swing - dt * 3.2); const q = 1 - swing, sw = swing > 0 ? Math.sin(q * Math.PI) : 0; gunGroup.rotation.z = swing > 0 ? (1 - q * 2) * 1.2 : 0; gunGroup.rotation.y = -sw * 0.8; gunGroup.rotation.x -= sw * 0.5; }
     if (gunGroup.userData.belt) updateBelt(gunGroup.userData.belt, dt, a.mag, reloading);
-    if (gunGroup.userData.bolt) updateBolt(gunGroup.userData.bolt, w, a, t, reloading, pr);
+    if (gunGroup.userData.bolt){ updateBolt(gunGroup.userData.bolt, w, a, t, reloading, pr); updateHands(gunGroup, w, a, t, reloading, pr); }
     if (mg){
       if (!reloading || pr >= 0.8){ mg.visible = true; mg.position.copy(mp); }
       else if (pr < 0.3){ mg.visible = true; mg.position.set(mp.x, mp.y - pr / 0.3 * 0.35, mp.z); }
