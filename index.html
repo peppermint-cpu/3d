@@ -346,7 +346,7 @@ camera.rotation.order = 'YXZ';
 scene.add(camera);
 scene.add(new THREE.HemisphereLight(0xbcd6f2, 0x5a5a3c, 0.60)); // [광원] 푸른 하늘빛(그림자 안쪽) + 풀밭에서 올라오는 따뜻한 반사광
 const sun = new THREE.DirectionalLight(0xffe9c8, 1.20);        // [광원] 더 따뜻하고 강한 햇빛
-const SHADOW_RES = isTouch ? 1024 : 2048, SHADOW_R = isTouch ? 38 : 50;
+const SHADOW_RES = isTouch ? 1024 : 2048, SHADOW_R = isTouch ? 30 : 42;   // [그림자] 모바일은 범위를 줄여 더 또렷하고 가볍게
 const SUN_DIR = new THREE.Vector3(0.62, 0.62, 0.38).normalize(); // y를 줄이면 그림자가 길어져요
 
 /* ---------- [대기] 안개: 거리 안개 + 낮은 곳에 더 짙은 높이 안개 + 태양 쪽은 하늘처럼 따뜻하게 빛남 ---------- */
@@ -445,13 +445,32 @@ fill.position.set(-0.62, 0.35, -0.38);
 scene.add(fill);
 const _sr = new THREE.Vector3(0,1,0).cross(SUN_DIR).normalize();
 const _su = new THREE.Vector3().crossVectors(SUN_DIR, _sr), _st = new THREE.Vector3();
-function updateSun(){ // 그림자 영역이 플레이어를 따라가되, 텍셀 단위로 맞춰서 깜빡임 방지
-  _st.set(player.pos.x, 0, player.pos.z);
-  const tx = SHADOW_R * 2 / SHADOW_RES;
-  const a = Math.round(_st.dot(_sr) / tx) * tx, b = Math.round(_st.dot(_su) / tx) * tx, c = _st.dot(SUN_DIR);
-  _st.copy(_sr).multiplyScalar(a).addScaledVector(_su, b).addScaledVector(SUN_DIR, c);
-  sun.target.position.copy(_st);
-  sun.position.copy(_st).addScaledVector(SUN_DIR, 100);
+/* [그림자] 시야 쪽만 그리고, 필요할 때만 다시 그림
+   - 그림자 영역의 중심을 '보는 방향 앞쪽'으로 옮김 → 등 뒤는 줄이고 앞쪽을 넓게 (같은 해상도로 더 또렷)
+   - 중심은 시야가 크게 바뀔 때만 옮김 → 그 사이에는 그림자 맵을 새로 그리지 않아도 됨
+   - 움직이는 물체(다른 플레이어·봇·내 그림자)는 모바일 30번/초, PC는 매 프레임 갱신 */
+const SH_STEP = SHADOW_R * .16, SH_DYN = isTouch ? 1 / 30 : 0;
+let shCx = 1e9, shCz = 1e9, shNext = 0, shOn = null;
+function updateSun(){
+  renderer.shadowMap.autoUpdate = false;     // 갱신 시점은 아래에서 직접 정함
+  if (!shadowFx){ shOn = false; return; }
+  let need = false;
+  if (shOn !== true){ shOn = true; need = true; }   // 그림자를 켠 직후엔 바로 한 번 그림
+  const fx = -Math.sin(camera.rotation.y), fz = -Math.cos(camera.rotation.y);
+  const lk = Math.max(0, Math.cos(camera.rotation.x)), off = SHADOW_R * .5 * lk * lk;   // 아래를 볼수록 중심이 발밑으로
+  const ix = camera.position.x + fx * off, iz = camera.position.z + fz * off;
+  if (Math.hypot(ix - shCx, iz - shCz) > SH_STEP){
+    shCx = ix; shCz = iz; need = true;
+    _st.set(ix, 0, iz);
+    const tx = SHADOW_R * 2 / SHADOW_RES;   // 텍셀 단위로 맞춰서 그림자 가장자리가 깜빡이지 않게
+    const a = Math.round(_st.dot(_sr) / tx) * tx, b = Math.round(_st.dot(_su) / tx) * tx, c = _st.dot(SUN_DIR);
+    _st.copy(_sr).multiplyScalar(a).addScaledVector(_su, b).addScaledVector(SUN_DIR, c);
+    sun.target.position.copy(_st);
+    sun.position.copy(_st).addScaledVector(SUN_DIR, 100);
+  }
+  const t = now();
+  if (t >= shNext){ shNext = t + SH_DYN; need = true; }
+  if (need) renderer.shadowMap.needsUpdate = true;   // 다음 렌더 한 번에서 그림자 맵을 갱신
 }
 addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
@@ -837,7 +856,7 @@ function renderFrame(){
     water.visible = bed.visible = true; if (gunGroup) gunGroup.visible = gv;
   }
   wu.uUse.value = refl ? 1 : 0;
-  renderer.shadowMap.autoUpdate = !refl;   // 그림자 맵은 반사 렌더에서 이미 갱신됨
+  // [그림자] 갱신 여부는 updateSun()이 needsUpdate로 정함 (예전 autoUpdate = !refl 방식은 호수가 보이면 그림자가 멈추는 버그가 있었음)
   renderer.render(scene, camera);
 }
 
