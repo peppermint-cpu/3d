@@ -1423,7 +1423,9 @@ function decorGun(g, i){
   g.userData.sight = { lens, ret, mag: sp.mag, pipFov: 2 * Math.atan(.0205 / sp.e / sp.mag) * 180 / Math.PI };
 }
 const _buildGun0 = buildGun;
-buildGun = function(i){ const g = _buildGun0(i); decorGun(g, i); decorAttach(g, i); /* 배율 스코프 렌즈 화면: 조준 중일 때만 한 번 더 그림 (렌즈 안쪽만 확대) */
+buildGun = function(i){ const g = _buildGun0(i); decorGun(g, i); decorAttach(g, i); return g; };
+
+/* 배율 스코프 렌즈 화면: 조준 중일 때만 한 번 더 그림 (렌즈 안쪽만 확대) */
 function renderPip(){
   const sg = gunGroup && gunGroup.userData.sight; if (!sg) return;
   const on = !!(gunGroup.visible && ads && sg.mag > 1);
