@@ -847,14 +847,27 @@ float gN(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
   {
     const pr = mulberry32(7771), A = SUN_DIR.clone().negate();   // A = 빛이 나아가는 방향
     const NB = hiQ ? 90 : 42, NM = hiQ ? 150 : 64;
-    const cand = spots.filter(p => Math.abs(p.x) < 58 && Math.abs(p.z) < 58);
+    const cand = spots.filter(p => Math.abs(p.x) < 56 && Math.abs(p.z) < 56);
     const S = new Float32Array(NB * 3), D = new Float32Array(NB * 3), I = new Float32Array(NB), B = [];
+    // 절벽 벽(안쪽 면 ±61) 근처는 빛줄기가 벽에 꽂혀 보이거나 벽 너머로 새지 않게: 끝이 ±LIM 안쪽에 오도록 길이를 잘라요 (잘린 끝은 서서히 사라짐)
+    const LIM = 57, aH = Math.hypot(A.x, A.z);
     for (let i = 0; i < NB; i++){
-      const p = cand[Math.floor(pr() * cand.length)], s = p.s;
-      const h0 = (p.t ? 3.7 : 4.3) * s * (.8 + pr() * .5), a = pr() * 6.283, r = Math.sqrt(pr()) * 1.3 * s;   // 잎 덩어리 안쪽에서 시작
-      const sx = p.x + Math.cos(a) * r, sz = p.z + Math.sin(a) * r, len = (h0 - .1) / SUN_DIR.y;           // 땅에 닿을 때까지
-      const w = (.8 + pr() * 1.6) * Math.min(s, 1.3), seed = pr();
-      S.set([sx, h0, sz], i * 3); D.set([w, len, seed], i * 3); I[i] = .55 + .45 * pr(); B.push({ sx, h0, sz, len, w });
+      let ok = false, sx = 0, sz = 0, h0 = 0, len = 0, w = 0, seed = 0;
+      for (let tr = 0; tr < 12 && !ok; tr++){
+        const p = cand[Math.floor(pr() * cand.length)], s = p.s;
+        h0 = (p.t ? 3.7 : 4.3) * s * (.8 + pr() * .5);
+        const a = pr() * 6.283, r = Math.sqrt(pr()) * 1.3 * s;   // 잎 덩어리 안쪽에서 시작
+        sx = p.x + Math.cos(a) * r; sz = p.z + Math.sin(a) * r; w = (.8 + pr() * 1.6) * Math.min(s, 1.3); seed = pr();
+        const full = (h0 - .1) / SUN_DIR.y;                       // 땅에 닿을 때까지의 길이
+        const lim = LIM - w * .8;
+        if (Math.abs(sx) > lim || Math.abs(sz) > lim) continue;   // 시작점이 벽 쪽이면 다른 나무로
+        const tx = A.x > 1e-4 ? (lim - sx) / A.x : A.x < -1e-4 ? (-lim - sx) / A.x : 1e9;
+        const tz = A.z > 1e-4 ? (lim - sz) / A.z : A.z < -1e-4 ? (-lim - sz) / A.z : 1e9;
+        len = Math.min(full, tx, tz);
+        if (len >= Math.min(full, 6)) ok = true;                  // 너무 짧게 잘리면 버리고 다시 고름
+      }
+      if (!ok){ w = 0; len = 1; sx = sz = 0; h0 = -50; }          // 자리가 없으면 화면 밖(안 보임)
+      S.set([sx, h0, sz], i * 3); D.set([w, len, seed], i * 3); I[i] = ok ? .55 + .45 * pr() : 0; B.push({ sx, h0, sz, len, w });
     }
     const quad = new THREE.InstancedBufferGeometry();
     quad.setAttribute('position', new THREE.Float32BufferAttribute([-.5, 0, 0, .5, 0, 0, .5, 1, 0, -.5, 1, 0], 3));
@@ -897,10 +910,11 @@ void main(){
     beams.frustumCulled = false; beams.renderOrder = 5; scene.add(beams); rayFx.obj.push(beams);
 
     // 먼지: 빛줄기 안쪽에 흩뿌려서 천천히 떠다니며 반짝여요
+    const good = B.filter(b => b.h0 > 0);
     const MP = new Float32Array(NM * 3), MS = new Float32Array(NM), up0 = new THREE.Vector3(0, 1, 0);
     const PE = new THREE.Vector3().crossVectors(A, up0).normalize(), EE = new THREE.Vector3().crossVectors(A, PE).normalize();
     for (let i = 0; i < NM; i++){
-      const b = B[Math.floor(pr() * NB)], u = .08 + pr() * .55, r1 = (pr() - .5) * b.w * .8, r2 = (pr() - .5) * b.w * .8;
+      const b = good[Math.floor(pr() * good.length)], u = .08 + pr() * .55, r1 = (pr() - .5) * b.w * .8, r2 = (pr() - .5) * b.w * .8;
       MP.set([b.sx + A.x * b.len * u + PE.x * r1 + EE.x * r2, b.h0 + A.y * b.len * u + PE.y * r1 + EE.y * r2, b.sz + A.z * b.len * u + PE.z * r1 + EE.z * r2], i * 3);
       MS[i] = pr();
     }
