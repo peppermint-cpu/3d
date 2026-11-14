@@ -267,6 +267,14 @@ body.touch #shopBtn small{display:none}
 /* ===== [대기] 태양 빛번짐 ===== */
 #sunGlow{position:fixed;left:0;top:0;width:130vmin;height:130vmin;margin:-65vmin 0 0 -65vmin;z-index:3;pointer-events:none;opacity:0;mix-blend-mode:screen;will-change:transform,opacity;
 background:radial-gradient(circle,rgba(255,246,226,.78) 0,rgba(255,234,200,.34) 4%,rgba(255,224,182,.15) 12%,rgba(255,214,160,.06) 30%,rgba(255,210,150,0) 60%)}
+.bright .wrow{display:flex;align-items:center;gap:4px;margin-bottom:6px}
+.bright .wrow .wchips{flex:1;min-width:0;flex-wrap:nowrap;overflow-x:auto;margin:0;padding:2px 0;scrollbar-width:none;touch-action:pan-x;-webkit-overflow-scrolling:touch}
+.bright .wrow .wchips::-webkit-scrollbar{display:none}
+.bright .wrow .wchips button{flex:none;white-space:nowrap}
+.wchips button.lock{opacity:.55}
+.warr{flex:none;width:30px;height:28px;border:1px solid rgba(255,255,255,.25);border-radius:8px;background:rgba(255,255,255,.14);color:#fff;font-size:12px;padding:0;cursor:pointer}
+@media (min-width:641px){.bwrap{grid-template-columns:minmax(150px,260px) minmax(0,1fr)}}
+.bright .bstage{max-width:min(100%,calc((97vh - 160px) * 560 / 330))!important}
 </style>
 </head>
 <body>
@@ -3090,12 +3098,15 @@ function renderBench(outer){
   const left = document.createElement('div'); left.className = 'bleft';  // 왼쪽: 파츠 목록
   if (!isOwned(shopSel) || WEAPONS[shopSel].melee) shopSel = WEAPONS.findIndex((w, i) => isOwned(i) && !w.melee);
   const chips = document.createElement('div'); chips.className = 'wchips';
-  WEAPONS.forEach((w, i) => {
-    if (!isOwned(i) || w.melee) return;
-    const b = document.createElement('button'); b.textContent = w.short + partTag(i); if (i === shopSel) b.className = 'on';
+  const lst = []; WEAPONS.forEach((w, i) => { if (isOwned(i) && !w.melee) lst.push(i); });   // 가진 무기만 표시
+  lst.forEach(i => {
+    const w = WEAPONS[i], own = isOwned(i), b = document.createElement('button');
+    b.textContent = (own ? '' : '🔒 ') + w.short + partTag(i); b.className = (i === shopSel ? 'on ' : '') + (own ? '' : 'lock');
     b.onclick = () => { shopSel = i; benchSel = null; renderShop(); }; chips.appendChild(b);
   });
-  box.appendChild(chips);
+  const arrow = (d, t) => { const b = document.createElement('button'); b.className = 'warr'; b.textContent = t; b.onclick = () => { const k = lst.indexOf(shopSel); shopSel = lst[(k + d + lst.length) % lst.length]; benchSel = null; renderShop(); }; return b; };
+  const wrow = document.createElement('div'); wrow.className = 'wrow'; wrow.append(arrow(-1, '◀'), chips, arrow(1, '▶')); box.appendChild(wrow);
+  setTimeout(() => { const on = chips.querySelector('.on'); if (on) chips.scrollLeft = on.offsetLeft - chips.clientWidth / 2 + on.offsetWidth / 2; }, 0);
   const wi = shopSel, w = WEAPONS[wi], wid = w.id, eq = prof.eq[wid] || {};
   const note = document.createElement('div'); note.className = 'bnote'; note.id = 'bnote';
   note.textContent = benchSel ? PARTS_BY_ID[benchSel].name + ' 선택됨 → ' + SLOT_NAME[PARTS_BY_ID[benchSel].slot] + ' 칸을 누르세요' : '파츠를 끌어서 총 위의 네모 칸에 놓으면 장착돼요';
