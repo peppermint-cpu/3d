@@ -268,7 +268,7 @@ body.touch #shopBtn small{display:none}
 #sunGlow{position:fixed;left:0;top:0;width:130vmin;height:130vmin;margin:-65vmin 0 0 -65vmin;z-index:3;pointer-events:none;opacity:0;mix-blend-mode:screen;will-change:transform,opacity;
 background:radial-gradient(circle,rgba(255,246,226,.78) 0,rgba(255,234,200,.34) 4%,rgba(255,224,182,.15) 12%,rgba(255,214,160,.06) 30%,rgba(255,210,150,0) 60%)}
 .bright .wrow{display:flex;align-items:center;gap:4px;margin-bottom:6px}
-.bright .wrow .wchips{flex:1;min-width:0;flex-wrap:nowrap;overflow-x:auto;margin:0;padding:2px 0;scrollbar-width:none;touch-action:pan-x;-webkit-overflow-scrolling:touch}
+.bright .wrow .wchips{position:relative;flex:1;min-width:0;flex-wrap:nowrap;overflow-x:auto;margin:0;padding:2px 0;scrollbar-width:none;touch-action:pan-x;-webkit-overflow-scrolling:touch}
 .bright .wrow .wchips::-webkit-scrollbar{display:none}
 .bright .wrow .wchips button{flex:none;white-space:nowrap}
 .wchips button.lock{opacity:.55}
@@ -3102,11 +3102,10 @@ function renderBench(outer){
   lst.forEach(i => {
     const w = WEAPONS[i], own = isOwned(i), b = document.createElement('button');
     b.textContent = (own ? '' : '🔒 ') + w.short + partTag(i); b.className = (i === shopSel ? 'on ' : '') + (own ? '' : 'lock');
-    b.onclick = () => { shopSel = i; benchSel = null; renderShop(); }; chips.appendChild(b);
+    b.onclick = () => { chipSL = chips.scrollLeft; shopSel = i; benchSel = null; renderShop(); }; chips.appendChild(b);
   });
-  const arrow = (d, t) => { const b = document.createElement('button'); b.className = 'warr'; b.textContent = t; b.onclick = () => { const k = lst.indexOf(shopSel); shopSel = lst[(k + d + lst.length) % lst.length]; benchSel = null; renderShop(); }; return b; };
+  const arrow = (d, t) => { const b = document.createElement('button'); b.className = 'warr'; b.textContent = t; b.onclick = () => { chipSL = chips.scrollLeft; const k = lst.indexOf(shopSel); shopSel = lst[(k + d + lst.length) % lst.length]; benchSel = null; renderShop(); }; return b; };
   const wrow = document.createElement('div'); wrow.className = 'wrow'; wrow.append(arrow(-1, '◀'), chips, arrow(1, '▶')); box.appendChild(wrow);
-  setTimeout(() => { const on = chips.querySelector('.on'); if (on) chips.scrollLeft = on.offsetLeft - chips.clientWidth / 2 + on.offsetWidth / 2; }, 0);
   const wi = shopSel, w = WEAPONS[wi], wid = w.id, eq = prof.eq[wid] || {};
   const note = document.createElement('div'); note.className = 'bnote'; note.id = 'bnote';
   note.textContent = benchSel ? PARTS_BY_ID[benchSel].name + ' 선택됨 → ' + SLOT_NAME[PARTS_BY_ID[benchSel].slot] + ' 칸을 누르세요' : '파츠를 끌어서 총 위의 네모 칸에 놓으면 장착돼요';
@@ -3178,7 +3177,7 @@ function renderBench(outer){
   const wrap = document.createElement('div'); wrap.className = 'bwrap'; wrap.append(left, box); outer.appendChild(wrap);
 }
 
-let shopTab = 0, shopSel = 0;
+let shopTab = 0, shopSel = 0, chipSL = 0;   // chipSL: 무기 선택줄의 스크롤 위치 (다시 그려도 유지)
 function renderShop(){
   $('shopCoin').textContent = '🪙 ' + prof.coins.toLocaleString();
   if (!zmode && shopTab === 2) shopTab = 0;
@@ -3204,6 +3203,13 @@ function renderShop(){
     return;
   }
   renderBench(box);
+  const cc = box.querySelector('.wchips');   // 다시 그린 직후(화면에 그려지기 전)에 스크롤 위치를 복원 → 깜빡임/가운데로 튀는 현상 없음
+  if (cc){
+    cc.scrollLeft = chipSL;
+    const on = cc.querySelector('.on');
+    if (on){ const l = on.offsetLeft, r = l + on.offsetWidth; if (l < cc.scrollLeft) cc.scrollLeft = l - 6; else if (r > cc.scrollLeft + cc.clientWidth) cc.scrollLeft = r - cc.clientWidth + 6; }   // 선택한 칸이 가려졌을 때만 최소한으로 이동
+    chipSL = cc.scrollLeft;
+  }
 }
 $('tabW').addEventListener('click', () => { shopTab = 0; renderShop(); });
 $('tabD').addEventListener('click', () => { shopTab = 2; renderShop(); });
