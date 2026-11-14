@@ -1407,7 +1407,7 @@ function decorGun(g, i){
   });
   const SG = new THREE.Group(); SG.position.set(0, rail, RAILZ[w.id]); g.add(SG);
   const bx = (a, b, c, x, y, z, col, fl) => { const m = new THREE.Mesh(gunGeo([a, b, c], fl || ''), gunMat(col, fl || '')); m.position.set(x, y, z); SG.add(m); return m; };
-  if (sp.mag <= 1){   // 레드닷
+  if (sp.mag <= 1){   // 레드도트
     bx(.032, .01, .07, 0, .005, 0, 0x1a1a1a, 'm'); bx(.04, .012, .07, 0, .016, 0, 0x1a1a1a, 'm'); bx(.04, .012, .07, 0, .0545, 0, 0x1a1a1a, 'm');
     bx(.007, .05, .07, -.0185, AY, 0, 0x1a1a1a, 'm'); bx(.007, .05, .07, .0185, AY, 0, 0x1a1a1a, 'm');
     const gl = new THREE.Mesh(new THREE.BoxGeometry(.03, .028, .002), new THREE.MeshPhongMaterial({ color: 0x9fd8ff, transparent: true, opacity: .16, depthWrite: false, specular: 0xffffff, shininess: 100 }));
@@ -2778,21 +2778,21 @@ function decorAttach(g, i){
   }
 }
 const PARTS = [   // 가격·성능은 여기서 조절
-  { id: 'extmag',   slot: 'mag',   name: '대용량 탄창',          short: 'EXT', price: 600,  cap: 1.5, desc: '탄창 용량 +50%' },
-  { id: 'quickmag', slot: 'mag',   name: '퀵드로우 탄창',        short: 'QD',  price: 500,  rel: .65, desc: '재장전 시간 -35%' },
-  { id: 'extquick', slot: 'mag',   name: '대용량 퀵드로우 탄창', short: 'EQ',  price: 1100, cap: 1.3, rel: .8, desc: '탄창 +30% · 재장전 시간 -20%' },
-  { id: 'reddot',   slot: 'sight', name: '레드닷 사이트',        short: 'RDS', price: 400,  mag: 1, zoom: 1.25, L: .07, e: .12,  desc: '붉은 점으로 조준 (배율 없음)' },
-  { id: 'x2',       slot: 'sight', name: '2배율 스코프',         short: '2x',  price: 700,  mag: 2, zoom: 1.4,  L: .09, e: .075, desc: '조준 시 렌즈 안쪽만 2배 확대' },
-  { id: 'x3',       slot: 'sight', name: '3배율 스코프',         short: '3x',  price: 1000, mag: 3, zoom: 1.4,  L: .11, e: .075, desc: '조준 시 렌즈 안쪽만 3배 확대' },
-  { id: 'x4',       slot: 'sight', name: '4배율 스코프',         short: '4x',  price: 1400, mag: 4, zoom: 1.4,  L: .13, e: .075, desc: '조준 시 렌즈 안쪽만 4배 확대' },
-  { id: 'x6',       slot: 'sight', name: '6배율 스코프',         short: '6x',  price: 2000, mag: 6, zoom: 1.4,  L: .15, e: .075, desc: '조준 시 렌즈 안쪽만 6배 확대' },
-  { id: 'supp',     slot: 'muzzle', name: '소음기',              short: 'SUP', price: 900,  dmg: .94, snd: .22, flash: .15, rec: .95, desc: '총소리·불꽃 크게 감소 (멀리선 안 들림) · 피해 -6%' },
-  { id: 'comp',     slot: 'muzzle', name: '보정기',              short: 'CMP', price: 700,  rec: .78, flash: 1.1, desc: '반동 -22%' },
-  { id: 'flash',    slot: 'muzzle', name: '소염기',              short: 'FH',  price: 450,  rec: .92, flash: .4, desc: '발사 불꽃 감소 · 반동 -8%' },
-  { id: 'vgrip',    slot: 'grip',   name: '수직 손잡이',         short: 'VG',  price: 600,  rec: .85, desc: '반동 -15%' },
-  { id: 'agrip',    slot: 'grip',   name: '경사 손잡이',         short: 'AG',  price: 600,  spr: .86, rec: .94, desc: '탄퍼짐 -14% · 반동 -6%' },
-  { id: 'tstock',   slot: 'stock',  name: '전술 개머리판',       short: 'TS',  price: 700,  rec: .88, spr: .95, desc: '반동 -12% · 탄퍼짐 -5%' },
-  { id: 'lstock',   slot: 'stock',  name: '경량 개머리판',       short: 'LS',  price: 800,  draw: .7, mv: .8, desc: '무기 꺼내는 시간 -30% · 이동 중 탄퍼짐 -20%' }
+  { id: 'extmag',   slot: 'mag',   name: '대용량 탄창',          short: '대용량', price: 600,  cap: 1.5, desc: '탄창 용량 +50%' },
+  { id: 'quickmag', slot: 'mag',   name: '퀵드로우 탄창',        short: '퀵탄창',  price: 500,  rel: .65, desc: '재장전 시간 -35%' },
+  { id: 'extquick', slot: 'mag',   name: '대용량 퀵드로우 탄창', short: '대용량퀵',  price: 1100, cap: 1.3, rel: .8, desc: '탄창 +30% · 재장전 시간 -20%' },
+  { id: 'reddot',   slot: 'sight', name: '레드도트 사이트',        short: '레드도트', price: 400,  mag: 1, zoom: 1.25, L: .07, e: .12,  desc: '붉은 점으로 조준 (배율 없음)' },
+  { id: 'x2',       slot: 'sight', name: '2배율 스코프',         short: '2배율',  price: 700,  mag: 2, zoom: 1.4,  L: .09, e: .075, desc: '조준 시 렌즈 안쪽만 2배 확대' },
+  { id: 'x3',       slot: 'sight', name: '3배율 스코프',         short: '3배율',  price: 1000, mag: 3, zoom: 1.4,  L: .11, e: .075, desc: '조준 시 렌즈 안쪽만 3배 확대' },
+  { id: 'x4',       slot: 'sight', name: '4배율 스코프',         short: '4배율',  price: 1400, mag: 4, zoom: 1.4,  L: .13, e: .075, desc: '조준 시 렌즈 안쪽만 4배 확대' },
+  { id: 'x6',       slot: 'sight', name: '6배율 스코프',         short: '6배율',  price: 2000, mag: 6, zoom: 1.4,  L: .15, e: .075, desc: '조준 시 렌즈 안쪽만 6배 확대' },
+  { id: 'supp',     slot: 'muzzle', name: '소음기',              short: '소음기', price: 900,  dmg: .94, snd: .22, flash: .15, rec: .95, desc: '총소리·불꽃 크게 감소 (멀리선 안 들림) · 피해 -6%' },
+  { id: 'comp',     slot: 'muzzle', name: '보정기',              short: '보정기', price: 700,  rec: .78, flash: 1.1, desc: '반동 -22%' },
+  { id: 'flash',    slot: 'muzzle', name: '소염기',              short: '소염기',  price: 450,  rec: .92, flash: .4, desc: '발사 불꽃 감소 · 반동 -8%' },
+  { id: 'vgrip',    slot: 'grip',   name: '수직 손잡이',         short: '수직',  price: 600,  rec: .85, desc: '반동 -15%' },
+  { id: 'agrip',    slot: 'grip',   name: '경사 손잡이',         short: '경사',  price: 600,  spr: .86, rec: .94, desc: '탄퍼짐 -14% · 반동 -6%' },
+  { id: 'tstock',   slot: 'stock',  name: '전술 개머리판',       short: '전술',  price: 700,  rec: .88, spr: .95, desc: '반동 -12% · 탄퍼짐 -5%' },
+  { id: 'lstock',   slot: 'stock',  name: '경량 개머리판',       short: '경량',  price: 800,  draw: .7, mv: .8, desc: '무기 꺼내는 시간 -30% · 이동 중 탄퍼짐 -20%' }
 ];
 const PARTS_BY_ID = {}; PARTS.forEach(p => { PARTS_BY_ID[p.id] = p; });
 const eqOf = i => prof.eq[WEAPONS[i].id] || {};
