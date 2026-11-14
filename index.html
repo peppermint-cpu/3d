@@ -334,7 +334,7 @@ background:radial-gradient(circle,rgba(255,244,220,.78) 0,rgba(255,228,188,.34) 
     <div class="set"><label><span>화면 흔들림 (0%면 안 흔들려요)</span><b id="shakeVal">100%</b></label><input type="range" id="shake" min="0" max="1" step="0.05" value="1"></div>
     <div class="set"><label><span>피 효과 (끄면 더 가벼워요)</span><input type="checkbox" id="gorefx" checked style="width:auto;margin:0;padding:0"></label></div>
     <div class="set"><label><span>그림자 (끄면 더 가벼워요)</span><input type="checkbox" id="shadowfx" checked style="width:auto;margin:0;padding:0"></label></div>
-    <div class="set"><label><span>그래픽 품질 (바꾸면 새로고침)</span><select id="qmode"><option value="auto">자동</option><option value="low">가볍게</option><option value="high">고화질 (PC와 동일)</option></select></label></div>
+    <div class="set"><label><span>그래픽 품질 (바꾸면 새로고침)</span><select id="qmode"><option value="auto">자동</option><option value="low">가볍게</option><option value="opt">고화질 최적화 (폰 추천)</option><option value="high">고화질 (PC와 동일)</option></select></label></div>
     <div class="set"><label><span>시네마틱 효과 (비네트·필름 그레인)</span><input type="checkbox" id="cinefx" checked style="width:auto;margin:0;padding:0"></label></div>
     <div class="set"><label><span>빛내림·먼지 (나무 사이 햇빛 기둥)</span><input type="checkbox" id="rayfx" checked style="width:auto;margin:0;padding:0"></label></div>
     <div class="set"><label><span>물 반사 (끄면 더 가벼워요)</span><input type="checkbox" id="reflfx" checked style="width:auto;margin:0;padding:0"></label></div>
@@ -389,8 +389,9 @@ document.body.classList.toggle('touch', isTouch);
 
 /* [그래픽 품질] 자동(PC는 고화질·폰은 가볍게) / 가볍게 / 고화질(폰에서도 PC와 같은 설정). 시작 화면에서 바꾸면 새로고침돼요 */
 let QMODE = 'auto';
-try { const q = localStorage.getItem('is_q'); if (q === 'low' || q === 'high') QMODE = q; } catch(e){}
-const hiQ = QMODE === 'high' || (QMODE === 'auto' && !isTouch);
+try { const q = localStorage.getItem('is_q'); if (q === 'low' || q === 'high' || q === 'opt') QMODE = q; } catch(e){}
+const hiQ = QMODE === 'high' || QMODE === 'opt' || (QMODE === 'auto' && !isTouch);
+const optQ = QMODE === 'opt';   // 고화질 최적화: 고화질 효과는 그대로 두고 잔디 수·그림자 갱신·반사 갱신 같은 비싼 부분만 줄여서 폰에서도 부드럽게
 
 /* =====================================================================
    설정 : Supabase 프로젝트 정보
@@ -414,10 +415,10 @@ let kills = 0, deaths = 0;
 
 /* ---------- Three.js 기본 ---------- */
 const renderer = new THREE.WebGLRenderer({ antialias: hiQ, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, hiQ ? 2 : 1.5));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, hiQ && !optQ ? 2 : 1.5));   // 최적화: 해상도 배율 상한 1.5 (폰은 보통 3배라 픽셀 수가 1/4로 줄어요)
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = hiQ ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+renderer.shadowMap.type = hiQ && !optQ ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;   // [광원] 낮은 해 + 하늘빛 보조광 기준으로 맞춤
 /* [배그 느낌] 색보정: 채도를 살짝 낮추고(차분한 색), 대비를 높이고, 어두운 곳은 약간 차갑게·밝은 곳은 따뜻하게.
@@ -449,7 +450,7 @@ camera.rotation.order = 'YXZ';
 scene.add(camera);
 scene.add(new THREE.HemisphereLight(0xb7c6dc, 0x7a6a4a, 0.66)); // [광원] 하늘 전체에서 오는 푸른 빛(그림자 안쪽) + 풀밭에서 올라오는 따뜻한 반사광
 const sun = new THREE.DirectionalLight(0xffe3b8, 1.75);        // [광원] 낮은 해(33°)에 맞춘 약간 따뜻한 햇빛
-const SHADOW_RES = hiQ ? 3072 : 1024, SHADOW_R = hiQ ? 50 : 30;   // [그림자] 모바일은 범위를 줄여 더 또렷하고 가볍게
+const SHADOW_RES = hiQ ? (optQ ? 2048 : 3072) : 1024, SHADOW_R = hiQ ? (optQ ? 42 : 50) : 30;   // [그림자] 모바일은 범위를 줄여 더 또렷하고 가볍게
 const SUN_DIR = new THREE.Vector3(0.760, 0.454, 0.466).normalize(); // 해 높이 약 27° (오후의 따뜻한 빛) (y를 줄이면 그림자가 길어지고 노을빛에 가까워져요)
 
 /* ---------- [대기] 대기 산란 모델: 하늘·안개·물이 같은 식을 써서 지평선에서 자연스럽게 이어져요 ----------
@@ -572,7 +573,7 @@ void main(){
   }
   col += (hash(gl_FragCoord.xy) - .5) / 255.;                       // 하늘 그라데이션의 띠 현상 방지 (디더링)
   gl_FragColor = vec4(col, 1.);
-}`.replace(/@OCT@/g, String(hiQ ? 5 : 4))
+}`.replace(/@OCT@/g, String(hiQ && !optQ ? 5 : 4))
 }));
 sky.renderOrder = -1000; sky.frustumCulled = false;
 scene.add(sky);
@@ -604,7 +605,7 @@ const _su = new THREE.Vector3().crossVectors(SUN_DIR, _sr), _st = new THREE.Vect
    - 그림자 영역의 중심을 '보는 방향 앞쪽'으로 옮김 → 등 뒤는 줄이고 앞쪽을 넓게 (같은 해상도로 더 또렷)
    - 중심은 시야가 크게 바뀔 때만 옮김 → 그 사이에는 그림자 맵을 새로 그리지 않아도 됨
    - 움직이는 물체(다른 플레이어·봇·내 그림자)는 모바일 30번/초, PC는 매 프레임 갱신 */
-const SH_STEP = SHADOW_R * .16, SH_DYN = hiQ ? 0 : 1 / 30;
+const SH_STEP = SHADOW_R * .16, SH_DYN = hiQ && !optQ ? 0 : 1 / 30;   // 최적화: 움직이는 물체 그림자는 초당 30번만 갱신
 let shCx = 1e9, shCz = 1e9, shNext = 0, shOn = null;
 function updateSun(){
   renderer.shadowMap.autoUpdate = false;     // 갱신 시점은 아래에서 직접 정함
@@ -634,7 +635,7 @@ addEventListener('resize', () => {
 });
 
 /* ---------- [땅] 텍스처 도우미 (노이즈 / 이음새 없는 타일 그리기) ---------- */
-const ANISO = Math.min(hiQ ? 16 : 4, renderer.capabilities.getMaxAnisotropy());   // 멀리 있는 땅이 뭉개지지 않게
+const ANISO = Math.min(hiQ ? (optQ ? 8 : 16) : 4, renderer.capabilities.getMaxAnisotropy());   // 멀리 있는 땅이 뭉개지지 않게
 const sst = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 const thh = (x, y) => { const n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453; return n - Math.floor(n); };
 const tvn = (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
@@ -680,6 +681,7 @@ outgoingLight += diffuseColor.rgb * ${tint} * (${k.toFixed(3)} * lgD * lgD * lgD
 $&`);
 };
 /* [그래픽] 빛내림(God Ray): 나무 틈으로 쏟아지는 햇빛 기둥 + 떠다니는 먼지. 아래 숲 만드는 곳에서 채워요 */
+let rfTick = 0;   // 물 반사 갱신 간격 (최적화 모드)
 const rayFx = { on: true, obj: [], u: { uT: { value: 0 }, uPx: { value: 800 }, uI: { value: 1 } } };
 (function buildMap(){
   // [땅] 풀밭 텍스처: 큰 색 얼룩 + 수천 개의 풀잎 + 흙 알갱이 + 들꽃 (256px, 이음새 없음)
@@ -733,7 +735,7 @@ float gN(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
   // 호숫가 모래
   // [땅] 모래 텍스처: 물가는 젖어서 어둡고, 바깥쪽은 밝은 모래 → 풀밭으로 서서히 이어짐 (알갱이 노이즈 포함)
   const sandTex = (() => {
-    const SS = hiQ ? 1024 : 512, cv = document.createElement('canvas'); cv.width = cv.height = SS;
+    const SS = hiQ ? (optQ ? 768 : 1024) : 512, cv = document.createElement('canvas'); cv.width = cv.height = SS;
     const g = cv.getContext('2d'), im = g.createImageData(SS, SS), d = im.data, rin = LAKE.r / (LAKE.r + 3);
     for (let y = 0; y < SS; y++) for (let x = 0; x < SS; x++){
       const dx = (x + .5) / SS * 2 - 1, dy = (y + .5) / SS * 2 - 1, t = (Math.hypot(dx, dy) - rin) / (1 - rin);
@@ -846,7 +848,7 @@ float gN(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
   //  - 땅·나무·바위 뒤로는 깊이 검사로 자연스럽게 가려져요. 그림자를 만들지 않고 한 번에 그려서 저사양에서도 가벼워요
   {
     const pr = mulberry32(7771), A = SUN_DIR.clone().negate();   // A = 빛이 나아가는 방향
-    const NB = hiQ ? 90 : 42, NM = hiQ ? 150 : 64, LIM = 57;
+    const NB = hiQ ? (optQ ? 60 : 90) : 42, NM = hiQ ? (optQ ? 90 : 150) : 64, LIM = 57;
     const cand = spots.filter(p => Math.abs(p.x) < 56 && Math.abs(p.z) < 56);
     const S = new Float32Array(NB * 3), D = new Float32Array(NB * 3), I = new Float32Array(NB), B = [];
     const aH = Math.hypot(A.x, A.z), ax = A.x / aH, az = A.z / aH;
@@ -976,7 +978,7 @@ void main(){ float r = length(gl_PointCoord - .5) * 2.; float a = (1. - smoothst
   {
     const TS = 64, tc = document.createElement('canvas'); tc.width = tc.height = TS;
     const tg = tc.getContext('2d'), tr = mulberry32(99);
-    for (let i = 0; i < (hiQ ? 16 : 28); i++){   // 저사양은 뭉치 수는 그대로, 한 뭉치 안의 잎을 늘려 더 풍성하게
+    for (let i = 0; i < (hiQ && !optQ ? 16 : 28); i++){   // 저사양은 뭉치 수는 그대로, 한 뭉치 안의 잎을 늘려 더 풍성하게
       const x0 = 4 + tr() * 56, hg = 22 + tr() * 38, lean = (tr() - .5) * 22, w = 1.6 + tr() * 1.6, k = tr();
       const gr = tg.createLinearGradient(0, TS, 0, TS - hg);
       gr.addColorStop(0, 'rgb(' + (48 + k * 14 | 0) + ',' + (92 + k * 16 | 0) + ',30)'); gr.addColorStop(1, 'rgb(' + (130 + k * 34 | 0) + ',' + (180 + k * 20 | 0) + ',76)');
@@ -985,7 +987,7 @@ void main(){ float r = length(gl_PointCoord - .5) * 2.; float a = (1. - smoothst
       tg.quadraticCurveTo(x0 + w * .4 + lean * .3, TS - hg * .55, x0 + w, TS); tg.closePath(); tg.fill();
     }
     const tgeo = new THREE.BufferGeometry(), up = [], tpos = [], tuv = [], tidx = [];
-    const PLN = hiQ ? 2 : 3;   // 저사양은 교차판 3장(60°씩) → 어느 방향에서 봐도 속이 차 보여요 (삼각형 수는 뭉치당 2개만 늘어남)
+    const PLN = hiQ && !optQ ? 2 : 3;   // 저사양은 교차판 3장(60°씩) → 어느 방향에서 봐도 속이 차 보여요 (삼각형 수는 뭉치당 2개만 늘어남)
     for (let p = 0; p < PLN; p++){
       const an = p * Math.PI / PLN, dx = Math.cos(an) * .5, dz = Math.sin(an) * .5, b = p * 4;
       tpos.push(-dx,0,-dz, dx,0,dz, dx,1,dz, -dx,1,-dz); tuv.push(0,0, 1,0, 1,1, 0,1);
@@ -1006,28 +1008,30 @@ void main(){ float r = length(gl_PointCoord - .5) * 2.; float a = (1. - smoothst
 float tfS = sin(uT * 1.7 + instanceMatrix[3].x * .6 + instanceMatrix[3].z * .8);
 transformed.x += tfS * .08 * position.y;
 transformed.z += cos(uT * 1.3 + instanceMatrix[3].z * .7) * .05 * position.y;
+${optQ ? 'transformed *= 1. - smoothstep(38., 58., length(instanceMatrix[3].xz - cameraPosition.xz));' : ''}
 #endif`);
     };
     tmat.onBeforeCompile = sh => { windPatch(sh); glowPatch(sh, .55, 'vec3(.92,1.,.38)'); };   // 바람 + 역광 투과
     // [그림자] 풀잎 모양 그대로 그림자가 생기도록 알파 테스트하는 전용 깊이 재질
     const tdepth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: ttex, alphaTest: .45, side: THREE.DoubleSide });
     tdepth.onBeforeCompile = windPatch;
-    const TN = hiQ ? 5200 : 1100, tuft = new THREE.InstancedMesh(tgeo, tmat, TN), pr = mulberry32(4242);
+    const TN = hiQ ? (optQ ? 2300 : 5200) : 1100,   // 최적화: 풀 뭉치를 절반 이하로 (대신 뭉치를 크고 풍성하게, 먼 풀은 서서히 사라짐, 풀 그림자 생성 끔)
+       tuft = new THREE.InstancedMesh(tgeo, tmat, TN), pr = mulberry32(4242);
     tuft.frustumCulled = false; tuft.receiveShadow = true;   // 저사양도 나무 그늘에 들어가면 풀도 같이 어두워져요
-    tuft.castShadow = true; tuft.customDepthMaterial = tdepth;
+    tuft.castShadow = !optQ; tuft.customDepthMaterial = tdepth;   // 풀 그림자(알파 깊이 패스)가 가장 비싸서 최적화 모드에선 끔 (풀이 그림자를 '받는' 건 그대로)
     let tn = 0;
     for (let tries = 0; tries < TN * 4 && tn < TN; tries++){
       const x = (pr() - .5) * 116, z = (pr() - .5) * 116, q = pr();
       if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 3.6) continue;
       if (tvn(x * .07, z * .07) + q * .4 < .45) continue;   // 풀이 듬성듬성/빽빽한 구역을 나눔
       if (boxes.some(b => x > b.minX - .3 && x < b.maxX + .3 && z > b.minZ - .3 && z < b.maxZ + .3)) continue;
-      const wd = (.7 + pr() * .5) * (hiQ ? 1 : 1.12), ht = .3 + pr() * .25, cv = pr();   // 저사양은 폭을 살짝 키워 같은 개수로 더 덮어요
+      const wd = (.7 + pr() * .5) * (hiQ && !optQ ? 1 : optQ ? 1.3 : 1.12), ht = .3 + pr() * .25, cv = pr();   // 저사양은 폭을 살짝 키워 같은 개수로 더 덮어요
       dm.position.set(x, hillH(x, z), z); dm.rotation.set(0, pr() * 6.283, 0); dm.scale.set(wd, ht, wd); dm.updateMatrix();
       tuft.setMatrixAt(tn, dm.matrix); tuft.setColorAt(tn, lc.setRGB(.78 + .22 * cv, .84 + .16 * cv, .68 + .22 * cv)); tn++;
     }
     tuft.count = tn; scene.add(tuft);
   {   // 잔돌: 바닥에 작은 돌을 흩뿌려 디테일을 더해요 (충돌 없음). 초록 덤불은 둥근 얼룩처럼 보여서 뺐어요
-    const br = mulberry32(5150), NP = hiQ ? 260 : 80;
+    const br = mulberry32(5150), NP = hiQ ? (optQ ? 120 : 260) : 80;
     const peb = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1, 0), new THREE.MeshLambertMaterial({ color: 0xffffff }), NP);
     peb.receiveShadow = true;
     peb.frustumCulled = false;
@@ -1122,7 +1126,7 @@ bedMat.onBeforeCompile = sh => {
 const bed = new THREE.Mesh(new THREE.CircleGeometry(LAKE.r + 1, 48), bedMat);
 bed.rotation.x = -Math.PI / 2; bed.position.set(LAKE.x, LAKE_FLOOR - .05, LAKE.z);
 scene.add(bed);
-const reflRT = new THREE.WebGLRenderTarget(hiQ ? 768 : 384, hiQ ? 432 : 216);
+const reflRT = new THREE.WebGLRenderTarget(hiQ ? (optQ ? 512 : 768) : 384, hiQ ? (optQ ? 288 : 432) : 216);
 const reflCam = new THREE.PerspectiveCamera(75, 1, .05, 300); reflCam.rotation.order = 'YXZ';
 
 /* ---------- [2단계] 물: 다중 파도 + 프레넬 + 수심 색 + 햇빛 반짝임 + 호숫가 물거품 ---------- */
@@ -1216,7 +1220,7 @@ function renderFrame(){
     _fr.setFromProjectionMatrix(_fm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     refl = _fr.intersectsSphere(_fs);
   }
-  if (refl){
+  if (refl && (!optQ || (rfTick++ & 1) === 0)){   // 최적화 모드: 반사 그림은 2프레임에 한 번만 (사이 프레임은 직전 그림 재사용)
     water.visible = bed.visible = false;
     for (let i = 0; i < rayFx.obj.length; i++) rayFx.obj[i].visible = false;   // 물 반사 그림에는 빛줄기를 생략 (가볍게)
     reflCam.position.set(camera.position.x, 2 * WATER_Y - camera.position.y, camera.position.z);   // 수면 아래로 뒤집은 카메라
@@ -1559,7 +1563,7 @@ function buildGun(i){
 const AY = .035;                                                    // 레일 윗면 → 조준축 높이
 const RAIL  = { akm: .052, m416: .056, s12k: .056, m249: .068, scar: .05, sks: .048, vector: .06 };   // 총별 레일 윗면 높이 (여기 없는 총은 조준경 장착 불가)
 const RAILZ = { akm: -.05, m416: -.06, s12k: -.05, m249: -.05, scar: -.05, sks: -.05, vector: -.06 };   // 조준경 중심 z
-const pipRT = new THREE.WebGLRenderTarget(hiQ ? 384 : 224, hiQ ? 384 : 224);   // 배율 렌즈 화면
+const pipRT = new THREE.WebGLRenderTarget(hiQ ? (optQ ? 288 : 384) : 224, hiQ ? (optQ ? 288 : 384) : 224);   // 배율 렌즈 화면
 const pipCam = new THREE.PerspectiveCamera(10, 1, .1, 300);
 const lensOn = new THREE.MeshBasicMaterial({ map: pipRT.texture, toneMapped: false });
 const lensOff = new THREE.MeshBasicMaterial({ color: 0x0b1118, toneMapped: false });
@@ -3465,7 +3469,7 @@ try { if (localStorage.getItem('is_cine') === '0') cineFx = false; } catch(e){}
   ng.putImageData(im, 0, 0);
   $('grain').style.backgroundImage = 'url(' + nc.toDataURL() + ')';
 }
-function applyCine(){ $('cine').style.display = cineFx ? 'block' : 'none'; $('grain').style.display = (cineFx && hiQ) ? 'block' : 'none'; }
+function applyCine(){ $('cine').style.display = cineFx ? 'block' : 'none'; $('grain').style.display = (cineFx && hiQ && !optQ) ? 'block' : 'none'; }
 $('cinefx').checked = cineFx; applyCine();
 $('cinefx').addEventListener('change', () => { cineFx = $('cinefx').checked; applyCine(); try { localStorage.setItem('is_cine', cineFx ? '1' : '0'); } catch(e){} });
 $('qmode').value = QMODE;
