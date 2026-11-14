@@ -234,6 +234,25 @@ body.touch #shopBtn small{display:none}
 .slot.hot{border-color:#fde047!important;background:rgba(250,204,21,.4)!important;box-shadow:0 0 0 4px rgba(250,204,21,.45)!important;transform:translate(-50%,-50%) scale(1.1)}
 .slot .x{position:absolute;top:-8px;right:-8px;width:20px;height:20px;border:0;border-radius:50%;background:#ef4444;color:#fff;font-size:11px;font-weight:800;line-height:1;padding:0;cursor:pointer}
 .bstat{font-size:12px;opacity:.8;margin:8px 0}
+#shop.wide .shopbox{width:min(960px,97vw);max-height:97vh;overflow:hidden;display:flex;flex-direction:column}
+#shop.wide .shophead{margin-bottom:6px}
+#shop.wide .stabs{margin-bottom:8px}
+#shop.wide #shopList{flex:1;min-height:0}
+.bwrap{display:grid;grid-template-columns:minmax(150px,300px) minmax(0,1fr);gap:12px;align-items:start;height:100%}
+.bleft{max-height:calc(97vh - 150px);overflow-y:auto;padding-right:4px;touch-action:pan-y}
+.bleft .bh{margin:0 0 6px;position:sticky;top:0;background:rgba(20,26,34,.97);padding:2px 0;z-index:1}
+.bleft .bh:not(:first-child){margin-top:10px}
+.bleft .binv{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.bleft .tile{flex-direction:row;justify-content:flex-start;gap:6px;padding:5px 6px;text-align:left}
+.bleft .tile canvas{width:34px!important;height:34px!important;flex:none}
+.bleft .tile .tt{min-width:0;display:flex;flex-direction:column}
+.bright{min-width:0}
+.bright .bstage{max-width:calc((97vh - 235px) * 560 / 330);margin:0 auto}
+.bright .wchips{margin-bottom:6px}
+.slot{min-width:40px}
+@media (max-height:500px){#shop.wide .shopbox{padding:8px}#shop.wide .shophead{font-size:14px;margin-bottom:4px}#shop.wide .shophead b{display:none}#shopClose{width:30px;height:30px}#shop.wide .stabs button{padding:6px}.bleft{max-height:calc(97vh - 90px)}.bright .bnote{display:none}.bright .bstage{max-width:calc((97vh - 150px) * 560 / 330)}.bstat{margin:4px 0}.bright .wchips button{padding:4px 8px}}
+@media (max-width:640px) and (min-height:501px){.slot{min-width:0;width:15%}}
+@media (max-width:640px){.bwrap{grid-template-columns:132px minmax(0,1fr);gap:8px}.bleft .binv{grid-template-columns:1fr}.slot b,.slot i{font-size:8px}}
 .bh{font-size:13px;font-weight:800;margin:12px 0 6px;color:#fde68a}
 .binv{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:8px}
 .tile{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:10px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;text-align:center}
@@ -2866,7 +2885,9 @@ function benchStart(e, id, from){
   window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
 }
 
-function renderBench(box){
+function renderBench(outer){
+  const box = document.createElement('div'); box.className = 'bright';   // 오른쪽: 총 그림
+  const left = document.createElement('div'); left.className = 'bleft';  // 왼쪽: 파츠 목록
   if (!isOwned(shopSel) || WEAPONS[shopSel].melee) shopSel = WEAPONS.findIndex((w, i) => isOwned(i) && !w.melee);
   const chips = document.createElement('div'); chips.className = 'wchips';
   WEAPONS.forEach((w, i) => {
@@ -2921,7 +2942,7 @@ function renderBench(box){
     t.className = 'tile' + (buy ? ' buy' : '') + (!buy && benchSel === p.id ? ' sel' : '');
     const nm = document.createElement('div'); nm.className = 'nm2'; nm.textContent = p.short;
     const sb = document.createElement('div'); sb.className = 'sb';
-    t.append(partIcon(p), nm, sb);
+    const tt = document.createElement('div'); tt.className = 'tt'; tt.append(nm, sb); t.append(partIcon(p), tt);
     t.title = p.name + ' — ' + p.desc;
     if (buy){
       sb.textContent = '🪙 ' + p.price;
@@ -2936,18 +2957,20 @@ function renderBench(box){
     return t;
   };
   const sect = (title, list, buy, empty) => {
-    const h = document.createElement('div'); h.className = 'bh'; h.textContent = title; box.appendChild(h);
-    if (!list.length){ const e = document.createElement('div'); e.className = 'bstat'; e.textContent = empty; box.appendChild(e); return; }
-    const gd = document.createElement('div'); gd.className = 'binv'; list.forEach(p => gd.appendChild(mkTile(p, buy))); box.appendChild(gd);
+    const h = document.createElement('div'); h.className = 'bh'; h.textContent = title; left.appendChild(h);
+    if (!list.length){ const e = document.createElement('div'); e.className = 'bstat'; e.textContent = empty; left.appendChild(e); return; }
+    const gd = document.createElement('div'); gd.className = 'binv'; list.forEach(p => gd.appendChild(mkTile(p, buy))); left.appendChild(gd);
   };
   sect('🎒 내 파츠 (끌어서 장착)', PARTS.filter(p => prof.parts.indexOf(p.id) !== -1), false, '아직 산 파츠가 없어요. 아래 상점에서 구매하세요');
   sect('🛒 파츠 상점 (누르면 구매)', PARTS.filter(p => prof.parts.indexOf(p.id) === -1), true, '모든 파츠를 가지고 있어요!');
+  const wrap = document.createElement('div'); wrap.className = 'bwrap'; wrap.append(left, box); outer.appendChild(wrap);
 }
 
 let shopTab = 0, shopSel = 0;
 function renderShop(){
   $('shopCoin').textContent = '🪙 ' + prof.coins.toLocaleString();
   if (!zmode && shopTab === 2) shopTab = 0;
+  $('shop').classList.toggle('wide', shopTab === 1);
   $('tabD').style.display = zmode ? '' : 'none';
   $('tabW').classList.toggle('on', shopTab === 0); $('tabP').classList.toggle('on', shopTab === 1); $('tabD').classList.toggle('on', shopTab === 2);
   const box = $('shopList'); box.innerHTML = '';
