@@ -881,28 +881,21 @@ transformed.z += cos(uT * 1.3 + instanceMatrix[3].z * .7) * .05 * position.y;
       tuft.setMatrixAt(tn, dm.matrix); tuft.setColorAt(tn, lc.setRGB(.78 + .22 * cv, .84 + .16 * cv, .68 + .22 * cv)); tn++;
     }
     tuft.count = tn; scene.add(tuft);
-  {   // 덤불과 잔돌: 바닥에 디테일을 더해서 휑하지 않게 (충돌 없음)
-    const br = mulberry32(5150), NB = hiQ ? 170 : 60, NP = hiQ ? 260 : 80;
-    const bush = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshLambertMaterial({ color: 0xffffff }), NB);
+  {   // 잔돌: 바닥에 작은 돌을 흩뿌려 디테일을 더해요 (충돌 없음). 초록 덤불은 둥근 얼룩처럼 보여서 뺐어요
+    const br = mulberry32(5150), NP = hiQ ? 260 : 80;
     const peb = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1, 0), new THREE.MeshLambertMaterial({ color: 0xffffff }), NP);
-    bush.castShadow = bush.receiveShadow = peb.receiveShadow = true;
-    bush.frustumCulled = peb.frustumCulled = false;
+    peb.receiveShadow = true;
+    peb.frustumCulled = false;
     const free = (x, z, m) => Math.abs(x) < 56 && Math.abs(z) < 56 && Math.hypot(x - LAKE.x, z - LAKE.z) > LAKE.r + 3.5 && Math.hypot(x, z) > 5 &&
       !boxes.some(b => x > b.minX - m && x < b.maxX + m && z > b.minZ - m && z < b.maxZ + m);
-    let nb = 0, np = 0;
-    for (let t = 0; t < NB * 8 && nb < NB; t++){
-      const x = (br() - .5) * 116, z = (br() - .5) * 116, s = .5 + br() * .6, c = br(), ry = br() * 6.28;
-      if (!free(x, z, .8)) continue;
-      dm.position.set(x, hillH(x, z) + .1 * s, z); dm.rotation.set(0, ry, 0); dm.scale.set(s * 1.1, s * .55, s); dm.updateMatrix();
-      bush.setMatrixAt(nb, dm.matrix); bush.setColorAt(nb, lc.setHSL(.25 + .06 * c, .40, .16 + .09 * c)); nb++;
-    }
+    let np = 0;
     for (let t = 0; t < NP * 8 && np < NP; t++){
       const x = (br() - .5) * 116, z = (br() - .5) * 116, s = .07 + br() * .17, c = br(), ry = br() * 6.28;
       if (!free(x, z, .3)) continue;
       dm.position.set(x, hillH(x, z) + .02, z); dm.rotation.set(br() * 3, ry, br() * 3); dm.scale.set(s * 1.3, s * .7, s); dm.updateMatrix();
       peb.setMatrixAt(np, dm.matrix); peb.setColorAt(np, lc.setHSL(.09, .06, .30 + .22 * c)); np++;
     }
-    bush.count = nb; peb.count = np; scene.add(bush, peb);
+    peb.count = np; scene.add(peb);
   }
   {   // 언덕 지형 (같은 풀밭 재질로 이어 붙임)
     const NR = 28, NS = 72, hm = groundMat.clone();
