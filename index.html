@@ -804,7 +804,7 @@ float gN(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
   const cones = [0, 1, 2].map(() => mkInst(coneG, pines, leafMat));
   const blobs = mkInst(new THREE.IcosahedronGeometry(1, 1), oaks, leafMat);
   const dm = new THREE.Object3D(), lc = new THREE.Color();
-  const put = (mesh, i, x, y, z, sx, sy, sz) => { dm.position.set(x, y, z); dm.scale.set(sx, sy, sz); dm.updateMatrix(); mesh.setMatrixAt(i, dm.matrix); };
+  const put = (mesh, i, x, y, z, sx, sy, sz) => { dm.position.set(x, y, z); dm.rotation.set(0, 0, 0); dm.scale.set(sx, sy, sz); dm.updateMatrix(); mesh.setMatrixAt(i, dm.matrix); };   // 회전을 매번 0으로 (앞에서 쓴 회전이 남아 나무가 기울던 버그 방지)
   let pi = 0, oi = 0;
   spots.forEach((p, i) => {
     const s = p.s;
