@@ -1065,7 +1065,14 @@ const WEAPONS = [
   { id:'mp5',    name:'MP5 기관단총', short:'MP5',    dmg:17, delay:0.075,mag:30, res:150, reload:2.0, auto:true,  spread:0.016,  recoil:0.008, pellets:1, range:160, zoom:1.3 },
   { id:'deagle', name:'DEAGLE 핸드캐논', short:'DEAGLE', dmg:58, delay:0.32, mag:7, res:42,  reload:2.0, auto:false, spread:0.005,  recoil:0.05,  pellets:1, range:220, zoom:1.3 },
   { id:'scar',   name:'SCAR-H',       short:'SCAR',   dmg:34, delay:0.105,mag:20, res:100, reload:2.7, auto:true,  spread:0.010,  recoil:0.022, pellets:1, range:280, zoom:1.5 },
-  { id:'sks',    name:'SKS 지정사수', short:'SKS',    dmg:52, delay:0.24, mag:10, res:70,  reload:2.6, auto:false, spread:0.0035, recoil:0.032, pellets:1, range:380, zoom:1.8 }
+  { id:'sks',    name:'SKS 지정사수', short:'SKS',    dmg:52, delay:0.24, mag:10, res:70,  reload:2.6, auto:false, spread:0.0035, recoil:0.032, pellets:1, range:380, zoom:1.8 },
+  { id:'vector', name:'VECTOR 기관단총', short:'VECTOR', dmg:15, delay:0.052,mag:25, res:175, reload:1.9, auto:true,  spread:0.017,  recoil:0.006, pellets:1, range:130, zoom:1.3 },
+  { id:'aug',    name:'AUG 불펍 소총', short:'AUG',    dmg:24, delay:0.088,mag:30, res:120, reload:2.4, auto:true,  spread:0.008,  recoil:0.010, pellets:1, range:270, zoom:1.8 },
+  { id:'kar98k', name:'KAR98K 볼트액션', short:'KAR98K', dmg:80, delay:1.05, mag:5,  res:35,  reload:3.2, auto:false, spread:0.0012, recoil:0.05,  pellets:1, range:360, zoom:2.4 },
+  { id:'m870',   name:'M870 펌프 샷건', short:'M870',   dmg:22, delay:0.85, mag:6,  res:36,  reload:3.4, auto:false, spread:0.045,  recoil:0.05,  pellets:8, range:55,  zoom:1.2 },
+  { id:'magnum', name:'MAGNUM 리볼버', short:'MAGNUM', dmg:66, delay:0.42, mag:6,  res:42,  reload:2.6, auto:false, spread:0.004,  recoil:0.055, pellets:1, range:230, zoom:1.3 },
+  { id:'knife',  name:'KNIFE 단검',    short:'KNIFE',  dmg:30, delay:0.28, mag:1,  res:0,   reload:0,   auto:true,  spread:0,      recoil:0,     pellets:1, range:2.2, zoom:1,   melee:true },
+  { id:'axe',    name:'AXE 도끼',      short:'AXE',    dmg:90, delay:0.9,  mag:1,  res:0,   reload:0,   auto:true,  spread:0,      recoil:0,     pellets:1, range:2.8, zoom:1,   melee:true }
 ];
 const SKIN = 0xd9a98a;
 // [w,h,d,x,y,z,color]  (총구 방향 = -z)
@@ -1170,9 +1177,24 @@ GUNS.scar = { tip:-0.62, parts:[[.06,.09,.40,0,0,-.05,0x6b5f48],[.025,.025,.30,0
 GD.scar = [[.052,.012,.34,0,.05,-.07,0x3a3326,'m'],[.03,0,.05,0,.012,-.615,0x0f0f0f,'cm'],[.012,.03,.012,0,.05,-.50,0x151515,'m'],[.056,.07,.07,0,-.095,.10,SKIN]];
 GUNS.sks = { tip:-0.70, parts:[[.055,.08,.38,0,0,-.05,0x2f2f2f],[.025,.025,.38,0,.012,-.5,0x111111],[.055,.06,.26,0,-.005,-.32,0x7a4a21],[.035,.10,.06,0,-.09,-.03,0x1a1a1a],[.05,.09,.24,0,-.015,.27,0x7a4a21],[.04,.09,.05,0,-.09,.11,0x222222],[.06,.05,.10,0,-.06,-.30,SKIN]] };
 GD.sks = [[.03,0,.05,0,.012,-.7,0x0f0f0f,'cm'],[.012,.03,.012,0,.045,-.62,0x151515,'m'],[.03,.02,.05,0,.05,.12,0x1a1a1a,'m'],[.056,.07,.07,0,-.095,.10,SKIN]];
+/* ===== 추가 무기 모델 (총구 방향 = -z) ===== */
+GUNS.vector = { tip:-0.46, parts:[[.062,.10,.34,0,0,-.02,0x2a2a2a],[.05,.055,.22,0,.01,-.30,0x1e1e1e],[.036,.15,.06,0,-.12,.03,0x1a1a1a],[.04,.06,.14,0,-.005,.22,0x2a2a2a],[.04,.10,.05,0,-.10,.09,0x222222],[.06,.05,.10,0,-.06,-.30,SKIN]] };
+GD.vector = [[.026,.011,.30,0,.0555,-.06,0x101010,'m'],[.012,.022,.012,0,.065,-.40,0x111111,'m'],[.03,.012,.03,0,.056,.10,0x111111,'m'],[.02,0,.05,0,.01,-.435,0x0b0b0b,'cm'],[.008,.008,.07,0,-.075,.06,0x151515,'m'],[.052,.012,.10,0,.05,-.20,0x1a1a1a,'m'],[.056,.07,.07,0,-.095,.09,SKIN]];
+GUNS.aug = { tip:-0.64, parts:[[.064,.10,.64,0,0,.02,0x34402c],[.025,.025,.30,0,.012,-.45,0x111111],[.05,.05,.12,0,-.005,-.36,0x2a3322],[.04,.15,.07,0,-.12,.18,0x1a1a1a],[.04,.10,.05,0,-.10,.03,0x222222],[.05,.095,.03,0,-.01,.345,0x0a0a0a],[.06,.05,.10,0,-.06,-.24,SKIN]] };
+GD.aug = [[.034,.035,.16,0,.0675,-.10,0x2a3322],[.04,0,.18,0,.085,-.10,0x151515,'cm'],[.034,0,.004,0,.085,-.192,0x6aa0ff,'cg'],[.03,0,.004,0,.085,-.008,0x224466,'cg'],[.03,0,.05,0,.012,-.615,0x0f0f0f,'cm'],[.02,.01,.10,-.033,.02,-.05,0x1a1a1a,'m'],[.008,.008,.07,0,-.075,.0,0x151515,'m'],[.056,.07,.07,0,-.095,.03,SKIN]];
+GUNS.kar98k = { tip:-0.80, parts:[[.05,.08,.26,0,0,-.02,0x2a2a2a],[.026,.026,.62,0,.012,-.45,0x1b1b1b],[.05,.06,.50,0,-.015,-.36,0x7a4a21],[.05,.09,.36,0,-.015,.29,0x7a4a21],[.034,.06,.10,0,-.07,-.02,0x2a2a2a],[.06,.05,.10,0,-.05,-.30,SKIN]] };
+GD.kar98k = [[.01,.03,.01,0,.04,-.74,0x151515,'m'],[.03,.016,.04,0,.047,-.10,0x151515,'m'],[.034,0,.05,0,.012,-.775,0x0f0f0f,'cm'],[.04,.012,.012,.035,.03,.07,0x151515,'mB'],[.02,.02,.02,.058,.03,.07,0x151515,'mB'],[.008,.024,.08,0,-.046,.06,0x151515,'m'],[.038,.012,.10,0,-.036,0,0x0d0d0d,'mM'],[.052,.095,.015,0,-.015,.475,0x0a0a0a],[.056,.065,.07,0,-.07,.13,SKIN]];
+GUNS.m870 = { tip:-0.70, parts:[[.052,.085,.30,0,0,0,0x2a2a2a],[.036,.036,.55,0,.012,-.42,0x1a1a1a],[.034,.022,.07,0,-.05,.02,0xb91c1c],[.05,.09,.30,0,-.02,.30,0x7a4a21],[.06,.05,.10,0,-.06,-.32,SKIN]] };
+GD.m870 = [[.026,0,.42,0,-.02,-.36,0x1a1a1a,'cm'],[.052,.05,.22,0,-.018,-.32,0x7a4a21,'wB'],[.008,.02,.008,0,.042,-.68,0x151515,'m'],[.042,0,.03,0,.012,-.685,0x0f0f0f,'cm'],[.008,.024,.08,0,-.046,.06,0x151515,'m'],[.052,.095,.015,0,-.02,.455,0x0a0a0a],[.056,.07,.07,0,-.085,.13,SKIN]];
+GUNS.magnum = { tip:-0.32, parts:[[.04,.07,.16,0,.02,-.02,0x8a8f96,'m'],[.03,.03,.22,0,.03,-.21,0x6e747c,'m'],[.056,0,.07,0,.02,-.04,0x9aa0a8,'cm'],[.036,.11,.05,0,-.065,.07,0x3b2417],[.026,.03,.16,0,0,-.18,0x6e747c,'m'],[.06,.05,.09,-.014,-.115,.065,SKIN]] };
+GD.magnum = [[.01,.02,.012,0,.05,-.305,0x151515,'m'],[.02,.012,.02,0,.045,.04,0x151515,'m'],[.012,.03,.02,0,.05,.075,0x151515,'m'],[.034,0,.03,0,.03,-.305,0x111111,'cm'],[.056,.07,.07,.014,-.09,.05,SKIN]];
+GUNS.knife = { tip:-0.4, parts:[[.012,.04,.26,0,0,-.22,0xdfe6ee],[.05,.014,.02,0,-.002,-.09,0x222222],[.028,.036,.12,0,0,-.01,0x1a1a1a],[.06,.05,.10,0,-.01,0,SKIN]] };
+GD.knife = [[.004,.012,.26,0,.022,-.22,0xb7c0ca,'m'],[.014,.03,.03,0,0,-.36,0xdfe6ee,'m'],[.03,.04,.012,0,0,.05,0x111111]];
+GUNS.axe = { tip:-0.7, parts:[[.03,.03,.66,0,0,-.27,0x7a4a21],[.04,.07,.07,0,0,-.58,0x59616d,'m'],[.026,.12,.04,0,-.005,-.625,0xaab2be,'m'],[.018,.16,.03,0,-.005,-.66,0xc3cbd6,'m'],[.008,.19,.025,0,-.005,-.69,0xe5e9ef,'m'],[.06,.05,.10,0,-.01,0,SKIN]] };
+GD.axe = [[.018,.05,.06,0,0,-.52,0x59616d,'m'],[.034,.034,.03,0,0,.06,0x3b2417]];
 for (const k in GD) GUNS[k].d = GD[k];
 
-const MAGIDX = { m416:3, akm:3, awm:4, s12k:2, m249:2, g18:2, mp5:2, deagle:2, scar:3, sks:3 };   // 재장전 때 빠지는 탄창 파츠 번호
+const MAGIDX = { m416:3, akm:3, awm:4, s12k:2, m249:2, g18:2, mp5:2, deagle:2, scar:3, sks:3, vector:2, aug:3, kar98k:4, m870:2, magnum:2 };   // 재장전 때 빠지는 탄창 파츠 번호
 let gunGroup = null;
 let _wood = null;
 function woodTex(){
@@ -1233,7 +1255,7 @@ function updateBelt(B, dt, mag, rl){
   });
 }
 /* 노리쇠/장전 손잡이: tr=뒤로 빠지는 거리, fire=1 쏠 때마다 왕복(AK) / 2 볼트액션(AWM) / 0 장전 때만 */
-const BOLT = { akm: { tr: .10, fire: 1 }, m416: { tr: .05, fire: 0 }, awm: { tr: .07, fire: 2 }, s12k: { tr: .06, fire: 0 }, m249: { tr: .07, fire: 0 } };
+const BOLT = { akm: { tr: .10, fire: 1 }, m416: { tr: .05, fire: 0 }, awm: { tr: .07, fire: 2 }, s12k: { tr: .06, fire: 0 }, m249: { tr: .07, fire: 0 }, kar98k: { tr: .07, fire: 2 }, m870: { tr: .08, fire: 2 } };
 const _sm = u => u * u * (3 - 2 * u);
 function updateBolt(B, w, a, t, rl, pr){
   let x = 0;
@@ -1253,7 +1275,8 @@ function updateBolt(B, w, a, t, rl, pr){
 /* 노리쇠를 잡는 손: 장전 때 손(기본 왼손, AWM은 오른손)이 장전 손잡이로 이동 → 잡고 당김 → 놓고 돌아옴. AWM은 쏜 뒤 볼트도 오른손으로 당김 */
 const BOLTHAND = {
   m416: { h: 'l', p: [-.012, .072, .14] }, akm: { h: 'l', p: [.03, .088, -.045] }, awm: { h: 'r', p: [.072, .03, .075] },
-  s12k: { h: 'l', p: [-.068, .03, 0] },     m249: { h: 'l', p: [-.068, .022, -.05] }
+  s12k: { h: 'l', p: [-.068, .03, 0] },     m249: { h: 'l', p: [-.068, .022, -.05] },
+  kar98k: { h: 'r', p: [.072, .03, .075] }, m870: { h: 'l', p: [0, -.06, -.32] }
 };
 const _hp = new THREE.Vector3(), _hs = new THREE.Vector3(), _hd = new THREE.Vector3(), _hT = new THREE.Vector3(), _hZ = new THREE.Vector3(0, 0, 1);
 function moveHand(H, k, tg){   // 손을 기본 자리 → 목표 사이로 옮기고, 팔도 어깨 쪽 고정점에 맞춰 다시 이어 줌
@@ -1324,8 +1347,8 @@ function buildGun(i){
 }
 /* ---------- 무기 파츠 (조준경 / 탄창) ---------- */
 const AY = .035;                                                    // 레일 윗면 → 조준축 높이
-const RAIL  = { akm: .052, m416: .056, s12k: .056, m249: .068, scar: .05, sks: .048 };   // 총별 레일 윗면 높이 (여기 없는 총은 조준경 장착 불가)
-const RAILZ = { akm: -.05, m416: -.06, s12k: -.05, m249: -.05, scar: -.05, sks: -.05 };   // 조준경 중심 z
+const RAIL  = { akm: .052, m416: .056, s12k: .056, m249: .068, scar: .05, sks: .048, vector: .06 };   // 총별 레일 윗면 높이 (여기 없는 총은 조준경 장착 불가)
+const RAILZ = { akm: -.05, m416: -.06, s12k: -.05, m249: -.05, scar: -.05, sks: -.05, vector: -.06 };   // 조준경 중심 z
 const pipRT = new THREE.WebGLRenderTarget(isTouch ? 224 : 384, isTouch ? 224 : 384);   // 배율 렌즈 화면
 const pipCam = new THREE.PerspectiveCamera(10, 1, .1, 300);
 const lensOn = new THREE.MeshBasicMaterial({ map: pipRT.texture, toneMapped: false });
@@ -1400,9 +1423,7 @@ function decorGun(g, i){
   g.userData.sight = { lens, ret, mag: sp.mag, pipFov: 2 * Math.atan(.0205 / sp.e / sp.mag) * 180 / Math.PI };
 }
 const _buildGun0 = buildGun;
-buildGun = function(i){ const g = _buildGun0(i); decorGun(g, i); decorAttach(g, i); return g; };
-
-/* 배율 스코프 렌즈 화면: 조준 중일 때만 한 번 더 그림 (렌즈 안쪽만 확대) */
+buildGun = function(i){ const g = _buildGun0(i); decorGun(g, i); decorAttach(g, i); /* 배율 스코프 렌즈 화면: 조준 중일 때만 한 번 더 그림 (렌즈 안쪽만 확대) */
 function renderPip(){
   const sg = gunGroup && gunGroup.userData.sight; if (!sg) return;
   const on = !!(gunGroup.visible && ads && sg.mag > 1);
@@ -1433,7 +1454,7 @@ let sens = 1, goreFx = true, runHeld = false, eyeH = 1.6;
 let crouch = false, crouchT = false;   // 앉기 (키보드 C 누르는 동안 / 모바일 버튼 토글)
 const raycaster = new THREE.Raycaster();
 
-const DRAW = { katana: .35, m416: .42, akm: .5, s12k: .6, awm: .85, m249: 1.0, g18: .25, mp5: .38, deagle: .4, scar: .55, sks: .6 };   // 무거울수록 오래 걸려요 (초)
+const DRAW = { katana: .35, m416: .42, akm: .5, s12k: .6, awm: .85, m249: 1.0, g18: .25, mp5: .38, deagle: .4, scar: .55, sks: .6, vector: .36, aug: .52, kar98k: .8, m870: .65, magnum: .4, knife: .25, axe: .5 };   // 무거울수록 오래 걸려요 (초)
 function loAdd(i){   // 장착 슬롯에 넣기 (3개가 차 있으면 지금 들고 있는 무기와 교체)
   const id = WEAPONS[i].id, L = prof.lo;
   if (L.length < 3) L.push(id);
@@ -1475,7 +1496,7 @@ function initAudio(){
     for (let i = 0; i < d.length; i++) d[i] = Math.random()*2 - 1;
   } catch(e){ ac = null; }
 }
-const SND = { m416:[3200,.13,110], akm:[2400,.16,95], awm:[1500,.7,60], s12k:[1300,.3,70], m249:[2600,.12,85], katana:[1000,.1,60], g18:[2800,.09,120], mp5:[3000,.1,115], deagle:[1700,.28,70], scar:[2300,.15,85], sks:[1900,.2,75] };
+const SND = { m416:[3200,.13,110], akm:[2400,.16,95], awm:[1500,.7,60], s12k:[1300,.3,70], m249:[2600,.12,85], katana:[1000,.1,60], g18:[2800,.09,120], mp5:[3000,.1,115], deagle:[1700,.28,70], scar:[2300,.15,85], sks:[1900,.2,75], vector:[3100,.09,120], aug:[2500,.15,92], kar98k:[1700,.45,65], m870:[1300,.32,68], magnum:[1600,.3,68], knife:[1000,.08,60], axe:[1000,.12,55] };
 function playShot(idx, vol){
   if (!ac || vol <= 0.01) return;
   const s = SND[WEAPONS[idx].id]; const t = ac.currentTime;
@@ -2542,7 +2563,7 @@ document.addEventListener('wheel', e => {
 }, { passive: true });
 
 /* ---------- 코인 / 경험치 / 상점 ---------- */
-const PRICE = { akm: 0, m416: 800, awm: 2500, s12k: 1500, m249: 2200, katana: 600, g18: 400, mp5: 1100, deagle: 1800, scar: 2000, sks: 1900 };   // 무기 가격은 여기서 조절
+const PRICE = { akm: 0, m416: 800, awm: 2500, s12k: 1500, m249: 2200, katana: 600, g18: 400, mp5: 1100, deagle: 1800, scar: 2000, sks: 1900, vector: 1700, aug: 2100, kar98k: 2300, m870: 1300, magnum: 1500, knife: 300, axe: 900 };   // 무기 가격은 여기서 조절
 const prof = { coins: 0, xp: 0, owned: ['akm'], parts: [], eq: {}, lo: ['akm'] };   // lo: 장착한 무기(최대 3개)
 const levelOf = xp => Math.floor(Math.sqrt(xp / 100)) + 1;
 const lvStart = lv => (lv - 1) * (lv - 1) * 100;
@@ -2634,14 +2655,17 @@ function closeShop(){
 const MUZ = {   // y: 총구 높이 / r: 총구 반지름 / B: 파츠가 시작되는 z(총신 끝) / stub: 총신이 짧을 때 이어 주는 막대 [길이, z]
   akm: { y: .012, r: .015, B: -.585 }, m416: { y: .012, r: .015, B: -.55 }, awm: { y: .012, r: .02, B: -.96 }, s12k: { y: .012, r: .026, B: -.50 },
   m249: { y: .012, r: .02, B: -.67 }, mp5: { y: .012, r: .016, B: -.49, stub: [.10, -.44] }, scar: { y: .012, r: .015, B: -.595 }, sks: { y: .012, r: .015, B: -.685 },
-  g18: { y: .03, r: .012, B: -.24, pistol: 1 }, deagle: { y: .03, r: .014, B: -.30, pistol: 1 }
+  g18: { y: .03, r: .012, B: -.24, pistol: 1 }, deagle: { y: .03, r: .014, B: -.30, pistol: 1 },
+  vector: { y: .01, r: .014, B: -.41 }, aug: { y: .012, r: .015, B: -.595 }, kar98k: { y: .012, r: .017, B: -.75 }, m870: { y: .012, r: .021, B: -.665 },
+  magnum: { y: .03, r: .017, B: -.29, pistol: 1 }
 };
 const GRIP = {  // 손잡이를 달 수 있는 총 (z: 위치 / yb: 덮개 아랫면 높이). 여기 없는 총은 장착 불가
-  m416: { z: -.34, yb: -.03 }, akm: { z: -.34, yb: -.035 }, scar: { z: -.34, yb: -.03 }, sks: { z: -.36, yb: -.035 }, mp5: { z: -.28, yb: -.01 }, s12k: { z: -.30, yb: -.014 }
+  m416: { z: -.34, yb: -.03 }, akm: { z: -.34, yb: -.035 }, scar: { z: -.34, yb: -.03 }, sks: { z: -.36, yb: -.035 }, mp5: { z: -.28, yb: -.01 }, s12k: { z: -.30, yb: -.014 }, vector: { z: -.31, yb: -.0175 }
 };
 const STK = {   // 개머리판이 시작되는 z와 중심 높이. 여기 없는 총(권총)은 장착 불가
   akm: { z: .15, y: -.015 }, m416: { z: .15, y: -.01 }, awm: { z: .17, y: -.01 }, s12k: { z: .15, y: -.01 },
-  m249: { z: .17, y: -.01 }, mp5: { z: .16, y: -.005 }, scar: { z: .15, y: -.01 }, sks: { z: .15, y: -.015 }
+  m249: { z: .17, y: -.01 }, mp5: { z: .16, y: -.005 }, scar: { z: .15, y: -.01 }, sks: { z: .15, y: -.015 },
+  vector: { z: .15, y: -.005 }, kar98k: { z: .11, y: -.015 }, m870: { z: .15, y: -.02 }
 };
 /* 파츠를 달면 가려지는 기본 부품인지 (기본 총구 장치 / 기본 개머리판) */
 function hideDef(wid, p, mzOn, skOn){
@@ -2876,7 +2900,7 @@ function benchDraw(cv, wid, eq){
   const xMz = PARTS_BY_ID[eq.muzzle], xGp = PARTS_BY_ID[eq.grip], xSk = PARTS_BY_ID[eq.stock];
   const KY = 1.4, ky = mpart && mpart.cap ? KY : 1;   // 대용량 탄창은 게임 안 모델처럼 1.4배 길게
   const items = [];
-  spec.parts.forEach((p, i) => { if (p[6] !== SKIN && !hideDef(wid, p, !!xMz, !!xSk)) items.push({ p, fl: '', m: i === mi, x: p[3], y: p[4], z: p[5] }); });
+  spec.parts.forEach((p, i) => { if (p[6] !== SKIN && !hideDef(wid, p, !!xMz, !!xSk)) items.push({ p, fl: p[7] || '', m: i === mi, x: p[3], y: p[4], z: p[5] }); });
   (spec.d || []).forEach(p => {
     if (p[6] === SKIN || hideDef(wid, p, !!xMz, !!xSk)) return;
     const fl = p[7] || '', M = fl.indexOf('M') >= 0;
