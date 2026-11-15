@@ -334,7 +334,7 @@ background:radial-gradient(circle,rgba(255,244,220,.78) 0,rgba(255,228,188,.34) 
     <div class="set"><label><span>화면 흔들림 (0%면 안 흔들려요)</span><b id="shakeVal">100%</b></label><input type="range" id="shake" min="0" max="1" step="0.05" value="1"></div>
     <div class="set"><label><span>피 효과 (끄면 더 가벼워요)</span><input type="checkbox" id="gorefx" checked style="width:auto;margin:0;padding:0"></label></div>
     <div class="set"><label><span>그림자 (끄면 더 가벼워요)</span><input type="checkbox" id="shadowfx" checked style="width:auto;margin:0;padding:0"></label></div>
-    <div class="set"><label><span>그래픽 품질 (바꾸면 새로고침)</span><select id="qmode"><option value="auto">자동</option><option value="low">가볍게</option><option value="opt">고화질 최적화 (폰 추천)</option><option value="high">고화질 (PC와 동일)</option><option value="ultra">초고퀄리티 (PC 추천 · 가지·잎 하나하나)</option></select></label></div>
+    <div class="set"><label><span>그래픽 품질 (바꾸면 새로고침)</span><select id="qmode"><option value="auto">자동</option><option value="low">가볍게</option><option value="opt">고화질 최적화 (폰 추천)</option><option value="high">고화질 (PC와 동일)</option><option value="ultra">초고퀄리티 (PC 추천 · 가지·잎 하나하나)</option><option value="ultraopt">초고퀄리티 최적화 (폰 가능 · 보이는 곳만 그려요)</option></select></label></div>
     <div class="set"><label><span>텍스처·모델링 (바꾸면 새로고침)</span><select id="detmode"><option value="0">표준</option><option value="1">고퀄리티 (PC·최신 폰, 로딩 조금 느려요)</option></select></label></div>
     <div class="set"><label><span>시네마틱 효과 (비네트·필름 그레인)</span><input type="checkbox" id="cinefx" checked style="width:auto;margin:0;padding:0"></label></div>
     <div class="set"><label><span>빛내림·먼지 (나무 사이 햇빛 기둥)</span><input type="checkbox" id="rayfx" checked style="width:auto;margin:0;padding:0"></label></div>
@@ -390,10 +390,12 @@ document.body.classList.toggle('touch', isTouch);
 
 /* [그래픽 품질] 자동(PC는 고화질·폰은 가볍게) / 가볍게 / 고화질(폰에서도 PC와 같은 설정). 시작 화면에서 바꾸면 새로고침돼요 */
 let QMODE = 'auto';
-try { const q = localStorage.getItem('is_q'); if (q === 'low' || q === 'high' || q === 'opt' || q === 'ultra') QMODE = q; } catch(e){}
-const hiQ = QMODE === 'high' || QMODE === 'opt' || QMODE === 'ultra' || (QMODE === 'auto' && !isTouch);
-const optQ = QMODE === 'opt';
-const ultraQ = QMODE === 'ultra';   // 초고퀄리티: 고화질 + 고퀄리티 모델링 + 나무 가지·잎 하나하나 + 더 큰 그림자·해상도
+try { const q = localStorage.getItem('is_q'); if (q === 'low' || q === 'high' || q === 'opt' || q === 'ultra' || q === 'ultraopt') QMODE = q; } catch(e){}
+const hiQ = QMODE === 'high' || QMODE === 'opt' || QMODE === 'ultra' || QMODE === 'ultraopt' || (QMODE === 'auto' && !isTouch);
+const optQ = QMODE === 'opt' || QMODE === 'ultraopt';   // 초고퀄리티 최적화도 '최적화' 계열 절약(해상도 상한·그림자·반사·풀 수)을 같이 써요
+const ultraQ = QMODE === 'ultra' || QMODE === 'ultraopt';
+const ultraOptQ = QMODE === 'ultraopt';   // 폰용: 나무를 구역(칸)으로 나눠서 '화면에 보이는 칸'만, 가까운 칸만 가지·잎으로, 먼 칸은 덩어리로 그려요
+const ultraCells = [];   // 나무 구역 목록 (숲을 다 만든 뒤 채워지고, 매 프레임 ultraCull 이 보이게/안 보이게 바꿔요)   // 초고퀄리티: 고화질 + 고퀄리티 모델링 + 나무 가지·잎 하나하나 + 더 큰 그림자·해상도
 let detQ = ultraQ; try { if (localStorage.getItem('is_det') === '1') detQ = true; } catch(e){}   // 텍스처·모델링 고퀄리티 (표준/고퀄리티, 새로고침 필요)   // 고화질 최적화: 고화질 효과는 그대로 두고 잔디 수·그림자 갱신·반사 갱신 같은 비싼 부분만 줄여서 폰에서도 부드럽게
 
 /* =====================================================================
@@ -418,7 +420,7 @@ let kills = 0, deaths = 0;
 
 /* ---------- Three.js 기본 ---------- */
 const renderer = new THREE.WebGLRenderer({ antialias: hiQ, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, ultraQ ? 2.5 : hiQ && !optQ ? 2 : 1.5));   // 최적화: 해상도 배율 상한 1.5 (폰은 보통 3배라 픽셀 수가 1/4로 줄어요)
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, ultraQ && !optQ ? 2.5 : hiQ && !optQ ? 2 : 1.5));   // 최적화: 해상도 배율 상한 1.5 (폰은 보통 3배라 픽셀 수가 1/4로 줄어요)
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = hiQ && !optQ ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
@@ -455,6 +457,25 @@ scene.add(new THREE.HemisphereLight(0xb7c6dc, 0x7a6a4a, 0.66)); // [광원] 하�
 const sun = new THREE.DirectionalLight(0xffe3b8, 1.75);        // [광원] 낮은 해(33°)에 맞춘 약간 따뜻한 햇빛
 const SHADOW_RES = hiQ ? (optQ ? 2048 : ultraQ ? 4096 : 3072) : 1024, SHADOW_R = hiQ ? (optQ ? 42 : 50) : 30;   // [그림자] 모바일은 범위를 줄여 더 또렷하고 가볍게
 const SUN_DIR = new THREE.Vector3(0.760, 0.454, 0.466).normalize(); // 해 높이 약 27° (오후의 따뜻한 빛) (y를 줄이면 그림자가 길어지고 노을빛에 가까워져요)
+/* [초고퀄리티 최적화] 보이지 않는 나무는 아예 안 그려요
+   - 나무를 20칸짜리 구역으로 나눠, 시야(화면)에 안 걸리는 구역은 가지·잎·그림자 전부 생략
+   - 해 그림자가 화면 안으로 길게 드리울 수 있어서, 해 반대 방향으로 9칸 넓힌 범위까지는 남겨둬요 (그림자가 갑자기 사라지지 않게)
+   - 가까운 구역(34칸 안)만 가지·낱장 잎·솔가지, 먼 구역은 가벼운 덩어리로 (안개에 가려 티가 거의 안 나요)
+   - 그림자 범위 밖 구역은 그림자도 안 만들어요 */
+const ULTRA_NEAR = 34, _ucFr = new THREE.Frustum(), _ucPm = new THREE.Matrix4(), _ucMi = new THREE.Matrix4(), _ucSp = new THREE.Sphere();
+function ultraCull(){
+  if (!ultraCells.length) return;
+  camera.updateMatrixWorld();
+  _ucPm.multiplyMatrices(camera.projectionMatrix, _ucMi.copy(camera.matrixWorld).invert()); _ucFr.setFromProjectionMatrix(_ucPm);
+  const e = camera.matrixWorld.elements, cx = e[12], cz = e[14], sx = -SUN_DIR.x / (Math.hypot(SUN_DIR.x, SUN_DIR.z) || 1), sz = -SUN_DIR.z / (Math.hypot(SUN_DIR.x, SUN_DIR.z) || 1);
+  for (let i = 0; i < ultraCells.length; i++){
+    const c = ultraCells[i], d = Math.hypot(c.x - cx, c.z - cz);
+    _ucSp.center.set(c.x + sx * 9, c.y, c.z + sz * 9); _ucSp.radius = c.r + 9;
+    const inV = _ucFr.intersectsSphere(_ucSp), near = d - c.r * .5 < ULTRA_NEAR, sh = d - c.r < SHADOW_R + 6;
+    for (let k = 0; k < c.near.length; k++){ const m = c.near[k]; m.visible = inV && near; m.castShadow = sh; }
+    for (let k = 0; k < c.far.length; k++){ const m = c.far[k]; m.visible = inV && !near; m.castShadow = sh; }
+  }
+}
 
 /* ---------- [대기] 대기 산란 모델: 하늘·안개·물이 같은 식을 써서 지평선에서 자연스럽게 이어져요 ----------
    (Preetham 계열 단일 산란 근사: 레일리 산란 = 푸른 하늘, 미 산란 = 해 주변의 부드러운 빛무리) */
@@ -1040,7 +1061,7 @@ float gN(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
   /* ===== [초고퀄리티] 나무: 진짜 가지 + 잎 하나하나 + 솔가지 =====
      덩어리(잎 뭉치)는 안쪽에 어둡고 작게 남겨 '속'을 채우고, 바깥은 가지·낱장 잎·솔잎 가지로 덮어요.
      가지·잎은 모두 인스턴싱(한 번에 그리기)이고 충돌/총알 판정에는 안 들어가요 (총알은 잎을 통과, 기둥·속 덩어리는 그대로 막음) */
-  const ultra = () => {
+  const ultra = opt => {
     const rr = mulberry32(20260), UP = new THREE.Vector3(0, 1, 0);
     const vX = new THREE.Vector3(), vY = new THREE.Vector3(), vZ = new THREE.Vector3(), vR = new THREE.Vector3(), vS = new THREE.Vector3(), M4 = new THREE.Matrix4();
     // 방향 d 를 길이축(Y)으로, ref 쪽을 옆(X)으로 잡아서 위치·크기가 들어간 행렬 만들기 (면의 앞쪽 = Z)
@@ -1108,29 +1129,44 @@ transformed.z += cos(uT * 1.5 + swP * 1.3) * ${amp * .8} * position.y;
     frDepth.onBeforeCompile = sway(.06); frDepth.customProgramCacheKey = () => 'ultraFrondD';
     const lfDepth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide });
     lfDepth.onBeforeCompile = sway(.16); lfDepth.customProgramCacheKey = () => 'ultraLeafD';
-    const brM = [], frM = [], frC = [], lfM = [], lfC = [], col = () => new THREE.Color();
+    const col = () => new THREE.Color(), barkMat = trunkMat();
+    // 구역(칸): 폰용(opt)은 20칸 단위로 나눠 구역마다 따로 그려요. 일반 초고퀄리티는 한 덩어리 그대로
+    const cells = new Map(), CELL = 20; let cell = null;
+    const cellAt = (x, z) => {
+      const key = opt ? Math.floor(x / CELL) + ',' + Math.floor(z / CELL) : 'all'; let c = cells.get(key);
+      if (!c){ c = { brM: [], frM: [], frC: [], lfM: [], lfC: [], cnM: [], cnC: [], blM: [], blC: [], pts: [] }; cells.set(key, c); }
+      return c;
+    };
     return {
       // 소나무: 3단 × 둘레 가지 고리(아래 단일수록 길게 처짐) + 가지 위 솔잎 가지 + 맨 위 줄기
       addPine(x, y0, z, s, c){
+        cell = cellAt(x, z); cell.pts.push([x, z, s]);
+        if (opt) for (let k = 0; k < 3; k++){   // 먼 구역용 가벼운 원뿔 (원래 소나무 덩어리)
+          cell.cnM.push(mat4(x, y0 + (1.2 + k * 1.2) * s, z, 0, 1, 0, (1.9 - k * .5) * s, (2.6 - k * .3) * s, (1.9 - k * .5) * s, UP));
+          cell.cnC.push(col().setHSL(.33 + .03 * c, .5, .17 + .08 * c));
+        }
         const hue = .33 + .03 * c, lit = .17 + .08 * c, N0 = [12, 10, 8], HH = [.08, .30, .52, .74, .90], RF = [1, .8, .6, .42, .22], EL = [-.30, -.20, -.10, .02, .16];
         for (let k = 0; k < 3; k++){
           const yb = (1.2 + k * 1.2) * s, h = (2.6 - k * .3) * s, R = (1.9 - k * .5) * s;
           for (let q = 0; q < 5; q++){
+            if (opt && q === 3) continue;   // 폰: 안쪽 짧은 고리 하나 생략
             const n = Math.round(N0[k] * RF[q]) + 2, yy = y0 + yb + h * HH[q], off = rr() * 6.2832;
             for (let i = 0; i < n; i++){
               const a = off + (i + (rr() - .5) * .5) / n * 6.2832, el = EL[q] + (rr() - .5) * .14, ce = Math.cos(el);
               const dx = Math.cos(a) * ce, dy = Math.sin(el), dz = Math.sin(a) * ce, L = R * RF[q] * (.92 + rr() * .14), st = .2 * s;
-              if (q < 3) brM.push(mat4(x, yy, z, dx, dy, dz, 1.3 * s, L * .8, 1.3 * s, UP));
+              if (q < 3) cell.brM.push(mat4(x, yy, z, dx, dy, dz, 1.3 * s, L * .8, 1.3 * s, UP));
               const fl = L - st + .15 * s, fw = fl * (.80 + rr() * .22);
-              frM.push(mat4(x + dx * st, yy + dy * st, z + dz * st, dx, dy, dz, fw, fl, fl, UP));
-              frC.push(col().setHSL(hue + (rr() - .5) * .02, .5, lit * (.98 + .2 * rr()) + .015 * q));
+              cell.frM.push(mat4(x + dx * st, yy + dy * st, z + dz * st, dx, dy, dz, fw, fl, fl, UP));
+              cell.frC.push(col().setHSL(hue + (rr() - .5) * .02, .5, lit * (.98 + .2 * rr()) + .015 * q));
             }
           }
         }
-        brM.push(mat4(x, y0 + 2.2 * s, z, 0, 1, 0, 3.2 * s, 3.7 * s, 3.2 * s, UP));
+        cell.brM.push(mat4(x, y0 + 2.2 * s, z, 0, 1, 0, 3.2 * s, 3.7 * s, 3.2 * s, UP));
       },
       // 활엽수: 굵은 가지 6~8개 + 가지마다 곁가지 3개 + 가지 끝에 낱장 잎이 뭉쳐서 달림 (+ 나머지는 겉면에 흩어짐)
       addOak(x, z, s, c){
+        cell = cellAt(x, z); cell.pts.push([x, z, s]);
+        if (opt){ cell.blM.push(mat4(x, 3.3 * s, z, 0, 1, 0, 2.1 * s, 1.7 * s, 2.1 * s, UP)); cell.blC.push(col().setHSL(.24 + .05 * c, .5, .26 + .08 * c)); }   // 먼 구역용 가벼운 잎 덩어리
         const cx = x, cy = 3.3 * s, cz = z, RX = 2.0 * s, RY = 1.62 * s, tips = [];
         const clampIn = v => { const ex = (v.x - cx) / RX, ey = (v.y - cy) / RY, ez = (v.z - cz) / RX, e = Math.hypot(ex, ey, ez); if (e > 1) v.set(cx + (v.x - cx) / e, cy + (v.y - cy) / e, cz + (v.z - cz) / e); return v; };
         const N = 6 + ((rr() * 3) | 0);
@@ -1138,7 +1174,7 @@ transformed.z += cos(uT * 1.5 + swP * 1.3) * ${amp * .8} * position.y;
           const lead = j >= N;   // 마지막 2개는 위로 곧게 뻗는 중심 가지
           const a = (j + rr() * .6) / N * 6.2832, e = lead ? 1.15 + rr() * .25 : .45 + rr() * .5, ys = (lead ? 2.4 : 1.7 + rr() * .9) * s, ce = Math.cos(e);
           const dx = Math.cos(a) * ce, dy = Math.sin(e), dz = Math.sin(a) * ce, Lb = (lead ? 1.7 : 1.5 + rr() * .7) * s;
-          brM.push(mat4(x, ys, z, dx, dy, dz, (lead ? 2.4 : 2.5) * s, Lb, (lead ? 2.4 : 2.5) * s, UP));
+          cell.brM.push(mat4(x, ys, z, dx, dy, dz, (lead ? 2.4 : 2.5) * s, Lb, (lead ? 2.4 : 2.5) * s, UP));
           tips.push(clampIn(new THREE.Vector3(x + dx * Lb, ys + dy * Lb, z + dz * Lb)));
           if (lead) continue;
           for (let m = 0; m < 4; m++){
@@ -1146,11 +1182,11 @@ transformed.z += cos(uT * 1.5 + swP * 1.3) * ${amp * .8} * position.y;
             const sd = rr() < .5 ? -1 : 1, sp = .55 + rr() * .7;
             let ex = dx - dz * sd * sp, ey = dy + .25 + rr() * .45, ez = dz + dx * sd * sp; const el = Math.hypot(ex, ey, ez); ex /= el; ey /= el; ez /= el;
             const Ls = (.55 + rr() * .55) * s * (1.1 - t * .5);
-            brM.push(mat4(sx, sy, sz, ex, ey, ez, 1.1 * s, Ls, 1.1 * s, UP));
+            cell.brM.push(mat4(sx, sy, sz, ex, ey, ez, 1.1 * s, Ls, 1.1 * s, UP));
             tips.push(clampIn(new THREE.Vector3(sx + ex * Ls, sy + ey * Ls, sz + ez * Ls)));
           }
         }
-        const LN = 1400, sp = .7 * s, V = new THREE.Vector3(), rv = new THREE.Vector3();
+        const LN = opt ? 800 : 1400, sp = .7 * s, V = new THREE.Vector3(), rv = new THREE.Vector3();
         for (let i = 0; i < LN; i++){
           if (rr() < .62){ const T = tips[(rr() * tips.length) | 0]; V.set(T.x + (rr() + rr() + rr() - 1.5) * sp, T.y + (rr() + rr() + rr() - 1.5) * sp * .8, T.z + (rr() + rr() + rr() - 1.5) * sp); }
           else {
@@ -1160,23 +1196,32 @@ transformed.z += cos(uT * 1.5 + swP * 1.3) * ${amp * .8} * position.y;
           clampIn(V);
           let ox = (V.x - cx) / RX, oy = (V.y - cy) / RY, oz = (V.z - cz) / RX; const ol = Math.hypot(ox, oy, oz) || 1; ox /= ol; oy /= ol; oz /= ol;
           const dx = ox * .7 + (rr() - .5) * 1.8, dy = oy * .7 + (rr() - .5) * 1.8 - .15, dz = oz * .7 + (rr() - .5) * 1.8, len = (.34 + .16 * rr()) * s;
-          lfM.push(mat4(V.x, V.y, V.z, dx, dy, dz, len * .95, len, len, rv.set(rr() - .5, rr() - .5, rr() - .5)));
-          lfC.push(col().setHSL(.20 + .07 * rr() + .02 * c, .55, .22 + .16 * rr() + (V.y > cy ? .04 : 0)));
+          cell.lfM.push(mat4(V.x, V.y, V.z, dx, dy, dz, len * .95, len, len, rv.set(rr() - .5, rr() - .5, rr() - .5)));
+          cell.lfC.push(col().setHSL(.20 + .07 * rr() + .02 * c, .55, .22 + .16 * rr() + (V.y > cy ? .04 : 0)));
         }
       },
       finish(){
         const mk = (geo, mat, arr, cols, dmat) => {
-          if (!arr.length) return;
+          if (!arr.length) return null;
           const m = new THREE.InstancedMesh(geo, mat, arr.length);
           for (let i = 0; i < arr.length; i++){ m.setMatrixAt(i, arr[i]); if (cols) m.setColorAt(i, cols[i]); }
           m.castShadow = m.receiveShadow = true; m.frustumCulled = false; if (dmat) m.customDepthMaterial = dmat;
-          scene.add(m);   // 총알 충돌 목록(worldMeshes)에는 넣지 않아요: 잎·가지는 총알이 통과, 기둥과 속 덩어리는 그대로 막음
+          scene.add(m);   // 총알 충돌 목록(worldMeshes)에는 넣지 않아요: 잎·가지는 총알이 통과, 기둥은 그대로 막음
+          return m;
         };
-        mk(brG, trunkMat(), brM); mk(frG, frMat, frM, frC, frDepth); mk(lfG, lfMat, lfM, lfC, lfDepth);
+        cells.forEach(c => {
+          const near = [mk(brG, barkMat, c.brM), mk(frG, frMat, c.frM, c.frC, frDepth), mk(lfG, lfMat, c.lfM, c.lfC, lfDepth)].filter(Boolean);
+          if (!opt) return;
+          const far = [mk(coneG, leafMat, c.cnM, c.cnC), mk(blobs.geometry, leafMat, c.blM, c.blC)].filter(Boolean);
+          let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9, ms = 1; c.pts.forEach(t => { x0 = Math.min(x0, t[0]); x1 = Math.max(x1, t[0]); z0 = Math.min(z0, t[1]); z1 = Math.max(z1, t[1]); ms = Math.max(ms, t[2]); });
+          const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2; let hr = 0; c.pts.forEach(t => { hr = Math.max(hr, Math.hypot(t[0] - cx, t[1] - cz)); });
+          ultraCells.push({ near, far, x: cx, y: 4 * ms, z: cz, r: Math.hypot(hr + 2.3 * ms, 6.5 * ms) });   // 구역을 감싸는 공 (나무 키·잎 폭 포함)
+          far.forEach(m => m.visible = false);
+        });
       }
     };
   };
-  const U1 = ultraQ ? ultra() : null;
+  const U1 = ultraQ ? ultra(ultraOptQ) : null;
   if (U1){ cones.forEach(m => m.count = 0); blobs.count = 0; }   // 초고퀄리티: 잎 덩어리·원뿔은 아예 안 그려요 (가지·잎·솔가지만)
   let pi = 0, oi = 0;
   spots.forEach((p, i) => {
@@ -1437,7 +1482,7 @@ ${optQ ? 'transformed *= 1. - smoothstep(38., 58., length(instanceMatrix[3].xz -
     });
     const tr = mkInst(trunkG, sp.length, trunkMat());
     const cn = [0, 1, 2].map(() => mkInst(coneG, sp.length, leafMat));
-    const U2 = ultraQ ? ultra() : null;
+    const U2 = ultraQ ? ultra(ultraOptQ) : null;
     if (U2) cn.forEach(m => m.count = 0);
     sp.forEach((p, i) => {
       put(tr, i, p.x, p.y - .15, p.z, p.s, 2.4 * p.s, p.s);
@@ -1575,6 +1620,7 @@ function renderFrame(){
   { const rv = rayFx.on; for (let i = 0; i < rayFx.obj.length; i++) rayFx.obj[i].visible = rv; }
   sky.position.copy(camera.position);                    // [1단계] 하늘은 항상 카메라를 따라다님
   updateSunGlow();
+  if (ultraOptQ) ultraCull();   // [초고퀄리티 최적화] 화면 밖·그림자 범위 밖 나무 구역은 이번 프레임에 안 그림
   if (reflFx && camera.position.y > WATER_Y + .05){      // 호수가 화면에 보일 때만 반사를 그림
     camera.updateMatrixWorld();
     _fr.setFromProjectionMatrix(_fm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
