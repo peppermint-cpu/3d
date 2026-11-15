@@ -457,23 +457,44 @@ scene.add(new THREE.HemisphereLight(0xb7c6dc, 0x7a6a4a, 0.66)); // [광원] 하�
 const sun = new THREE.DirectionalLight(0xffe3b8, 1.75);        // [광원] 낮은 해(33°)에 맞춘 약간 따뜻한 햇빛
 const SHADOW_RES = hiQ ? (optQ ? 2048 : ultraQ ? 4096 : 3072) : 1024, SHADOW_R = hiQ ? (optQ ? 42 : 50) : 30;   // [그림자] 모바일은 범위를 줄여 더 또렷하고 가볍게
 const SUN_DIR = new THREE.Vector3(0.760, 0.454, 0.466).normalize(); // 해 높이 약 27° (오후의 따뜻한 빛) (y를 줄이면 그림자가 길어지고 노을빛에 가까워져요)
-/* [초고퀄리티 최적화] 보이지 않는 나무는 아예 안 그려요
+/* [초고퀄리티 최적화] 보이지 않는 나무는 아예 안 그리고, 멀어질수록 잎이 서서히 덩어리로 바뀌어요
    - 나무를 20칸짜리 구역으로 나눠, 시야(화면)에 안 걸리는 구역은 가지·잎·그림자 전부 생략
-   - 해 그림자가 화면 안으로 길게 드리울 수 있어서, 해 반대 방향으로 9칸 넓힌 범위까지는 남겨둬요 (그림자가 갑자기 사라지지 않게)
-   - 가까운 구역(34칸 안)만 가지·낱장 잎·솔가지, 먼 구역은 가벼운 덩어리로 (안개에 가려 티가 거의 안 나요)
-   - 그림자 범위 밖 구역은 그림자도 안 만들어요 */
-const ULTRA_NEAR = 34, _ucFr = new THREE.Frustum(), _ucPm = new THREE.Matrix4(), _ucMi = new THREE.Matrix4(), _ucSp = new THREE.Sphere();
+     (해 그림자가 화면 안으로 길게 드리울 수 있어서, 해 반대 방향으로 9칸 넓힌 범위까지는 남겨둬요)
+   - 거리 22~38칸 사이에서는 '디더링 페이드'로 잎이 조금씩 성기게 사라지고, 그 빈자리를 덩어리가 같은 비율로 채워요
+     (잎이 비는 픽셀 = 덩어리가 나타나는 픽셀이라 틈도 겹침도 없고, 딱 끊기지 않고 서서히 바뀌어요)
+   - 페이드가 끝난 구역은 아예 그리지 않아요: 38칸 밖은 잎을, 22칸 안은 덩어리를 통째로 생략
+   - 그림자는 범위 밖 구역은 안 만들고, 잎 그림자와 덩어리 그림자는 30칸에서 바뀌어요 */
+const ultraU = { uCam: { value: new THREE.Vector3() }, uFade: { value: new THREE.Vector3(22, 38, 30) } };   // x=페이드 시작, y=끝, z=그림자 전환 거리
+const ultraFade = (sh, near, hard) => {   // 가까운 쪽(near)은 멀수록 성기게, 먼 쪽(덩어리)은 가까울수록 성기게. hard=그림자용(부드러운 페이드 없이 한 거리에서 교체)
+  sh.uniforms.uCam = ultraU.uCam; sh.uniforms.uFade = ultraU.uFade;
+  sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vFW;')
+    .replace('#include <project_vertex>', `vec4 fw4 = vec4(transformed, 1.);
+#ifdef USE_INSTANCING
+fw4 = instanceMatrix * fw4;
+#endif
+vFW = (modelMatrix * fw4).xyz;
+#include <project_vertex>`);
+  sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vFW;\nuniform vec3 uCam;\nuniform vec3 uFade;')
+    .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+float fdD = length(vFW - uCam);
+${hard ? (near ? 'if (fdD > uFade.z) discard;' : 'if (fdD <= uFade.z) discard;')
+ : `float fdK = smoothstep(uFade.x, uFade.y, fdD), fdT = fract(52.9829 * fract(dot(gl_FragCoord.xy, vec2(.06711, .00584))));
+${near ? 'if (fdT < fdK) discard;' : 'if (fdT >= fdK) discard;'}`}`);
+};
+const _ucFr = new THREE.Frustum(), _ucPm = new THREE.Matrix4(), _ucMi = new THREE.Matrix4(), _ucSp = new THREE.Sphere();
 function ultraCull(){
   if (!ultraCells.length) return;
   camera.updateMatrixWorld();
   _ucPm.multiplyMatrices(camera.projectionMatrix, _ucMi.copy(camera.matrixWorld).invert()); _ucFr.setFromProjectionMatrix(_ucPm);
-  const e = camera.matrixWorld.elements, cx = e[12], cz = e[14], sx = -SUN_DIR.x / (Math.hypot(SUN_DIR.x, SUN_DIR.z) || 1), sz = -SUN_DIR.z / (Math.hypot(SUN_DIR.x, SUN_DIR.z) || 1);
+  const e = camera.matrixWorld.elements, cx = e[12], cz = e[14], hh = Math.hypot(SUN_DIR.x, SUN_DIR.z) || 1, sx = -SUN_DIR.x / hh, sz = -SUN_DIR.z / hh, F = ultraU.uFade.value;
+  ultraU.uCam.value.set(cx, e[13], cz);
   for (let i = 0; i < ultraCells.length; i++){
     const c = ultraCells[i], d = Math.hypot(c.x - cx, c.z - cz);
     _ucSp.center.set(c.x + sx * 9, c.y, c.z + sz * 9); _ucSp.radius = c.r + 9;
-    const inV = _ucFr.intersectsSphere(_ucSp), near = d - c.r * .5 < ULTRA_NEAR, sh = d - c.r < SHADOW_R + 6;
-    for (let k = 0; k < c.near.length; k++){ const m = c.near[k]; m.visible = inV && near; m.castShadow = sh; }
-    for (let k = 0; k < c.far.length; k++){ const m = c.far[k]; m.visible = inV && !near; m.castShadow = sh; }
+    const inV = _ucFr.intersectsSphere(_ucSp), shR = d - c.r < SHADOW_R + 6;
+    const nearV = inV && d - c.r < F.y, farV = inV && d + c.r > F.x;   // 페이드 구간 밖이면 통째로 생략
+    for (let k = 0; k < c.near.length; k++){ const m = c.near[k]; m.visible = nearV; m.castShadow = shR && d - c.r < F.z; }
+    for (let k = 0; k < c.far.length; k++){ const m = c.far[k]; m.visible = farV; m.castShadow = shR && d + c.r > F.z; }
   }
 }
 
@@ -785,7 +806,7 @@ const trunkMat = () => detQ ? new THREE.MeshLambertMaterial({ color: new THREE.C
 
 /* ---- 나무 기둥: 12→16각 + 세로 10단, 뿌리가 땅을 움켜쥐듯 넓어지고 결이 울퉁불퉁 ---- */
 function detTrunkGeo(){
-  const g = new THREE.CylinderGeometry(.2, .32, 1, 16, 10, false), p = g.attributes.position;
+  const g = new THREE.CylinderGeometry(.2, .32, 1, ultraOptQ ? 10 : 16, ultraOptQ ? 6 : 10, false)   // 폰용은 기둥도 가볍게 (320→60면), p = g.attributes.position;
   for (let i = 0; i < p.count; i++){
     let x = p.getX(i), y = p.getY(i), z = p.getZ(i); const y01 = y + .5, rad = Math.hypot(x, z);
     if (rad > 1e-4){
@@ -1073,10 +1094,10 @@ float gN(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
       return M4.clone();
     };
     // 가지: 아래가 굵고 끝이 가는 5각 기둥
-    const brG = new THREE.CylinderGeometry(.012, .035, 1, 5, 1, false); brG.translate(0, .5, 0);
+    const brG = new THREE.CylinderGeometry(.012, .035, 1, opt ? 4 : 5, 1, false); brG.translate(0, .5, 0);
     // 솔가지 한 줄: 가운데 줄기에서 양옆으로 뻗은 솔잎 (4마디 × 3열, 가장자리·끝이 아래로 처짐)
     const frG = (() => {
-      const g = new THREE.BufferGeometry(), pos = [], uv = [], col = [], idx = [], rows = 4;
+      const g = new THREE.BufferGeometry(), pos = [], uv = [], col = [], idx = [], rows = opt ? 2 : 4;   // 폰: 마디 2개 (16→8면, 솔잎 무늬는 그림이라 티 거의 안 나요)
       for (let j = 0; j <= rows; j++){ const t = j / rows; for (let i = 0; i < 3; i++){
         const u = i / 2, x = u - .5, ed = Math.abs(x) * 2, ao = .72 + .28 * t;
         pos.push(x, t, -.15 * ed - .22 * t * t); uv.push(u, t); col.push(ao, ao, ao);
@@ -1087,7 +1108,14 @@ float gN(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
       return g;
     })();
     // 잎 한 장: 뾰족한 잎 모양 (가운데 잎맥이 살짝 솟고 끝이 아래로 휨, 8면)
-    const lfG = (() => {
+    const lfG = opt ? (() => {   // 폰용 잎: 8면 → 4면 (마름모꼴 + 가운데 잎맥)
+      const P = [[0, 0, 0], [-.26, .42, -.04], [0, .42, .04], [.26, .42, -.04], [0, 1, -.10]], C = [.60, .80, .75, .80, 1];
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(P.flat(), 3));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(C.flatMap(v => [v, v, v]), 3));
+      g.setIndex([0, 3, 2, 0, 2, 1, 1, 2, 4, 2, 3, 4]); g.computeVertexNormals();
+      return g;
+    })() : (() => {
       const P = [[0, 0, 0], [-.24, .30, -.04], [0, .30, .03], [.24, .30, -.04], [-.20, .64, -.07], [0, .64, .04], [.20, .64, -.07], [0, 1, -.10]];
       const C = [.60, .78, .72, .78, .92, .86, .92, 1];
       const g = new THREE.BufferGeometry();
@@ -1122,13 +1150,19 @@ transformed.z += cos(uT * 1.5 + swP * 1.3) * ${amp * .8} * position.y;
 #endif`);
     };
     const frMat = new THREE.MeshLambertMaterial({ map: frTex, vertexColors: true, alphaTest: .45, side: THREE.DoubleSide, color: new THREE.Color(1.5, 1.5, 1.5) });
-    frMat.onBeforeCompile = sh => { sway(.06)(sh); glowPatch(sh, .5, 'vec3(.85,1.,.42)'); }; frMat.customProgramCacheKey = () => 'ultraFrond';
+    frMat.onBeforeCompile = sh => { sway(.06)(sh); glowPatch(sh, .5, 'vec3(.85,1.,.42)'); if (opt) ultraFade(sh, true, false); }; frMat.customProgramCacheKey = () => 'ultraFrond' + (opt ? 'F' : '');
     const lfMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, color: new THREE.Color(1.35, 1.35, 1.35) });
-    lfMat.onBeforeCompile = sh => { sway(.16)(sh); glowPatch(sh, .6, 'vec3(.85,1.,.4)'); }; lfMat.customProgramCacheKey = () => 'ultraLeaf';
+    lfMat.onBeforeCompile = sh => { sway(.16)(sh); glowPatch(sh, .6, 'vec3(.85,1.,.4)'); if (opt) ultraFade(sh, true, false); }; lfMat.customProgramCacheKey = () => 'ultraLeaf' + (opt ? 'F' : '');
     const frDepth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: frTex, alphaTest: .45, side: THREE.DoubleSide });
-    frDepth.onBeforeCompile = sway(.06); frDepth.customProgramCacheKey = () => 'ultraFrondD';
+    frDepth.onBeforeCompile = sh => { sway(.06)(sh); if (opt) ultraFade(sh, true, true); }; frDepth.customProgramCacheKey = () => 'ultraFrondD' + (opt ? 'F' : '');
     const lfDepth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide });
-    lfDepth.onBeforeCompile = sway(.16); lfDepth.customProgramCacheKey = () => 'ultraLeafD';
+    lfDepth.onBeforeCompile = sh => { sway(.16)(sh); if (opt) ultraFade(sh, true, true); }; lfDepth.customProgramCacheKey = () => 'ultraLeafD' + (opt ? 'F' : '');
+    // 먼 구역용 덩어리 재질: 가까울수록 성기게 사라져서, 잎이 사라지는 자리를 서서히 채워요
+    let lumpMat = null, lumpDepth = null;
+    if (opt){
+      lumpMat = leafMat.clone(); lumpMat.onBeforeCompile = sh => { glowPatch(sh, .5, 'vec3(.85,1.,.42)'); ultraFade(sh, false, false); }; lumpMat.customProgramCacheKey = () => 'ultraLump';
+      lumpDepth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }); lumpDepth.onBeforeCompile = sh => ultraFade(sh, false, true); lumpDepth.customProgramCacheKey = () => 'ultraLumpD';
+    }
     const col = () => new THREE.Color(), barkMat = trunkMat();
     // 구역(칸): 폰용(opt)은 20칸 단위로 나눠 구역마다 따로 그려요. 일반 초고퀄리티는 한 덩어리 그대로
     const cells = new Map(), CELL = 20; let cell = null;
@@ -1205,18 +1239,17 @@ transformed.z += cos(uT * 1.5 + swP * 1.3) * ${amp * .8} * position.y;
           if (!arr.length) return null;
           const m = new THREE.InstancedMesh(geo, mat, arr.length);
           for (let i = 0; i < arr.length; i++){ m.setMatrixAt(i, arr[i]); if (cols) m.setColorAt(i, cols[i]); }
-          m.castShadow = m.receiveShadow = true; m.frustumCulled = false; if (dmat) m.customDepthMaterial = dmat;
+          m.castShadow = m.receiveShadow = true; m.frustumCulled = false; if (dmat) m.customDepthMaterial = dmat; if (opt && geo === brG) m.receiveShadow = false;
           scene.add(m);   // 총알 충돌 목록(worldMeshes)에는 넣지 않아요: 잎·가지는 총알이 통과, 기둥은 그대로 막음
           return m;
         };
         cells.forEach(c => {
           const near = [mk(brG, barkMat, c.brM), mk(frG, frMat, c.frM, c.frC, frDepth), mk(lfG, lfMat, c.lfM, c.lfC, lfDepth)].filter(Boolean);
           if (!opt) return;
-          const far = [mk(coneG, leafMat, c.cnM, c.cnC), mk(blobs.geometry, leafMat, c.blM, c.blC)].filter(Boolean);
+          const far = [mk(coneG, lumpMat, c.cnM, c.cnC, lumpDepth), mk(blobs.geometry, lumpMat, c.blM, c.blC, lumpDepth)].filter(Boolean);
           let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9, ms = 1; c.pts.forEach(t => { x0 = Math.min(x0, t[0]); x1 = Math.max(x1, t[0]); z0 = Math.min(z0, t[1]); z1 = Math.max(z1, t[1]); ms = Math.max(ms, t[2]); });
           const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2; let hr = 0; c.pts.forEach(t => { hr = Math.max(hr, Math.hypot(t[0] - cx, t[1] - cz)); });
           ultraCells.push({ near, far, x: cx, y: 4 * ms, z: cz, r: Math.hypot(hr + 2.3 * ms, 6.5 * ms) });   // 구역을 감싸는 공 (나무 키·잎 폭 포함)
-          far.forEach(m => m.visible = false);
         });
       }
     };
