@@ -587,8 +587,9 @@ const MZU = { p: { value: new THREE.Vector3() }, d: { value: new THREE.Vector3(0
 if (uMzI > .002){
   vec3 mzR = vec3(dot(viewMatrix[0].xyz, vFogV), dot(viewMatrix[1].xyz, vFogV), dot(viewMatrix[2].xyz, vFogV));
   vec3 mzV = cameraPosition + mzR - uMzP; float mzL = length(mzV) + .001;
-  float mzC = smoothstep(.62, .92, dot(mzV / mzL, uMzD));
-  float mzA = min(uMzI * mzC / (1. + mzL * mzL * .25), 1.7) * (1. - smoothstep(6., 13., mzL));   // 총구 바로 앞(약 10m 안)만 밝아지고, 먼 곳은 밝아지지 않아요
+  float mzK = dot(mzV / mzL, uMzD);
+  float mzC = mix(smoothstep(-.35, .55, mzK), smoothstep(.62, .92, mzK), smoothstep(1.2, 4.5, mzL));   // 총구 바로 근처는 사방으로 넓게, 멀어질수록 앞쪽 원뿔로 좁아져요
+  float mzA = min(uMzI * mzC / (1. + mzL * mzL * .25) * (1. + 1.6 * (1. - smoothstep(.0, 2.2, mzL))), 2.4) * (1. - smoothstep(6., 13., mzL));   // 총구 바로 앞(약 10m 안)만 밝아지고, 먼 곳은 밝아지지 않아요
   reflectedLight.indirectDiffuse += (diffuseColor.rgb * 1.7 + vec3(.03, .018, .008)) * vec3(1., .68, .36) * mzA;
 }
 #endif
@@ -698,16 +699,16 @@ gunSun.position.copy(SUN_DIR); gunScene.add(gunSun, gunSun.target);
 const gunFill = new THREE.DirectionalLight(0xc4b090, 0.12);
 gunFill.position.set(-0.62, 0.35, -0.38); gunScene.add(gunFill);
 /* 총구 화염 조명: 쏠 때마다 총구 앞이 순간적으로 환해져요 (어두운 곳일수록 확 티나요). 광원 개수는 늘 같게 유지해서 셰이더가 다시 컴파일되지 않아요 */
-const mzGun = new THREE.PointLight(0xffb066, 0, 1.6, 1.6);   // 내 총 앞부분만 비추는 작은 불빛 (월드 쪽 불빛은 위의 MZU 가 안개 단계에서 처리해요)
+const mzGun = new THREE.PointLight(0xffb066, 0, 2.6, 1.4);   // 내 총 앞부분만 비추는 작은 불빛 (월드 쪽 불빛은 위의 MZU 가 안개 단계에서 처리해요)
 gunScene.add(mzGun);
 let mzI = 0, mzGI = 0, mzT = 0;
 const _mzD = new THREE.Vector3();
 function muzzleLight(pos, k, mine, dir){
   if (dir) _mzD.copy(dir); else _mzD.set(0, 0, -1).applyQuaternion(camera.quaternion);
   _mzD.normalize(); const nI = 6 * k * (ZLOOK ? 1 : .4);
-  if (nI >= mzI * .9){ MZU.p.value.copy(pos).addScaledVector(_mzD, .3); MZU.d.value.copy(_mzD); }   // 더 센 불빛이 우선
+  if (nI >= mzI * .9){ MZU.p.value.copy(pos).addScaledVector(_mzD, .05); MZU.d.value.copy(_mzD); }   // 더 센 불빛이 우선
   mzI = Math.max(mzI, nI);
-  if (mine){ mzGun.position.copy(pos).addScaledVector(_mzD, .1); mzGI = Math.max(mzGI, 2.2 * k); }
+  if (mine){ mzGun.position.copy(pos).addScaledVector(_mzD, .1); mzGI = Math.max(mzGI, 4.2 * k); }
 }
 function muzzleLightUpd(){
   const t = performance.now() / 1000, dt = Math.min(.1, t - mzT); mzT = t;
@@ -2104,6 +2105,15 @@ function buildGun(i){
   }
   const mf = new THREE.Mesh(new THREE.BoxGeometry(.13,.13,.05), new THREE.MeshBasicMaterial({ color: 0xffd27a, depthTest: false, transparent: true, opacity: .9 }));
   mf.position.set(0,.015,spec.tip - .04); mf.renderOrder = 1000; mf.visible = false;
+  {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 128; const c = cv.getContext('2d');
+    const gr = c.createRadialGradient(64,64,0,64,64,64); gr.addColorStop(0,'rgba(255,250,220,1)'); gr.addColorStop(.18,'rgba(255,214,120,.95)'); gr.addColorStop(.5,'rgba(255,140,40,.35)'); gr.addColorStop(1,'rgba(255,90,10,0)');
+    c.fillStyle = gr; c.fillRect(0,0,128,128);
+    c.translate(64,64); c.fillStyle = 'rgba(255,230,160,.9)';
+    for (let k = 0; k < 6; k++){ c.rotate(Math.PI / 3 + (k * 0.37)); c.beginPath(); c.moveTo(0,-3); c.lineTo(60,0); c.lineTo(0,3); c.closePath(); c.fill(); }
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, transparent: true }));
+    sp.scale.set(.5,.5,1); sp.renderOrder = 1001; sp.position.set(0,0,-.03); mf.add(sp); mf.userData.sp = sp;
+  }
   g.add(mf); g.userData.flash = mf;
   const tipObj = new THREE.Object3D(); tipObj.position.set(0,.015,spec.tip); g.add(tipObj); g.userData.tip = tipObj;
   if (WEAPONS[i].id === 'chainsaw'){   // 돌아가는 체인: 바 위·아래 가장자리를 따라 톱니가 움직여요
@@ -2321,16 +2331,36 @@ function sawAudio(on, rev, grind){
     lfo2.connect(ld2); ld2.connect(o1.frequency);       // 회전수가 미세하게 흔들림
     ns.connect(bp); bp.connect(hp); hp.connect(ng); ng.connect(mg); lfo.connect(nd); nd.connect(ng.gain);   // 체인 소리 (박자에 맞춰 같이 맥동)
     mg.connect(ac.destination); o1.start(); o2.start(); lfo.start(); lfo2.start(); ns.start();
-    A.n = { o1, o2, lfo, lfo2, ns, bp, ng, eg, mg, lp, ld }; A.rev = 1;   // 시동 걸릴 때 한 번 확 올라가요
+    A.n = { o1, o2, lfo, lfo2, ns, bp, ng, eg, mg, lp, ld, g1, g2 }; A.rev = 1; A.fl = 0;   // 시동 걸릴 때 한 번 확 올라가요
   }
   const n = A.n; A.rev += (rev - A.rev) * .12;
-  const rv = A.rev, load = grind ? 1 : 0, f = 50 + rv * 78 - load * 18 + (grind ? (Math.random() - .5) * 8 : 0);
-  n.o1.frequency.setTargetAtTime(f, t, .05); n.o2.frequency.setTargetAtTime(f * .5, t, .05);
-  n.lfo.frequency.setTargetAtTime(13 + rv * 30 - load * 5, t, .05);
-  n.lp.frequency.setTargetAtTime(900 + rv * 1700, t, .06);
-  n.bp.frequency.setTargetAtTime(1700 + rv * 1500 + (grind ? 500 : 0), t, .05);
-  n.ng.gain.setTargetAtTime(.05 + rv * .13 + load * .12, t, .05);
-  n.mg.gain.setTargetAtTime(.12 + rv * .16 + load * .04, t, .05);
+  const fl = grind >= 2 ? 1 : 0;   // 2 = 살을 갈고 있음 (소리가 훨씬 거칠고 크고 낮아져요)
+  A.fl += (fl - A.fl) * (fl ? .5 : .18);
+  const F = A.fl, rv = A.rev, load = (grind ? 1 : 0) + F * 1.4, f = 50 + rv * 78 - load * 17 + (grind ? (Math.random() - .5) * (8 + F * 26) : 0);
+  n.o1.frequency.setTargetAtTime(f, t, .04); n.o2.frequency.setTargetAtTime(f * (.5 - F * .12), t, .04);
+  n.lfo.frequency.setTargetAtTime(13 + rv * 30 - load * 5.5 + F * (Math.random() * 14), t, .04);
+  n.lp.frequency.setTargetAtTime(900 + rv * 1700 + F * 1800, t, .05);
+  n.bp.frequency.setTargetAtTime(1700 + rv * 1500 + (grind ? 500 : 0) - F * 800 + F * Math.random() * 900, t, .04);
+  n.ng.gain.setTargetAtTime(.05 + rv * .13 + load * .12 + F * .22, t, .04);
+  n.g1.gain.setTargetAtTime(.55 + F * .5, t, .04); n.g2.gain.setTargetAtTime(.35 + F * .4, t, .04);
+  n.mg.gain.setTargetAtTime(.12 + rv * .16 + load * .04 + F * .26, t, .04);
+}
+function playMeat(k){   // 살과 뼈가 갈리는 소리: 젖은 잡음 덩어리 + 뼈 부러지는 '뚝' + 낮은 둔탁음
+  if (!ac) return;
+  const t = ac.currentTime, v = k || 1;
+  const src = ac.createBufferSource(), bp = ac.createBiquadFilter(), g = ac.createGain();
+  src.buffer = noiseBuf; bp.type = 'bandpass'; bp.Q.value = 1.1; bp.frequency.setValueAtTime(900 + Math.random() * 700, t); bp.frequency.exponentialRampToValueAtTime(260, t + .16);
+  g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(.34 * v, t + .012); g.gain.exponentialRampToValueAtTime(.001, t + .17);
+  src.connect(bp); bp.connect(g); g.connect(ac.destination); src.start(t, Math.random() * .3); src.stop(t + .18);
+  const o = ac.createOscillator(), og = ac.createGain();
+  o.type = 'square'; o.frequency.setValueAtTime(190 + Math.random() * 80, t); o.frequency.exponentialRampToValueAtTime(45, t + .09);
+  og.gain.setValueAtTime(.2 * v, t); og.gain.exponentialRampToValueAtTime(.001, t + .1);
+  o.connect(og); og.connect(ac.destination); o.start(t); o.stop(t + .11);
+  if (v > 1.2){   // 뼈가 확 부서질 때
+    const c = ac.createBufferSource(), hp = ac.createBiquadFilter(), cg = ac.createGain();
+    c.buffer = noiseBuf; hp.type = 'highpass'; hp.frequency.value = 2600; cg.gain.setValueAtTime(.4, t); cg.gain.exponentialRampToValueAtTime(.001, t + .05);
+    c.connect(hp); hp.connect(cg); cg.connect(ac.destination); c.start(t); c.stop(t + .06);
+  }
 }
 function playZip(dur){   // 시동 줄이 풀려 나가는 '드르르륵' 소리
   if (!ac) return;
@@ -3284,11 +3314,12 @@ function meleeStrike(w){   // 칼날이 지나가는 순간
     if (hv) { smokePuff(r.wall.clone(), .6, 2.8, 1, 0x8a7a68, .6, new THREE.Vector3(0, .6, 0)); playThud(.4, 80, .3); }
   }
 }
+let sawFlesh = 0;   // 살을 가는 중이면 잠깐 남아서 소리가 뚝뚝 끊기지 않아요
 function sawTick(w){   // 전기톱: 꾹 누르는 동안 짧은 간격으로 계속 갈아요
   lastShot = now();
   const r = meleeCast(w, [[0, 0], [-.35, 0], [.35, 0], [0, -.2], [-.2, .15]], 3, 7);
-  sawHit = r.hit ? .12 : r.wall ? .08 : 0;
-  if (r.hit){ camShake = Math.max(camShake, .16); const o = camera.getWorldPosition(new THREE.Vector3()), d = new THREE.Vector3(0, -.1, -1).applyQuaternion(camera.quaternion); spawnBlood(o.addScaledVector(d, 1.5), 4, 5, d); }
+  sawHit = r.hit ? .12 : r.wall ? .08 : 0; sawFlesh = r.hit ? .14 : sawFlesh;
+  if (r.hit){ playMeat(1); camShake = Math.max(camShake, .16); const o = camera.getWorldPosition(new THREE.Vector3()), d = new THREE.Vector3(0, -.1, -1).applyQuaternion(camera.quaternion); spawnBlood(o.addScaledVector(d, 1.5), 4, 5, d); }
   else if (r.wall){ impact(r.wall); camShake = Math.max(camShake, .1); }
 }
 /* 1인칭 모델 동작: 위치 오프셋(px,py,pz)과 회전 오프셋(rx,ry,rz)을 매 프레임 계산 */
@@ -3318,7 +3349,7 @@ function meleePose(dt, w){
     MP[0] += (Math.random() - .5) * .006 * k + Math.sin(tt * 61) * .002 * k; MP[1] += (Math.random() - .5) * .006 * k; MP[2] += on ? -.07 : 0;
     MP[3] += (Math.random() - .5) * .014 * k - (on ? .06 : 0); MP[4] += (Math.random() - .5) * .014 * k + (on ? .08 * Math.sin(tt * 3) : 0); MP[5] += (Math.random() - .5) * .02 * k;
     if (sawHit > 0){ sawHit -= dt; MP[0] += (Math.random() - .5) * .012; MP[1] += (Math.random() - .5) * .012; }
-    sawAudio(!!(ac && locked && !player.dead && sawIg.run), on ? 1 : 0, sawHit > 0);   // 엔진 소리 (공회전 ↔ 풀 가동 ↔ 자르는 중)
+    sawFlesh = Math.max(0, sawFlesh - dt); sawAudio(!!(ac && locked && !player.dead && sawIg.run), on ? 1 : 0, sawFlesh > 0 ? 2 : sawHit > 0 ? 1 : 0);   // 엔진 소리 (공회전 ↔ 풀 가동 ↔ 자르는 중)
     const ch = gunGroup.userData.chain;   // 체인: 위쪽은 앞으로, 아래쪽은 뒤로 돌아요
     if (ch){ sawPh = (sawPh + dt * (on ? 9 : sawIg.run ? 2.2 : 0)) % 1; const L = ch.L, sp = ch.sp; ch.top.forEach((m, i) => { m.position.z = ch.z0 - (((i * sp + sawPh * sp * 2) % L)); }); ch.bot.forEach((m, i) => { m.position.z = ch.z0 - L + (((i * sp + sawPh * sp * 2) % L)); }); }
     return;
@@ -3604,7 +3635,7 @@ function fire(){
   tracer(muzzle, firstEnd, 0xffe9a0);
   playShot(cur, 0.7 * attMul(cur, 'snd'));
   gunGroup.userData.flash.visible = true;
-  setTimeout(() => { if (gunGroup) gunGroup.userData.flash.visible = false; }, 45);
+  { const fl = gunGroup.userData.flash; if (fl.userData.sp) fl.userData.sp.material.rotation = Math.random() * 6.28; } setTimeout(() => { if (gunGroup) gunGroup.userData.flash.visible = false; }, 65);
   muzzleLight(muzzle, clamp(attMul(cur, 'flash'), .15, 1.2) * (WEAPONS[cur].id === 'awm' || WEAPONS[cur].id === 's12k' ? 1.5 : 1), true);
   if (anyHit) hitMarker(anyHead);
   for (const id in agg){
@@ -6259,12 +6290,14 @@ function zDamage(id, d, by, w, head, part){
   if (z.hp > 0 && !T0.boss && goreFx && part){   // 살아 있는 채로 잘려요: 팔·다리·머리·몸통이 잘려도 좀비는 계속 움직여요
     const wd = WEAPONS[w], wid = wd ? wd.id : '', bl = wid === 'katana' || wid === 'axe' || wid === 'chainsaw', hv = wid === 's12k' || wid === 'awm' || wid === 'm870' || wid === 'kar98k';
     z.ld = z.ld || {}; let cut = 0;
+    const tough = 1 + ((id * 2654435761) >>> 0) % 100 / 100 * .9;   // 좀비마다 질긴 정도가 달라요 (1.0 ~ 1.9배)
+    const cm = wid === 'chainsaw' ? 1.5 : bl ? 1.8 : hv ? 1.5 : 1;
     if (LIMB_BITS[part] && part !== 'head' && !(z.sm & LIMB_BITS[part])){
-      const thr = part[0] === 'a' ? Math.max(30, z.mhp * .18) : Math.max(40, z.mhp * .22);
-      z.ld[part] = (z.ld[part] || 0) + d * (bl ? 4 : hv ? 2.2 : 1);
+      const thr = (part[0] === 'a' ? Math.max(90, z.mhp * .7) : Math.max(120, z.mhp * .85)) * tough;
+      z.ld[part] = (z.ld[part] || 0) + d * cm;
       if (z.ld[part] >= thr) cut = LIMB_BITS[part];
-    } else if (part === 'head' && !(z.sm & 1) && (bl || hv)){ z.ld.head = (z.ld.head || 0) + d; if (z.ld.head >= z.mhp * .4) cut = 1; }
-    else if (part === 'torso' && bl && !(z.sm & 96)){ z.ld.torso = (z.ld.torso || 0) + d; if (z.ld.torso >= z.mhp * .45) cut = (((id * 7919) % 100) < 50) ? 64 : 32; }
+    } else if (part === 'head' && !(z.sm & 1) && (bl || hv)){ z.ld.head = (z.ld.head || 0) + d * (cm > 1 ? 1 : 0); if (z.ld.head >= z.mhp * .75 * tough) cut = 1; }
+    else if (part === 'torso' && bl && !(z.sm & 96)){ z.ld.torso = (z.ld.torso || 0) + d * (cm > 1 ? 1 : 0); if (z.ld.torso >= z.mhp * .7 * tough && ((id * 31) % 100) < 55) cut = (((id * 7919) % 100) < 50) ? 64 : 32; }
     if (cut){ zApplySm(z, cut, true); send('zdm', { id, b: cut }); }
   }
   if (z.hp <= 0){
@@ -6296,7 +6329,7 @@ function zSever(z, name, fx){
   zGibAdd(m, new THREE.Vector3((Math.random() - .5) * 5, 3 + Math.random() * 3, (Math.random() - .5) * 5), isHead ? .22 : isLeg ? .4 : .34);
   spawnBlood(T.wp, 34, 4.5); splat(T.wp.x + (Math.random() - .5), T.wp.z + (Math.random() - .5)); splat(T.wp.x, T.wp.z);
   const v = new THREE.Vector3(lp.x, cy, lp.z); spurts.push({ get: () => av.pivot.localToWorld(v.clone()), until: now() + 1.8, next: 0 });
-  beep(150, .12, .08);
+  beep(150, .12, .08); playMeat(1.5);
 }
 function zBisect(z, fx){   // 몸통 절단: 허리 위는 (살아 있으면 기어 오고, 죽었으면 쓰러지고) 하체는 따로 날아가요
   const av = z.av, pv = av.pivot; if (z.sev && z.sev.bis) return; (z.sev || (z.sev = {})).bis = 1; if (fx === undefined) fx = true;
@@ -6340,9 +6373,9 @@ function zApplySm(z, mask, fx){   // 비트: 1 머리 · 2/4 왼/오른팔 · 8/
 function zKillFx(z, id, w, head){
   const wd = WEAPONS[w], wid = wd ? wd.id : '', hr = ((id * 2654435761) >>> 0) / 4294967296, hr2 = ((id * 40503 + 977) % 1000) / 1000;
   const blade = wid === 'katana' || wid === 'axe' || wid === 'chainsaw', heavy = wid === 's12k' || wid === 'awm' || wid === 'm870' || wid === 'kar98k', expl = !!(wd && wd.rocket);
-  if (head && (hr < .5 || (wd && wd.melee) || heavy)) zSever(z, 'head', true);
-  else if (blade && hr < (wid === 'chainsaw' ? .85 : .55)) zBisect(z);
-  else if (blade || (heavy && hr < .55)) zSever(z, hr2 < .5 ? 'armL' : 'armR', true);
+  if (head && (hr < .3 || (wd && wd.melee && hr < .65) || (heavy && hr < .55))) zSever(z, 'head', true);
+  else if (blade && hr < (wid === 'chainsaw' ? .6 : .4)) zBisect(z);
+  else if ((blade && hr2 < .45) || (heavy && hr < .4)) zSever(z, hr2 < .5 ? 'armL' : 'armR', true);
   else if (expl){ zSever(z, 'armL', true); zSever(z, 'legR', true); if (hr < .5) zSever(z, 'head', true); }
 }
 function zShoot(id, d, head, part){
@@ -6621,6 +6654,7 @@ function loop(){
     // 재장전: 총을 기울이고 → 탄창 분리·낙하 → 새 탄창 장착
     const mg = gunGroup.userData.mag, mp = gunGroup.userData.mp, pr = reloading ? 1 - rp : 0;
     gunGroup.rotation.z = (reloading ? -Math.sin(Math.min(1, pr / 0.85) * Math.PI) * 0.45 : 0) + spr * .3 - swayX * 1.8 - lat * .006 * shake + Math.cos(bobT * .5) * bob * 2 + dw * .5;
+    if (!w.saw){ sawIg.idx = -1; if (sawA.n) sawAudio(false); }   // 전기톱을 내려놨다가 다시 들면 시동줄 당기기부터 다시 해요
     if (w.melee){
       meleePose(dt, w);
       mox = MP[0]; moy = MP[1]; moz = MP[2]; gp.x += mox; gp.y += moy; gp.z += moz;
