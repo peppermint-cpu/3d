@@ -146,12 +146,12 @@ body.touch #board{font-size:12px}
 #bCrouch{right:224px;bottom:132px;width:58px;height:58px;font-size:13px}
 
 /* ===== 라운드 ===== */
-#round{top:10px;left:50%;transform:translateX(-50%);text-align:center;text-shadow:0 1px 4px #000;display:none}
+#round{top:48px;left:50%;transform:translateX(-50%);text-align:center;text-shadow:0 1px 4px #000;display:none}
 #roundTime{display:inline-block;font-size:22px;font-weight:800;background:rgba(0,0,0,.5);padding:2px 14px;border-radius:8px;letter-spacing:1px}
 #roundTime.low{color:#f87171}
 #roundLead{font-size:12px;opacity:.9;margin-top:3px}
 #hqBar,#bossBar{left:50%;transform:translateX(-50%);width:min(340px,70vw);display:none;text-align:center;text-shadow:0 1px 3px #000;font-size:12px;font-weight:700}
-#hqBar{top:62px}#bossBar{top:100px}
+#hqBar{top:8px}#bossBar{top:104px}
 #hqBar .tr,#bossBar .tr{height:12px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:6px;overflow:hidden;margin-top:2px}
 #hqBar .fl,#bossBar .fl{height:100%;width:100%;transition:width .25s}
 #hqBar .fl{background:linear-gradient(#8be88b,#2f9e44)}
@@ -159,8 +159,8 @@ body.touch #board{font-size:12px}
 #hqBar.hit .fl{filter:brightness(1.9)}
 #hqBar.low .fl{background:linear-gradient(#ff9a8a,#d62828)}
 #hqBar.low #hqTxt{color:#ff9a8a}
-body.touch #hqBar{top:92px}body.touch #bossBar{top:130px}
-body.touch #round{top:40px}
+body.touch #hqBar{top:6px;width:min(260px,44vw)}body.touch #bossBar{top:94px}
+body.touch #round{top:38px}
 body.touch #roundTime{font-size:16px;padding:1px 10px}
 #roundBoard{top:50%;left:50%;z-index:12;width:min(440px,92vw);background:rgba(10,14,20,.93);border:1px solid rgba(250,204,21,.55);border-radius:14px;padding:16px 20px;text-align:center;opacity:0;transform:translate(-50%,-50%) scale(.9);transition:opacity .35s,transform .35s}
 #roundBoard.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
@@ -205,6 +205,7 @@ body.editing #touchui{display:block!important}
 body.editing #tlook,body.editing .tb,body.editing #joy,body.editing #bPause{pointer-events:none}
 body.editing .tb,body.editing #joy,body.editing #bPause{outline:2px dashed rgba(255,255,255,.55);outline-offset:2px}
 body.editing .sel{outline:3px solid #fde047!important}
+body.editing .tb,body.editing #joy{opacity:1!important}   /* 투명도를 0%로 해도 배치 편집할 땐 보여요 */
 
 /* ===== 코인 / 상점 ===== */
 #feed{top:56px}
@@ -223,6 +224,8 @@ body.touch #shopBtn small{display:none}
 .shophead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;font-size:18px}
 #shopCoin{color:#fde047;font-weight:800}
 #shopClose{width:36px;height:36px;border:0;border-radius:8px;background:rgba(255,255,255,.15);color:#fff;font-size:16px}
+.scat{font-weight:800;font-size:13px;margin:12px 0 6px;color:#facc15;border-bottom:1px solid rgba(255,255,255,.14);padding-bottom:4px}
+.scat:first-of-type{margin-top:4px}
 .si{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border-radius:10px;background:rgba(255,255,255,.06);margin-bottom:8px}
 .si .nm{font-weight:800}
 .si small{display:block;opacity:.7;font-size:12px;margin-top:2px}
@@ -360,7 +363,7 @@ background:radial-gradient(circle,rgba(255,244,220,.78) 0,rgba(255,228,188,.34) 
     <div class="set"><label><span>빛내림·먼지 (나무 사이 햇빛 기둥)</span><input type="checkbox" id="rayfx" checked style="width:auto;margin:0;padding:0"></label></div>
     <div class="set"><label><span>물 반사 (끄면 더 가벼워요)</span><input type="checkbox" id="reflfx" checked style="width:auto;margin:0;padding:0"></label></div>
     <div class="set touchset"><label><span>버튼 크기 (전체)</span><b id="uiGVal">100%</b></label><input type="range" id="uiG" min="0.6" max="1.6" step="0.05" value="1"></div>
-    <div class="set touchset"><label><span>버튼 투명도</span><b id="uiOVal">100%</b></label><input type="range" id="uiO" min="0.3" max="1" step="0.05" value="1"></div>
+    <div class="set touchset"><label><span>버튼 투명도 (0%면 안 보여도 눌려요)</span><b id="uiOVal">100%</b></label><input type="range" id="uiO" min="0" max="1" step="0.05" value="1"></div>
     <div class="set touchset"><label><span>자이로 조준 (폰을 돌려 조준)</span><input type="checkbox" id="gyro" style="width:auto;margin:0;padding:0"></label></div>
     <div class="set touchset"><label><span>자이로 감도</span><b id="gyroSVal">1.0</b></label><input type="range" id="gyroS" min="0.3" max="3" step="0.1" value="1"></div>
     <style>.mb.on{background:linear-gradient(90deg,#f59e0b,#ef4444)!important}</style>
@@ -578,6 +581,18 @@ const MZU = { p: { value: new THREE.Vector3() }, d: { value: new THREE.Vector3(0
 }
 {
   const SC = THREE.ShaderChunk;
+  /* 총구 불빛은 '빛이 닿는 곳은 그림자도 사라지게' 그림자와 상관없이 표면 색에 직접 더해요 (조명 계산이 끝나는 단계에 끼워 넣음) */
+  SC.aomap_fragment += `
+#ifdef USE_FOG
+if (uMzI > .002){
+  vec3 mzR = vec3(dot(viewMatrix[0].xyz, vFogV), dot(viewMatrix[1].xyz, vFogV), dot(viewMatrix[2].xyz, vFogV));
+  vec3 mzV = cameraPosition + mzR - uMzP; float mzL = length(mzV) + .001;
+  float mzC = smoothstep(.62, .92, dot(mzV / mzL, uMzD));
+  float mzA = min(uMzI * mzC / (1. + mzL * mzL * .018), 1.7);
+  reflectedLight.indirectDiffuse += (diffuseColor.rgb * 1.7 + vec3(.03, .018, .008)) * vec3(1., .68, .36) * mzA;
+}
+#endif
+`;
   SC.fog_pars_vertex = `#ifdef USE_FOG
 varying float vFogDepth;
 varying vec3 vFogV;
@@ -603,12 +618,6 @@ ${ATM_GLSL}
 {
   vec3 fgR = vec3(dot(viewMatrix[0].xyz, vFogV), dot(viewMatrix[1].xyz, vFogV), dot(viewMatrix[2].xyz, vFogV)); // 카메라→픽셀 (월드 방향)
   float fgL = max(length(vFogV), .001);
-  if (uMzI > .002){   // 총구 불빛 (총구 앞 원뿔 + 거리 감쇠)
-    vec3 mzV = cameraPosition + fgR - uMzP; float mzL = length(mzV) + .001;
-    float mzC = smoothstep(.62, .92, dot(mzV / mzL, uMzD));
-    float mzA = min(uMzI * mzC / (1. + mzL * mzL * .018), 1.7);
-    gl_FragColor.rgb += (gl_FragColor.rgb * 1.7 + vec3(.08, .045, .02)) * vec3(1., .68, .36) * mzA;
-  }
   float fgA = atmAmt(fgL, cameraPosition.y + fgR.y * .5);
   gl_FragColor.rgb = mix(gl_FragColor.rgb, atmHaze(dot(fgR / fgL, aSUN)), fgA);
 }
@@ -4307,6 +4316,17 @@ function renderBench(outer){
   const wrap = document.createElement('div'); wrap.className = 'bwrap'; wrap.append(left, box); outer.appendChild(wrap);
 }
 
+const WCAT = [   // 상점 무기 분류
+  ['assault', '🔫 돌격소총', ['akm', 'm416', 'scar', 'aug']],
+  ['smg', '⚡ 기관단총', ['mp5', 'vector']],
+  ['lmg', '🔥 기관총', ['m249']],
+  ['shotgun', '💥 샷건', ['s12k', 'm870']],
+  ['sniper', '🎯 저격·지정사수', ['awm', 'kar98k', 'sks']],
+  ['pistol', '🔰 권총', ['g18', 'deagle', 'magnum']],
+  ['melee', '🗡 근접', ['katana', 'knife', 'axe', 'hammer', 'chainsaw']],
+  ['heavy', '🚀 중화기', ['rpg']]
+];
+let shopCat = 'all';
 let shopTab = 0, shopSel = 0, chipSL = 0;   // chipSL: 무기 선택줄의 스크롤 위치 (다시 그려도 유지)
 function renderShop(){
   $('shopCoin').textContent = '🪙 ' + prof.coins.toLocaleString();
@@ -4318,7 +4338,7 @@ function renderShop(){
   if (shopTab === 2){ renderDef(box); return; }
   if (shopTab === 0){
     const nt = document.createElement('div'); nt.style.cssText = 'font-size:12px;opacity:.75;margin:0 0 8px'; nt.textContent = '장착 가능한 무기는 최대 3개 (1·2·3번 키). 가득 차면 지금 들고 있는 무기와 교체돼요'; box.appendChild(nt);
-    WEAPONS.forEach((w, i) => {
+    const addRow = (w, i) => {
       const own = isOwned(i), row = document.createElement('div'); row.className = 'si';
       const info = document.createElement('div');
       const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = w.name;
@@ -4329,7 +4349,18 @@ function renderShop(){
       if (own){ const inL = prof.lo.indexOf(w.id) !== -1; btn.textContent = i === cur ? '사용중' : inL ? '사용' : prof.lo.length < 3 ? '장착' : '교체'; btn.disabled = i === cur; btn.onclick = () => { equip(i); renderShop(); }; }
       else { btn.textContent = '🪙 ' + PRICE[w.id]; btn.disabled = prof.coins < PRICE[w.id]; btn.onclick = () => buyWeapon(i); }
       row.append(info, btn); box.appendChild(row);
+    };
+    const chips = document.createElement('div'); chips.className = 'wchips';   // 분류 선택줄
+    [['all', '전체']].concat(WCAT.map(c => [c[0], c[1]])).forEach(c => { const b = document.createElement('button'); b.textContent = c[1]; if (shopCat === c[0]) b.className = 'on'; b.onclick = () => { shopCat = c[0]; renderShop(); }; chips.appendChild(b); });
+    box.appendChild(chips);
+    const shown = new Set();
+    WCAT.forEach(c => {
+      if (shopCat !== 'all' && shopCat !== c[0]) return;
+      const ids = c[2].map(id => WEAPONS.findIndex(w => w.id === id)).filter(i => i >= 0); if (!ids.length) return;
+      const h = document.createElement('div'); h.className = 'scat'; h.textContent = c[1] + '  (' + ids.filter(isOwned).length + '/' + ids.length + ')'; box.appendChild(h);
+      ids.forEach(i => { shown.add(i); addRow(WEAPONS[i], i); });
     });
+    if (shopCat === 'all'){ const rest = WEAPONS.map((w, i) => i).filter(i => !shown.has(i)); if (rest.length){ const h = document.createElement('div'); h.className = 'scat'; h.textContent = '기타'; box.appendChild(h); rest.forEach(i => addRow(WEAPONS[i], i)); } }
     return;
   }
   renderBench(box);
@@ -4644,7 +4675,7 @@ const UI_BASE = { joy: 130, bFire: 100, bAds: 62, bJump: 62, bReload: 58, bRun: 
 let ui = { g: 1, o: 1, pos: {} };   // g:전체 크기 배율 o:투명도 pos:{버튼id:{x,y(화면 비율 0~1),s(개별 배율)}}
 try {
   const u = JSON.parse(localStorage.getItem('is_ui') || 'null');
-  if (u && typeof u === 'object'){ ui.g = clamp(+u.g || 1, .6, 1.6); ui.o = clamp(+u.o || 1, .3, 1); ui.pos = (u.pos && typeof u.pos === 'object') ? u.pos : {}; }
+  if (u && typeof u === 'object'){ ui.g = clamp(+u.g || 1, .6, 1.6); ui.o = isFinite(+u.o) && u.o !== null && u.o !== '' ? clamp(+u.o, 0, 1) : 1; ui.pos = (u.pos && typeof u.pos === 'object') ? u.pos : {}; }
 } catch(e){}
 const saveUI = () => { try { localStorage.setItem('is_ui', JSON.stringify(ui)); } catch(e){} };
 const hasPos = id => { const p = ui.pos[id]; return !!p && isFinite(p.x) && isFinite(p.y); };
@@ -4666,7 +4697,7 @@ function syncUISliders(){
   $('uiO').value = ui.o; $('uiOVal').textContent = Math.round(ui.o * 100) + '%';
 }
 $('uiG').addEventListener('input', () => { ui.g = parseFloat($('uiG').value) || 1; syncUISliders(); applyUI(); saveUI(); });
-$('uiO').addEventListener('input', () => { ui.o = parseFloat($('uiO').value) || 1; syncUISliders(); applyUI(); saveUI(); });
+$('uiO').addEventListener('input', () => { const ov = parseFloat($('uiO').value); ui.o = isFinite(ov) ? clamp(ov, 0, 1) : 1; syncUISliders(); applyUI(); saveUI(); });
 syncUISliders(); applyUI();
 addEventListener('resize', applyUI);
 
@@ -5945,8 +5976,14 @@ function zAim(z, tx, tz, d){   // 좀비가 지금 향해 걸어갈 지점을 z.
 /* 좀비 한 마리의 한 프레임 (호스트만 실행)
    · 가까운 플레이어(종류마다 반응 거리 aggro)가 있으면 그 사람을, 없으면 가운데 군사 기지를 향해 가요
    · 종류별 능력: 러너 돌진 · 브루트 돌진(벽 부수기) · 산성 침 · 폭탄 · 베히모스 내려찍기 · 여왕 소환/3연발 · 비명(주변 가속) · 의무병 치료 */
+const _zNo = {};
+function zS(z){   // 머리가 없으면 능력(침·돌진·비명 등)을 못 써요. 상체가 없으면 휘두를 도구도 없어요
+  const s = ZT[z.t]; if (!(z.sm & 1)) return s;
+  const k = z.t + ((z.sm & 64) ? 'L' : '');
+  return _zNo[k] || (_zNo[k] = Object.assign({}, s, { lunge: 0, charge: 0, slam: 0, rng: 0, queen: 0, scream: 0, medic: 0, boom: 0, keep: 0, aggro: 0, wreck: (z.sm & 64) ? 0 : s.wreck }));
+}
 function zStep(z, T, tn, dt){
-  const s = ZT[z.t], hq = zHq;
+  const s = zS(z), hq = zHq;
   if (z.stun > tn){ z.want = false; return; }
   let pd = 1e9, px = 0, pz = 0;
   for (const p of T){
@@ -6131,7 +6168,7 @@ function zRender(dt){
     g.position.y = zy(g.position.x, g.position.z);
     let dr = z.yaw - g.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); g.rotation.y += dr * k;
     animZ(z, dt, Math.hypot(g.position.x - ox, g.position.z - oz) / Math.max(dt, .001));
-    if ((z.sm & 33) && tn > (z.bt || 0)){ z.bt = tn + (z.sm & 1 ? .12 : .35); if (z.sm & 1) spawnBlood(new THREE.Vector3(g.position.x, g.position.y + 1.5 * ZT[z.t].sc, g.position.z), 2, 2.5); else if (goreFx) splat(g.position.x, g.position.z); }
+    if ((z.sm & 33) && tn > (z.bt || 0)){ z.bt = tn + (z.sm & 1 ? .12 : .35); if (z.sm & 1) spawnBlood(new THREE.Vector3(g.position.x, g.position.y + ((z.sm & 64) ? .85 : 1.5) * ZT[z.t].sc, g.position.z), 2, 2.5); else if (goreFx) splat(g.position.x, g.position.z); }
     if (z.warn > tn){ g.scale.setScalar(ZT[z.t].sc * (1 + .06 * Math.sin(tn * 45))); z.wp = 1; }
     else if (z.wp){ g.scale.setScalar(ZT[z.t].sc); z.wp = 0; }
     if (z.fxu) z.fxu(z, tn, dt);
@@ -6146,7 +6183,7 @@ function zAttackMe(){
     const d = Math.hypot(p.x - player.pos.x, p.z - player.pos.z);
     if (d < s.reach && Math.abs(p.y - player.pos.y) < 1.8){
       z.atk = t; beep(120 + Math.random() * 40, .2, .05);
-      takeDamage(Math.round(s.dmg * (1 + Math.min(zw.n, 15) * .04) * ((z.sm & 2) ? .75 : 1) * ((z.sm & 4) ? .75 : 1)), 'zombie', s.nm, 0, false, null);
+      takeDamage(Math.round(s.dmg * (1 + Math.min(zw.n, 15) * .04) * ((z.sm & 2) ? .75 : 1) * ((z.sm & 4) ? .75 : 1) * ((z.sm & 64) ? .4 : 1)), 'zombie', s.nm, 0, false, null);
       if (player.dead) return;
     }
   }
@@ -6164,7 +6201,7 @@ function zDamage(id, d, by, w, head, part){
       z.ld[part] = (z.ld[part] || 0) + d * (bl ? 4 : hv ? 2.2 : 1);
       if (z.ld[part] >= thr) cut = LIMB_BITS[part];
     } else if (part === 'head' && !(z.sm & 1) && (bl || hv)){ z.ld.head = (z.ld.head || 0) + d; if (z.ld.head >= z.mhp * .4) cut = 1; }
-    else if (part === 'torso' && bl && !(z.sm & 32)){ z.ld.torso = (z.ld.torso || 0) + d; if (z.ld.torso >= z.mhp * .45) cut = 56; }
+    else if (part === 'torso' && bl && !(z.sm & 96)){ z.ld.torso = (z.ld.torso || 0) + d; if (z.ld.torso >= z.mhp * .45) cut = (((id * 7919) % 100) < 50) ? 64 : 32; }
     if (cut){ zApplySm(z, cut, true); send('zdm', { id, b: cut }); }
   }
   if (z.hp <= 0){
@@ -6215,8 +6252,25 @@ function zBisect(z, fx){   // 몸통 절단: 허리 위는 (살아 있으면 기
     spurts.push({ get: () => c.clone(), until: now() + 1.8, next: 0 }); beep(90, .2, .1);
   }
 }
-function zApplySm(z, mask, fx){   // 비트: 1 머리 · 2/4 왼/오른팔 · 8/16 왼/오른다리 · 32 몸통 두 동강
-  if ((mask & 32) && !(z.sm & 32)){ z.sm |= 56; zBisect(z, fx); }
+function zBisectLegs(z, fx){   // 상체가 잘려 날아가고 하체만 걸어 다녀요
+  const av = z.av, pv = av.pivot; if (z.sev && z.sev.bis) return; const sv = (z.sev || (z.sev = {})); sv.bis = sv.head = sv.armL = sv.armR = 1;
+  const legs = ['legL', 'legR'].map(k => av.limbs[k]).filter(Boolean), vis = legs.map(l => l.visible); legs.forEach(l => { l.visible = false; });
+  const Tg = zNodeW(av.group), up = pv.clone(true); legs.forEach((l, i) => { l.visible = vis[i]; });
+  const wr = new THREE.Group(); wr.add(up); up.position.y -= 1.3;
+  zPart(up, ZBOX, 0x6a0c0c, .56, .1, .34, 0, .82, 0); for (let i = 0; i < 3; i++) zPart(up, ZSPH, ZGUT[i], .07, .07, .07, (i - 1) * .13, .76, 0);
+  for (const c of pv.children) if (!legs.includes(c)) c.visible = false;
+  av.hit = av.hit.filter(m => m === av.parts.legL || m === av.parts.legR);
+  zPart(pv, ZBOX, 0x6a0c0c, .56, .1, .34, 0, .82, 0);
+  for (let i = 0; i < 3; i++) zPart(pv, ZSPH, ZGUT[(i + 3) % ZGUT.length], .07, .1 + i % 2 * .06, .07, (i - 1) * .13, .72 - i % 2 * .05, -.02);
+  if (fx && goreFx){
+    wr.position.copy(Tg.wp); wr.position.y += 1.3 * Tg.ws.y; wr.quaternion.copy(Tg.wq); wr.scale.copy(Tg.ws);
+    zGibAdd(wr, new THREE.Vector3((Math.random() - .5) * 4, 3 + Math.random() * 2, (Math.random() - .5) * 4), .6);
+    const c = Tg.wp.clone(); c.y += .85 * Tg.ws.y; spawnBlood(c, 50, 5); splat(c.x, c.z); splat(c.x + .7, c.z - .6); splat(c.x - .6, c.z + .5); spurts.push({ get: () => c.clone(), until: now() + 1.8, next: 0 }); beep(90, .2, .1);
+  }
+}
+function zApplySm(z, mask, fx){   // 비트: 1 머리 · 2/4 왼/오른팔 · 8/16 왼/오른다리 · 32 허리 아래만 남음(상체는 기어옴) · 64 상체가 날아가고 하체만 걸어다님
+  if ((mask & 64) && !(z.sm & 96)){ z.sm |= 71; zBisectLegs(z, fx); }
+  if ((mask & 32) && !(z.sm & 96)){ z.sm |= 56; zBisect(z, fx); }
   if ((mask & 1) && !(z.sm & 1)){ z.sm |= 1; zSever(z, 'head', fx); }
   for (const b in ZLIMB) if ((mask & b) && !(z.sm & b)){ z.sm |= +b; zSever(z, ZLIMB[b], fx); }
 }
@@ -6278,7 +6332,7 @@ function onZe(ev, p){
   if (ev === 'zpk'){ if (isHost() && zw.cr && Math.abs(zw.cr[0] - +p.x) < .2){ zw.cr = null; zCrSet(null); } return; }
   if (isHost()) return;
   if (ev === 'zk') zKill(p.id, p.by, p.w, !!p.h);
-  else if (ev === 'zdm'){ const z = zomb[p.id]; if (z && isFinite(+p.b)) zApplySm(z, (+p.b) & 63, true); }
+  else if (ev === 'zdm'){ const z = zomb[p.id]; if (z && isFinite(+p.b)) zApplySm(z, (+p.b) & 127, true); }
   else if (ev === 'zc') zClear(p.w);
   else if (ev === 'zo') showMsg('💀 기지 함락 · 웨이브 ' + p.w, 3000);
   else if (ev === 'zfx') zfxDo(p);
