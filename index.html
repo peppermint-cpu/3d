@@ -4296,11 +4296,172 @@ const BT = {
   sx:   { h: 2.2, hp: 700,  c: 0x7b7468 },   // 탑 계단 2단
   st:   { h: 1.1, hp: 700,  c: 0x7b7468 }    // 탑 계단 1단
 };
-function bTint(b){ b.m.material.color.setHex(BT[b.t].c).multiplyScalar(.4 + .6 * clamp(b.hp / b.mhp, 0, 1)); }
+/* ---------- [초고퀄리티] 방어 시설 실물 모델 (초고퀄리티 · 초고퀄리티 최적화 설정일 때만) ----------
+   · 나무 바리케이드: 옹이·결이 있는 널빤지 + 각목 기둥 + 대각 버팀목 + 받침다리 + 못 (한 장짜리 상자 대신)
+   · 모래주머니 벽: 삼베 질감의 불룩한 자루를 벽돌처럼 어긋나게 쌓음 (자루 하나하나가 약간씩 삐뚤고 색이 달라요)
+   · 충돌 상자·체력·네트워크는 그대로라서 다른 사람 화면(일반 모드)과 위치가 똑같아요. 맞아서 체력이 줄면 위쪽 널빤지·자루가 하나씩 떨어져 나가요 */
+let _defT = null;
+function defTex(){
+  if (_defT) return _defT;
+  const mk = cv => { const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = ANISO; return t; };
+  // ① 낡은 널빤지 (결은 가로, 이음새 없이 반복)
+  const W = 512, H = 128, c = detCanvas(W, H), g = c.getContext('2d'), r = mulberry32(77);
+  g.fillStyle = '#9a7650'; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 60; i++){ const y = r() * H, h = 2 + r() * 14; g.fillStyle = r() < .5 ? 'rgba(70,44,22,' + (.08 + r() * .14) + ')' : 'rgba(190,150,100,' + (.06 + r() * .12) + ')'; g.fillRect(0, y, W, h); }
+  for (let i = 0; i < 240; i++){
+    const y = r() * H, a = .12 + r() * .3; g.strokeStyle = r() < .6 ? 'rgba(48,30,14,' + a + ')' : 'rgba(200,165,120,' + a * .8 + ')'; g.lineWidth = .5 + r() * 1.4;
+    g.beginPath(); g.moveTo(0, y); g.bezierCurveTo(W * .3, y + (r() - .5) * 7, W * .7, y + (r() - .5) * 7, W, y); g.stroke();
+  }
+  for (let i = 0; i < 5; i++){   // 옹이
+    const x = 40 + r() * (W - 80), y = 18 + r() * (H - 36), rx = 5 + r() * 8, ry = rx * .6;
+    for (let k = 4; k >= 0; k--){ g.strokeStyle = 'rgba(40,24,10,' + (.16 + .1 * (4 - k)) + ')'; g.lineWidth = 1.2; g.beginPath(); g.ellipse(x, y, rx + k * 5, ry + k * 3, 0, 0, 6.283); g.stroke(); }
+    g.fillStyle = 'rgba(30,18,8,.75)'; g.beginPath(); g.ellipse(x, y, rx * .6, ry * .6, 0, 0, 6.283); g.fill();
+  }
+  for (let i = 0; i < 10; i++){ const x = r() * (W - 120), y = r() * H, l = 30 + r() * 90; g.strokeStyle = 'rgba(24,14,6,.6)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y); g.lineTo(x + l, y + (r() - .5) * 5); g.stroke(); }   // 갈라진 틈
+  for (let i = 0; i < 30; i++){ const x = r() * W, y = r() * H, rr = 8 + r() * 24, gr = g.createRadialGradient(x, y, 0, x, y, rr); gr.addColorStop(0, 'rgba(150,150,140,.22)'); gr.addColorStop(1, 'rgba(150,150,140,0)'); g.fillStyle = gr; g.fillRect(x - rr, y - rr, rr * 2, rr * 2); }   // 풍화 얼룩
+  g.fillStyle = 'rgba(20,12,6,.35)'; g.fillRect(0, 0, W, 3); g.fillRect(0, H - 3, W, 3);
+  // ② 삼베 자루 (32올 평직 + 얼룩) 와 요철(bump)
+  const S = 256, n = 32, st = S / n, c2 = detCanvas(S, S), g2 = c2.getContext('2d'), c3 = detCanvas(S, S), g3 = c3.getContext('2d'), r2 = mulberry32(91);
+  g2.fillStyle = '#d2bf94'; g2.fillRect(0, 0, S, S); g3.fillStyle = '#808080'; g3.fillRect(0, 0, S, S);
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++){
+    const x = i * st, y = j * st, k = (i + j) & 1, v = r2();
+    g2.fillStyle = k ? 'rgba(120,92,50,' + (.22 + v * .22) + ')' : 'rgba(238,218,172,' + (.2 + v * .22) + ')'; g2.fillRect(x + .6, y + .6, st - 1.2, st - 1.2);
+    g3.fillStyle = k ? 'rgb(' + (170 + v * 40 | 0) + ',' + (170 + v * 40 | 0) + ',' + (170 + v * 40 | 0) + ')' : 'rgb(' + (95 + v * 30 | 0) + ',' + (95 + v * 30 | 0) + ',' + (95 + v * 30 | 0) + ')'; g3.fillRect(x + .6, y + .6, st - 1.2, st - 1.2);
+  }
+  g2.strokeStyle = 'rgba(70,50,24,.3)'; g2.lineWidth = .8; g3.strokeStyle = 'rgba(30,30,30,.9)'; g3.lineWidth = 1;
+  for (let i = 0; i <= n; i++){ g2.beginPath(); g2.moveTo(i * st, 0); g2.lineTo(i * st, S); g2.moveTo(0, i * st); g2.lineTo(S, i * st); g2.stroke(); g3.beginPath(); g3.moveTo(i * st, 0); g3.lineTo(i * st, S); g3.moveTo(0, i * st); g3.lineTo(S, i * st); g3.stroke(); }
+  for (let i = 0; i < 26; i++){   // 흙·모래 얼룩
+    const x = r2() * S, y = r2() * S, rr = 10 + r2() * 30, k = r2(), col = k < .5 ? '96,72,40' : k < .8 ? '60,48,30' : '200,180,130';
+    wrapDraw(S, x, y, rr, (X, Y) => { const gr = g2.createRadialGradient(X, Y, 0, X, Y, rr); gr.addColorStop(0, 'rgba(' + col + ',.28)'); gr.addColorStop(1, 'rgba(' + col + ',0)'); g2.fillStyle = gr; g2.fillRect(X - rr, Y - rr, rr * 2, rr * 2); });
+  }
+  for (let i = 0; i < 700; i++){ g2.fillStyle = r2() < .5 ? 'rgba(60,44,22,.35)' : 'rgba(250,235,200,.3)'; g2.fillRect(r2() * S, r2() * S, 1 + r2() * 1.6, 1); }   // 올 풀림·모래알
+  const burlap = mk(c2), bump = mk(c3);
+  return (_defT = { wood: mk(c), burlap, bump });
+}
+/* 불룩한 모래주머니 하나 (상자를 둥글게 눌러 만든 도형 + 양 끝을 묶은 듯 잘록하게) — 모든 자루가 이 모양 하나를 같이 써요 */
+let _bagG = null;
+function defBagGeo(){
+  if (_bagG) return _bagG;
+  const SX = .64, SY = .30, SZ = .46, p = 3.2, g = new THREE.BoxGeometry(1, 1, 1, 10, 6, 8), P = g.attributes.position, N = g.attributes.normal;
+  for (let i = 0; i < P.count; i++){
+    const x = P.getX(i) * 2, y = P.getY(i) * 2, z = P.getZ(i) * 2;
+    const len = Math.pow(Math.pow(Math.abs(x), p) + Math.pow(Math.abs(y), p) + Math.pow(Math.abs(z), p), 1 / p) || 1;
+    const nx = x / len, ny = y / len, nz = z / len, ex = Math.abs(nx);
+    const lump = .05 * Math.sin(x * 5.3 + z * 3.1) * Math.cos(z * 4.7 - x * 2.3 + y * 2.1);
+    const pinch = 1 - .3 * ex * ex * ex, belly = 1 + .14 * (1 - ex * ex);
+    P.setXYZ(i, nx * SX / 2 * (1 + lump) * (1 + .05 * ex * ex), ny * SY / 2 * pinch * belly * (1 + lump), nz * SZ / 2 * pinch * (1 + lump));
+    const gx = Math.sign(nx) * Math.pow(Math.abs(nx), p - 1) / SX, gy = Math.sign(ny) * Math.pow(Math.abs(ny), p - 1) / SY, gz = Math.sign(nz) * Math.pow(Math.abs(nz), p - 1) / SZ, gl = Math.hypot(gx, gy, gz) || 1;
+    N.setXYZ(i, gx / gl, gy / gl, gz / gl);
+  }
+  g.userData.shared = true;
+  return (_bagG = g);
+}
+/* 각목/널빤지 한 개: p0→p1 방향으로 놓인 (sa × sb) 단면의 막대. 결이 길이 방향으로 가도록 uv 를 직접 계산하고 정점 색으로 나무마다 색을 달리 줘요 */
+const _bv = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()], _bm = new THREE.Matrix4();
+function defBeam(p0, p1, up, sa, sb, col, rg){
+  const dir = _bv[0].set(p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]), len = dir.length(); dir.normalize();
+  const xa = _bv[1].set(up[0], up[1], up[2]).cross(dir).normalize(), ya = _bv[2].copy(dir).cross(xa);
+  const g = new THREE.BoxGeometry(sa, sb, len), P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv, C = new Float32Array(P.count * 3), uo = rg(), vo = rg();
+  for (let i = 0; i < P.count; i++){
+    const px = P.getX(i), py = P.getY(i), pz = P.getZ(i), ax = Math.abs(N.getX(i)), az = Math.abs(N.getZ(i));
+    let u, v; if (az > .5){ u = px; v = py; } else if (ax > .5){ u = pz; v = py; } else { u = pz; v = px; }
+    U.setXY(i, u / .8 + uo, v / .16 + vo);
+    C[i * 3] = col.r; C[i * 3 + 1] = col.g; C[i * 3 + 2] = col.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(C, 3));
+  _bm.makeBasis(xa, ya, dir); _bm.setPosition((p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2, (p0[2] + p1[2]) / 2); g.applyMatrix4(_bm);
+  return g;
+}
+function defMerge(list){
+  const gs = list.map(g => g.index ? g.toNonIndexed() : g); let n = 0; gs.forEach(g => n += g.attributes.position.count);
+  const P = new Float32Array(n * 3), N = new Float32Array(n * 3), U = new Float32Array(n * 2), C = new Float32Array(n * 3); let o = 0;
+  gs.forEach(g => { const c = g.attributes.position.count; P.set(g.attributes.position.array, o * 3); N.set(g.attributes.normal.array, o * 3); U.set(g.attributes.uv.array, o * 2); C.set(g.attributes.color.array, o * 3); o += c; g.dispose(); });
+  const m = new THREE.BufferGeometry();
+  m.setAttribute('position', new THREE.BufferAttribute(P, 3)); m.setAttribute('normal', new THREE.BufferAttribute(N, 3)); m.setAttribute('uv', new THREE.BufferAttribute(U, 2)); m.setAttribute('color', new THREE.BufferAttribute(C, 3));
+  return m;
+}
+function defBuild(t, id, w, d){
+  const T = defTex(), L = Math.max(w, d), D = Math.min(w, d), grp = new THREE.Group(), r = mulberry32(((+id || 1) * 2654435761) >>> 0);
+  let fx;
+  if (t === 'wood'){
+    const mat = new THREE.MeshPhongMaterial({ map: T.wood, vertexColors: true, specular: 0x1c1c1c, shininess: 6 });
+    const wc = [0xb49265, 0xa88455, 0xbd9a6c, 0x9c7a4e, 0xa98d62], col = () => new THREE.Color(wc[(r() * wc.length) | 0]).multiplyScalar(.82 + r() * .3);
+    const UPY = [0, 1, 0], UPZ = [0, 0, 1], UPX = [1, 0, 0], frame = [], planks = [];
+    const xs = [-L / 2 + .14, 0, L / 2 - .14], H = [.30, .63, .96, 1.28];
+    xs.forEach(x => {   // 각목 기둥 (땅속까지) + 뾰족한 머리
+      frame.push(defBeam([x, -.3, 0], [x, 1.40, 0], UPZ, .13, .13, col(), r));
+      const cap = new THREE.CylinderGeometry(0, .098, .13, 4, 1), cp = cap.attributes.position, cc = col(), cs = new Float32Array(cp.count * 3);
+      for (let i = 0; i < cp.count; i++){ cs[i * 3] = cc.r; cs[i * 3 + 1] = cc.g; cs[i * 3 + 2] = cc.b; }
+      cap.setAttribute('color', new THREE.BufferAttribute(cs, 3)); cap.rotateY(Math.PI / 4); cap.translate(x, 1.465, 0); frame.push(cap);
+    });
+    [xs[0], xs[2]].forEach(x => {   // 받침: 가로대 + 대각 지지대
+      frame.push(defBeam([x, .06, -D / 2 - .1], [x, .06, D / 2 + .1], UPY, .12, .09, col(), r));
+      for (const s of [-1, 1]) frame.push(defBeam([x, .08, s * (D / 2 + .04)], [x, .66, s * .075], UPX, .09, .045, col(), r));
+    });
+    // 뒷면 대각 버팀목 (Z 모양)
+    frame.push(defBeam([xs[0] + .06, .2, -.128], [xs[1] - .06, 1.34, -.128], UPZ, .1, .035, col(), r));
+    frame.push(defBeam([xs[1] + .06, 1.34, -.128], [xs[2] - .06, .2, -.128], UPZ, .1, .035, col(), r));
+    // 널빤지 4장: 앞·뒤로 번갈아 대고, 길이·높이·기울기를 조금씩 다르게 (아래 두 줄은 가운데 기둥에서 이어 붙임)
+    H.forEach((y0, i) => {
+      const z = (i & 1 ? -1 : 1) * .085, parts = [], x0 = -L / 2 + r() * .05, x1 = L / 2 - r() * .05, tilt = (r() - .5) * .03, hh = .22 + r() * .02;
+      if (i & 1){
+        parts.push(defBeam([x0, y0 + (r() - .5) * .02, z], [-.008, y0 + tilt, z], UPY, .04, hh, col(), r));
+        parts.push(defBeam([.008, y0 - tilt, z], [x1, y0 + (r() - .5) * .02, z], UPY, .04, hh * .97, col(), r));
+      } else parts.push(defBeam([x0, y0, z], [x1, y0 + tilt, z], UPY, .04, hh, col(), r));
+      planks.push(parts);
+    });
+    // 못 (기둥과 널빤지가 만나는 곳)
+    const nail = new THREE.Color(0x2a2724);
+    H.forEach((y0, i) => { const s = i & 1 ? -1 : 1, z = s * (.085 + .02 + .004); xs.forEach(x => { for (const dy of [-.05, .05]) frame.push(defBeam([x, y0 + dy, z], [x, y0 + dy, z + s * .012], UPY, .028, .028, nail, r)); }); });
+    const fm = new THREE.Mesh(defMerge(frame), mat); fm.castShadow = fm.receiveShadow = true; grp.add(fm);
+    const pm = planks.map(a => { const m = new THREE.Mesh(defMerge(a), mat); m.castShadow = m.receiveShadow = true; grp.add(m); return m; });
+    fx = { group: grp,
+      tint(k, rt){ mat.color.setScalar(k); pm[3].visible = rt > .74; pm[2].visible = rt > .5; pm[1].visible = rt > .27; },
+      dispose(){ fm.geometry.dispose(); pm.forEach(m => m.geometry.dispose()); mat.dispose(); } };
+  } else {   // 'sand'
+    const geo = defBagGeo(), mat = new THREE.MeshPhongMaterial({ map: T.burlap, bumpMap: T.bump, bumpScale: 2.2, specular: 0x0c0c0c, shininess: 3 });
+    const nB = Math.max(2, Math.round(L / .64)), bl = L / nB, rows = Math.max(1, Math.round(D / .5)), rd = D / rows, CH = .30, COURSES = 5;   // 0번 줄은 땅속에 묻혀요
+    const tan = [0xd8c696, 0xc7b07c, 0xbba474, 0xcdbb8b, 0xa8966c, 0xd2c08e].map(h => new THREE.Color(h));
+    const items = [];
+    for (let c = 0; c < COURSES; c++) for (let rw = 0; rw < rows; rw++){
+      const odd = (c + rw) & 1, y = (c - 1 + .5) * CH * .99 - .0;
+      const cnt = odd ? nB + 1 : nB;
+      for (let i = 0; i < cnt; i++){
+        let x, sx = bl / .64;
+        if (odd){ x = -L / 2 + i * bl; if (i === 0){ x += bl * .25; sx *= .5; } else if (i === nB){ x -= bl * .25; sx *= .5; } }
+        else x = -L / 2 + (i + .5) * bl;
+        const z = -D / 2 + rd * (rw + .5), thr = c >= 4 ? .45 + r() * .45 : c === 3 ? .2 + r() * .4 : c === 2 ? .05 + r() * .2 : -1;
+        items.push({ x: x + (r() - .5) * .03, y: y + (r() - .5) * .015, z: z + (r() - .5) * .04, sx: sx * (.95 + r() * .1), sz: rd / .46 * (.97 + r() * .06), ry: (r() - .5) * .14, rz: (r() - .5) * .08, rx: (r() - .5) * .08, thr, col: tan[(r() * tan.length) | 0].clone().multiplyScalar(.88 + r() * .2) });
+      }
+    }
+    const im = new THREE.InstancedMesh(geo, mat, items.length), M = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), Z = new THREE.Matrix4().makeScale(0, 0, 0);
+    items.forEach((it, i) => { E.set(it.rx, it.ry, it.rz); Q.setFromEuler(E); M.compose(new THREE.Vector3(it.x, it.y, it.z), Q, new THREE.Vector3(it.sx, 1.03 + r() * .06, it.sz)); it.m = M.clone(); im.setMatrixAt(i, it.m); im.setColorAt(i, it.col); });
+    im.castShadow = im.receiveShadow = true; im.frustumCulled = false; grp.add(im);
+    let lastHide = -1;
+    fx = { group: grp,
+      tint(k, rt){
+        mat.color.setScalar(k);
+        let h = 0; items.forEach(it => { if (it.thr > rt) h++; });
+        if (h !== lastHide){ lastHide = h; items.forEach((it, i) => im.setMatrixAt(i, it.thr > rt ? Z : it.m)); im.instanceMatrix.needsUpdate = true; }
+      },
+      dispose(){ mat.dispose(); im.dispose && im.dispose(); } };
+  }
+  return fx;
+}
+function bTint(b){
+  const rt = clamp(b.hp / b.mhp, 0, 1);
+  if (b.fx){ b.fx.tint(.4 + .6 * rt, rt); return; }
+  b.m.material.color.setHex(BT[b.t].c).multiplyScalar(.4 + .6 * rt);
+}
 function bAdd(id, t, x, z, w, d, hp){
   const T = BT[t], top = hillH(x, z) + T.h;
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, top, d), new THREE.MeshLambertMaterial({ color: T.c }));
-  m.position.set(x, top / 2, z); m.castShadow = m.receiveShadow = true; scene.add(m);
+  let m, fx = null;
+  if (ultraQ && (t === 'wood' || t === 'sand')){   // 초고퀄리티: 색칠한 상자 대신 실물 모델
+    fx = defBuild(t, id, w, d); m = fx.group; m.position.set(x, hillH(x, z), z); m.rotation.y = d > w ? Math.PI / 2 : 0; scene.add(m);
+  } else {
+    m = new THREE.Mesh(new THREE.BoxGeometry(w, top, d), new THREE.MeshLambertMaterial({ color: T.c }));
+    m.position.set(x, top / 2, z); m.castShadow = m.receiveShadow = true; scene.add(m);
+  }
   let gun = null;
   if (t === 'tur'){
     gun = new THREE.Group(); gun.position.set(x, top + .2, z);
@@ -4310,11 +4471,11 @@ function bAdd(id, t, x, z, w, d, hp){
   }
   const box = { minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2, top };
   boxes.push(box);
-  const b = { id, t, x, z, w, d, hp: hp == null ? T.hp : hp, mhp: T.hp, m, gun, box, cd: 0 };
+  const b = { id, t, x, z, w, d, hp: hp == null ? T.hp : hp, mhp: T.hp, m, fx, gun, box, cd: 0 };
   bars.push(b); bTint(b); return b;
 }
 function bRemove(b){
-  scene.remove(b.m); if (b.gun) scene.remove(b.gun);
+  scene.remove(b.m); if (b.fx) b.fx.dispose(); if (b.gun) scene.remove(b.gun);
   const i = boxes.indexOf(b.box); if (i >= 0) boxes.splice(i, 1);
   const j = bars.indexOf(b); if (j >= 0) bars.splice(j, 1);
 }
