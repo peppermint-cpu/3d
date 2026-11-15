@@ -143,6 +143,16 @@ body.touch #board{font-size:12px}
 #roundTime{display:inline-block;font-size:22px;font-weight:800;background:rgba(0,0,0,.5);padding:2px 14px;border-radius:8px;letter-spacing:1px}
 #roundTime.low{color:#f87171}
 #roundLead{font-size:12px;opacity:.9;margin-top:3px}
+#hqBar,#bossBar{left:50%;transform:translateX(-50%);width:min(340px,70vw);display:none;text-align:center;text-shadow:0 1px 3px #000;font-size:12px;font-weight:700}
+#hqBar{top:62px}#bossBar{top:100px}
+#hqBar .tr,#bossBar .tr{height:12px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:6px;overflow:hidden;margin-top:2px}
+#hqBar .fl,#bossBar .fl{height:100%;width:100%;transition:width .25s}
+#hqBar .fl{background:linear-gradient(#8be88b,#2f9e44)}
+#bossBar .fl{background:linear-gradient(#e08bff,#8a2fb0)}
+#hqBar.hit .fl{filter:brightness(1.9)}
+#hqBar.low .fl{background:linear-gradient(#ff9a8a,#d62828)}
+#hqBar.low #hqTxt{color:#ff9a8a}
+body.touch #hqBar{top:92px}body.touch #bossBar{top:130px}
 body.touch #round{top:40px}
 body.touch #roundTime{font-size:16px;padding:1px 10px}
 #roundBoard{top:50%;left:50%;z-index:12;width:min(440px,92vw);background:rgba(10,14,20,.93);border:1px solid rgba(250,204,21,.55);border-radius:14px;padding:16px 20px;text-align:center;opacity:0;transform:translate(-50%,-50%) scale(.9);transition:opacity .35s,transform .35s}
@@ -301,6 +311,8 @@ background:radial-gradient(circle,rgba(255,244,220,.78) 0,rgba(255,228,188,.34) 
 <div id="death"><h2>사망</h2><p id="deathInfo"></p></div>
 
 <div id="round" class="hud"><div id="roundTime">⏱ 4:00</div><div id="roundLead"></div></div>
+<div id="hqBar" class="hud"><div id="hqTxt">🏠 군사 기지</div><div class="tr"><div class="fl" id="hqFl"></div></div></div>
+<div id="bossBar" class="hud"><div id="bossTxt"></div><div class="tr"><div class="fl" id="bossFl"></div></div></div>
 <div id="roundBoard" class="hud"><h3>⏱ 라운드 종료</h3><div id="rbWin"></div><div id="rbSub"></div><div id="rbReward"></div><table><thead><tr><th>#</th><th>닉네임</th><th>킬</th><th>데스</th></tr></thead><tbody id="rbBody"></tbody></table><div id="rbNext">새 라운드가 시작되었어요!</div></div>
 
 <div id="chat" class="hud"></div>
@@ -1704,7 +1716,11 @@ function groundAt(x, z, prevY){
   return gy;
 }
 function randomSpawn(){
-  if (zmode){ const a = Math.random() * 6.283, r = Math.random() * 5; return { x: Math.cos(a) * r, z: Math.sin(a) * r }; }
+  if (zmode){   // 기지 안쪽 빈 곳 (본부 건물 둘레의 북·남·서·동쪽 마당)
+    const SP = [[0, -5], [0, 5], [-5, 0], [5, -3.6], [5, 3.6], [-4.5, -4], [-4.5, 4]];
+    for (let i = 0; i < 20; i++){ const p = SP[(Math.random() * SP.length) | 0], x = p[0] + (Math.random() - .5) * 1.6, z = p[1] + (Math.random() - .5) * 1.6; if (!collides(x, 0, z)) return { x, z }; }
+    return { x: 0, z: -5.5 };
+  }
   for (let i = 0; i < 80; i++){
     const x = (Math.random()-.5)*100, z = (Math.random()-.5)*100;
     if (!collides(x, 0, z) && !inLake(x, z)) return { x, z };
@@ -2291,7 +2307,7 @@ const GIB_CLOTH = new THREE.MeshLambertMaterial({ color: 0x3b82f6 });
 const GIB_PANTS = new THREE.MeshLambertMaterial({ color: 0x2d3748 });
 const bloodP = [], splats = [], gibs = [], spurts = [];
 const _tmp = new THREE.Vector3();
-const PART_MUL = { head: 2, torso: 1, armL: .8, armR: .8, legL: .8, legR: .8 };   // 부위별 데미지 배율
+const PART_MUL = { head: 2, torso: 1, armL: .8, armR: .8, legL: .8, legR: .8, shield: .12 };   // 부위별 데미지 배율
 const LIMB_BITS = { head: 1, armL: 2, armR: 4, legL: 8, legR: 16 };
 const LIMB_NAME = { head: '머리', armL: '왼팔', armR: '오른팔', legL: '왼다리', legR: '오른다리' };
 const LIMB_LIMIT = 40;   // 팔/다리 한 곳에 이만큼 피해가 쌓이면 절단
@@ -2659,6 +2675,7 @@ async function openChannel(){
     .on('broadcast', { event: 'zo' },   ({ payload }) => onZe('zo', payload))
     .on('broadcast', { event: 'zx' },   ({ payload }) => onZe('zx', payload))
     .on('broadcast', { event: 'zpk' },  ({ payload }) => onZe('zpk', payload))
+    .on('broadcast', { event: 'zfx' },  ({ payload }) => onZe('zfx', payload))
     .on('broadcast', { event: 'bld' },  ({ payload }) => onZe('bld', payload))
     .subscribe((status, err) => {
       if (gen !== netGen) return;
@@ -2884,6 +2901,7 @@ function showRoundBoard(res, reward){
 }
 function updateRoundHud(dt){
   const box = $('round');
+  if (!joined || !zmode){ $('hqBar').style.display = 'none'; $('bossBar').style.display = 'none'; }
   if (!joined){ box.style.display = 'none'; return; }
   box.style.display = 'block';
   roundHudT -= dt; if (roundHudT > 0) return;
@@ -4513,18 +4531,21 @@ $('editSize').addEventListener('input', () => {
 let zmode = 0, zJoinT = Date.now(), zbest = 0, zSendT = 0;
 try { zmode = +localStorage.getItem('is_mode') || 0; } catch(e){}
 try { zbest = +localStorage.getItem('is_zbest') || 0; } catch(e){}
-const zomb = {}, zw = { n: 0, left: 0, cd: 12, sp: 0, id: 1, over: 0, dead: 0, bi: 1, boss: 0, base: 0, ev: 0, lev: 0, ct: 20, cr: null };
+const zomb = {}, zw = { n: 0, left: 0, cd: 25, sp: 0, id: 1, over: 0, dead: 0, bi: 1, boss: 0, base: 0, ev: 0, lev: 0, ct: 20, cr: null, q: [], wt: 0, mine: 0, pl: null, bag: [], dm: 0, hu: 1 };
 let zSN = 0;
 const zy = (x, z) => inLake(x, z) ? LAKE_FLOOR : hillH(x, z);   // 호수 속에서는 호수 바닥 높이 (좀비도 물에 들어와요)
-const ZT = [
-  { hp: 100, sp: 2.3, dmg: 12, sc: 1,    col: 0x3f6b35, reach: 1.4 },
-  { hp: 55,  sp: 4.8, dmg: 8,  sc: .92,  col: 0x6f7f2f, reach: 1.3 },
-  { hp: 420, sp: 1.7, dmg: 26, sc: 1.35, col: 0x5a3040, reach: 1.9 },
-  { hp: 100, sp: 2.3, dmg: 12, sc: 1,    col: 0x3f6b35, reach: 1.4 },                                // (원거리 좀비 삭제 — 번호 유지용 자리. 더 이상 나오지 않아요)
-  { hp: 60,  sp: 5.4, dmg: 0,  sc: .95,  col: 0xc4661a, reach: 1.2, boom: 1 },                       // 폭탄 좀비 (시설을 폭파)
-  { hp: 2600, sp: 2.0, dmg: 40, sc: 1.9, col: 0x2b1a3a, reach: 2.6, boss: 1 },
-  { hp: 220, sp: 2.1, dmg: 15, sc: 1.1,  col: 0x4a5560, reach: 1.5, armor: 1 },   // 6 방패 좀비 (머리 말고는 피해 감소)
-  { hp: 130, sp: 2.4, dmg: 14, sc: 1.15, col: 0x6b3f6b, reach: 1.5, split: 1 }    // 7 분열 좀비 (죽으면 러너 2마리로 쪼개짐)                        // 보스 (5웨이브마다)
+const ZT = [   // nm 이름 · aggro 플레이어를 쫓기 시작하는 거리(그 밖에서는 기지로 향함) · coin 처치 보상 · rng 침 사거리 · keep 이 거리에서 멈춤 · arm/lean/stride/swy 걷는 자세
+  { nm: '좀비',          hp: 100,  sp: 2.3, dmg: 12, sc: 1,    col: 0x3f6b35, hc: 0x7ea35c, reach: 1.4, aggro: 11, coin: 10 },
+  { nm: '러너',          hp: 55,   sp: 4.6, dmg: 8,  sc: .92,  col: 0x6f7f2f, hc: 0xa4b34a, reach: 1.3, aggro: 16, coin: 12, lunge: 1, arm: 1.0, swy: .3, stride: .95, lean: -.28 },
+  { nm: '브루트',        hp: 420,  sp: 1.7, dmg: 26, sc: 1.35, col: 0x5a3040, hc: 0x9a6a5a, reach: 1.9, aggro: 14, coin: 40, charge: 1, arm: .7, swy: .25, stride: .55 },
+  { nm: '산성 좀비',     hp: 90,   sp: 2.1, dmg: 7,  sc: 1,    col: 0x4f7a2a, hc: 0xb7e05a, reach: 1.3, aggro: 7,  coin: 25, rng: 15, keep: 11, arm: 1.8, lean: .08 },
+  { nm: '폭탄 좀비',     hp: 60,   sp: 5.4, dmg: 0,  sc: .95,  col: 0xc4661a, hc: 0xe0a24a, reach: 1.2, aggro: 7,  coin: 20, boom: 1, arm: 1.9, spr: .5, swy: .2 },
+  { nm: '베히모스',      hp: 2600, sp: 2.0, dmg: 40, sc: 1.9,  col: 0x2b1a3a, hc: 0x8a4a9a, reach: 2.6, aggro: 18, coin: 300, boss: 1, slam: 1, arm: .8, swy: .2, stride: .5 },
+  { nm: '방패 좀비',     hp: 220,  sp: 2.1, dmg: 15, sc: 1.1,  col: 0x4a5560, hc: 0x9aa6b3, reach: 1.5, aggro: 11, coin: 25, shield: 1, arm: 1.6, swy: .02 },
+  { nm: '분열 좀비',     hp: 130,  sp: 2.4, dmg: 14, sc: 1.15, col: 0x6b3f6b, hc: 0xb06ab0, reach: 1.5, aggro: 11, coin: 20, split: 1 },
+  { nm: '비명 좀비',     hp: 85,   sp: 2.8, dmg: 6,  sc: .95,  col: 0x7a6a3a, hc: 0xcfc7a0, reach: 1.3, aggro: 12, coin: 30, scream: 1, keep: 9, arm: 2.5, swy: .35 },
+  { nm: '의무병 좀비',   hp: 150,  sp: 2.2, dmg: 6,  sc: 1.05, col: 0x3f6a64, hc: 0xbfe0d4, reach: 1.3, aggro: 10, coin: 35, medic: 1, keep: 7, arm: 1.2, swy: .1 },
+  { nm: '여왕',          hp: 2400, sp: 2.4, dmg: 30, sc: 1.55, col: 0x5a2a55, hc: 0xd9a0d0, reach: 2.2, aggro: 22, coin: 400, boss: 1, queen: 1, rng: 20, keep: 11, arm: 1.5, swy: .15 }
 ];
 const ZMAX = isTouch ? 16 : 26;
 function isHost(){
@@ -4534,8 +4555,8 @@ function isHost(){
   return !best || best.id === myId;
 }
 function zTargets(){
-  const T = []; if (!player.dead) T.push({ x: player.pos.x, z: player.pos.z });
-  for (const id in remotes){ const r = remotes[id]; if (!r.dead) T.push({ x: r.tx, z: r.tz }); }
+  const T = []; if (!player.dead) T.push({ x: player.pos.x, z: player.pos.z, y: player.pos.y });
+  for (const id in remotes){ const r = remotes[id]; if (!r.dead) T.push({ x: r.tx, z: r.tz, y: r.ty || 0 }); }
   return T;
 }
 /* ---------- 방어 시설 (바리케이드·모래주머니·터렛·기지 성벽) — 좀비가 길을 막으면 부수고, 코인으로 다시 지어요 ---------- */
@@ -4543,7 +4564,8 @@ const bars = [];
 const BT = {
   wood: { h: 1.5, hp: 320,  c: 0x8a6a3c, cost: 40,  name: '나무 바리케이드', w: 3,   d: .5 },
   sand: { h: 1.2, hp: 650,  c: 0xb9a77c, cost: 70,  name: '모래주머니 벽',   w: 3.2, d: 1 },
-  tur:  { h: 1.1, hp: 260,  c: 0x4b5a4b, cost: 350, name: '자동 터렛',       w: .9,  d: .9 },
+  tur:  { h: 1.1, hp: 260,  c: 0x4b5a4b, cost: 500, name: '자동 터렛',       w: .9,  d: .9 },
+  hq:   { h: 3.2, hp: 3500, c: 0x7a8274, name: '군사 기지' },   // 가운데 군사 기지 (부서지면 게임 오버)
   bw:   { h: 1.4, hp: 900,  c: 0x8d9096 },   // 기지 성벽 (눈높이보다 낮아서 위로 쏠 수 있어요)
   tw:   { h: 3.2, hp: 1600, c: 0x7b7468 },   // 감시탑
   sx:   { h: 2.2, hp: 700,  c: 0x7b7468 },   // 탑 계단 2단
@@ -4709,7 +4731,8 @@ function bTint(b){
 function bAdd(id, t, x, z, w, d, hp){
   const T = BT[t], top = hillH(x, z) + T.h;
   let m, fx = null;
-  if (ultraQ && (t === 'wood' || t === 'sand')){   // 초고퀄리티: 색칠한 상자 대신 실물 모델
+  if (t === 'hq'){ fx = hqBuild(w, d); m = fx.group; m.position.set(x, hillH(x, z), z); scene.add(m); }
+  else if (ultraQ && (t === 'wood' || t === 'sand')){   // 초고퀄리티: 색칠한 상자 대신 실물 모델
     fx = defBuild(t, id, w, d); m = fx.group; m.position.set(x, hillH(x, z), z); m.rotation.y = d > w ? Math.PI / 2 : 0; scene.add(m);
   } else {
     m = new THREE.Mesh(new THREE.BoxGeometry(w, top, d), new THREE.MeshLambertMaterial({ color: T.c }));
@@ -4732,22 +4755,93 @@ function bRemove(b){
   const i = boxes.indexOf(b.box); if (i >= 0) boxes.splice(i, 1);
   const j = bars.indexOf(b); if (j >= 0) bars.splice(j, 1);
 }
+/* ---------- 중앙 군사 기지 (HQ) — 체력이 0 이 되면 게임 오버 ---------- */
+let zHq = null;   // 호스트가 매 프레임 찾아두는 기지 시설
+const bxd = (b, x, z) => Math.hypot(Math.max(Math.abs(x - b.x) - b.w / 2, 0), Math.max(Math.abs(z - b.z) - b.d / 2, 0));   // 점에서 시설 상자 가장자리까지 거리
+const ZBASE = { hq: 1, bw: 1, tw: 1, sx: 1, st: 1 };   // 기지 구조물 (좀비 길찾기에서 막힌 칸으로 취급 → 문(빈틈)으로 몰려와요)
+function hqBuild(w, d){
+  const grp = new THREE.Group(), geos = [], mats = [];
+  const M = c => { const m = new THREE.MeshLambertMaterial({ color: c }); mats.push(m); return m; };
+  const MB = c => { const m = new THREE.MeshBasicMaterial({ color: c }); mats.push(m); return m; };
+  const body = M(0x7a8274), trim = M(0x4b5148), roof = M(0x565b53), dark = M(0x101315), glass = MB(0xffd98a), scorchM = M(0x1b1a18), metal = M(0x8d9096);
+  const add = (geo, mat, x, y, z, ry) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); if (ry) m.rotation.y = ry; m.castShadow = m.receiveShadow = true; grp.add(m); geos.push(geo); return m; };
+  const bx = (sx, sy, sz) => new THREE.BoxGeometry(sx, sy, sz);
+  const bodyM = add(bx(w, 3.0, d), body, 0, 1.5, 0);
+  add(bx(w + .12, .2, d + .12), roof, 0, 3.1, 0);                    // 지붕판 (올라가서 사격할 수 있어요)
+  add(bx(w + .14, .38, d + .14), trim, 0, .19, 0);                   // 밑단
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) add(bx(.42, 3.0, .42), trim, sx * (w / 2 - .06), 1.5, sz * (d / 2 - .06));   // 모서리 기둥
+  // 북쪽 정문: 문틀 + 철문 + 간판
+  add(bx(1.7, 2.35, .1), trim, 0, 1.175, -d / 2 - .03);
+  add(bx(1.3, 2.1, .1), dark, 0, 1.05, -d / 2 - .07);
+  add(bx(1.3, .06, .12), metal, 0, 1.05, -d / 2 - .08);
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 48; const g = cv.getContext('2d');
+  g.fillStyle = '#1d2a1d'; g.fillRect(0, 0, 256, 48); g.strokeStyle = '#e8d27a'; g.lineWidth = 3; g.strokeRect(3, 3, 250, 42);
+  g.fillStyle = '#f2e6a8'; g.font = 'bold 28px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('★ 방어 기지 ★', 128, 25);
+  const tex = new THREE.CanvasTexture(cv), signM = new THREE.MeshBasicMaterial({ map: tex }); mats.push(signM);
+  add(new THREE.PlaneGeometry(2.8, .52), signM, 0, 2.72, -d / 2 - .075).rotation.y = Math.PI;
+  // 창문 (불 켜진 작은 창)
+  const win = (x, y, z, sx, sy, sz) => { add(bx(sx + .12, sy + .12, sz + .02), trim, x, y, z); add(bx(sx, sy, sz + .04), glass, x, y, z); };
+  for (const sx of [-1, 1]){ win(sx * 2.1, 1.9, -d / 2 - .03, 1.0, .5, .05); win(sx * 2.1, 1.9, d / 2 + .03, 1.0, .5, .05); }
+  win(-w / 2 - .03, 1.9, -.9, .05, .5, 1.0); win(-w / 2 - .03, 1.9, .9, .05, .5, 1.0);
+  // 지붕 장비: 안테나 · 접시 · 환풍구 · 깃발
+  add(new THREE.CylinderGeometry(.035, .05, 4.6, 6), metal, -2.2, 3.2 + 2.3, 1.0);
+  add(bx(.9, .04, .04), metal, -2.2, 3.2 + 3.6, 1.0); add(bx(.6, .04, .04), metal, -2.2, 3.2 + 3.0, 1.0);
+  const dish = add(new THREE.SphereGeometry(.55, 14, 6, 0, 6.283, 0, 1.15), metal, 1.7, 3.2 + 1.0, -.9); dish.rotation.set(-1.0, .5, 0); dish.material = metal;
+  add(new THREE.CylinderGeometry(.06, .08, 1.0, 6), metal, 1.7, 3.2 + .5, -.9);
+  add(bx(1.3, .5, 1.0), trim, -1.0, 3.2 + .25, -.8); add(bx(.8, .35, .8), trim, 0.2, 3.2 + .17, 1.3);
+  add(new THREE.CylinderGeometry(.03, .03, 3.4, 6), metal, 2.4, 3.2 + 1.7, 1.4);
+  const fc = document.createElement('canvas'); fc.width = 96; fc.height = 64; const fg = fc.getContext('2d');
+  fg.fillStyle = '#2255c8'; fg.fillRect(0, 0, 96, 64); fg.fillStyle = '#f5d34a'; fg.font = 'bold 40px sans-serif'; fg.textAlign = 'center'; fg.textBaseline = 'middle'; fg.fillText('★', 48, 34);
+  const flM = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(fc), side: THREE.DoubleSide }); mats.push(flM);
+  const flag = add(new THREE.PlaneGeometry(1.1, .74), flM, 2.4 + .56, 3.2 + 2.95, 1.4);
+  // 피해 표현: 그을음 → 불 + 연기
+  const sc1 = add(bx(1.6, 1.3, .06), scorchM, -2.2, 1.35, -d / 2 - .07), sc2 = add(bx(.06, 1.3, 1.6), scorchM, -w / 2 - .07, 1.5, 0);
+  const fire = new THREE.Group(); fire.position.set(-.3, 3.2, .2); grp.add(fire);
+  const fm1 = new THREE.MeshBasicMaterial({ color: 0xff7a1a }), fm2 = new THREE.MeshBasicMaterial({ color: 0xffd23a }); mats.push(fm1, fm2);
+  const fl1 = new THREE.Mesh(new THREE.ConeGeometry(.55, 1.5, 6), fm1), fl2 = new THREE.Mesh(new THREE.ConeGeometry(.3, 1.0, 6), fm2); fl1.position.y = .7; fl2.position.set(.5, .5, -.3); fire.add(fl1, fl2); geos.push(fl1.geometry, fl2.geometry);
+  sc1.visible = sc2.visible = fire.visible = false;
+  let rt = 1;
+  return {
+    group: grp,
+    tint(k, r){
+      rt = r; const s = .55 + .45 * r;
+      body.color.setHex(0x7a8274).multiplyScalar(s); trim.color.setHex(0x4b5148).multiplyScalar(s); roof.color.setHex(0x565b53).multiplyScalar(s);
+      sc1.visible = r < .72; sc2.visible = r < .5; fire.visible = r < .3;
+    },
+    upd(tn, dt){
+      flag.rotation.y = Math.sin(tn * 2) * .25;
+      if (rt < .3){ const f = 1 + Math.sin(tn * 17) * .18 + Math.sin(tn * 29) * .1; fl1.scale.set(f, 1 + Math.sin(tn * 13) * .25, f); fl2.scale.set(f, 1 + Math.sin(tn * 21) * .3, f); }
+      if (rt < .55 && Math.random() < dt * (rt < .3 ? 6 : 2.5)){
+        smokePuff(new THREE.Vector3(grp.position.x + (Math.random() - .5) * 4, 3.5, grp.position.z + (Math.random() - .5) * 3), .6, 2.4, 2.4, 0x2a2a2a, .5, new THREE.Vector3((Math.random() - .5) * .4, 1.3, (Math.random() - .5) * .4));
+      }
+    },
+    dispose(){ geos.forEach(g => g.dispose()); mats.forEach(m => { if (m.map) m.map.dispose(); m.dispose(); }); }
+  };
+}
 function zBarHit(b, d){
+  if (b.t === 'hq'){   // 기지는 튼튼해서 좀비 한 번 때려서는 별로 안 닳아요
+    b.hp -= d * .45;
+    if (Math.random() < .4) impact(new THREE.Vector3(b.x + (Math.random() - .5) * b.w, .8 + Math.random() * 2, b.z + (Math.random() - .5) * b.d));
+    if (b.hp <= 0){ b.hp = 0; zHqDown(b); } else bTint(b);
+    return;
+  }
   b.hp -= d;
   if (b.hp <= 0){ impact(new THREE.Vector3(b.x, 1, b.z)); spawnBlood(new THREE.Vector3(b.x, 1, b.z), 12, 3); beep(110, .15, .06); bRemove(b); }
   else bTint(b);
 }
-function zFix(x, z){ bars.forEach(b => { if (Math.hypot(b.x - x, b.z - z) < 16){ b.hp = b.mhp; bTint(b); } }); }
-function zBuildBase(){   // 가운데 기지: 성벽 + 모서리 감시탑(계단으로 올라가요)
-  const K = 11;
-  for (const s of [-1, 1]) for (let i = 0; i < 3; i++){
-    const c = -6.2 + i * 6.2;
-    bAdd(zw.bi++, 'bw', c, s * K, 6.2, .9); bAdd(zw.bi++, 'bw', s * K, c, .9, 6.2);
+function zFix(x, z){ bars.forEach(b => { if (b.t !== 'hq' && Math.hypot(b.x - x, b.z - z) < 16){ b.hp = b.mhp; bTint(b); } }); }
+function zHqFix(){ const h = bars.find(b => b.t === 'hq'); if (h){ h.hp = Math.min(h.mhp, h.hp + 1000); bTint(h); } }
+function zBuildBase(){   // 가운데 작은 군사 기지: 본부 건물 + 네 방향 문이 열린 담장 + 모서리 감시탑 (계단으로 올라가요)
+  bAdd(zw.bi++, 'hq', 0, 0, 6.4, 4.8);
+  bAdd(zw.bi++, 'st', 6.2, 0, 2, 2.4); bAdd(zw.bi++, 'sx', 4.2, 0, 2, 2.4);   // 본부 지붕으로 올라가는 계단 (동쪽)
+  const K = 9;
+  for (const s of [-1, 1]) for (const c of [-5, 5]){
+    bAdd(zw.bi++, 'bw', c, s * K, 5, .9); bAdd(zw.bi++, 'bw', s * K, c, .9, 5);
   }
   for (const sx of [-1, 1]) for (const sz of [-1, 1]){
-    bAdd(zw.bi++, 'tw', sx * K, sz * K, 3.4, 3.4);
-    bAdd(zw.bi++, 'sx', sx * 8.3, sz * 9.2, 2, 2.4);
-    bAdd(zw.bi++, 'st', sx * 6.3, sz * 9.2, 2, 2.4);
+    bAdd(zw.bi++, 'tw', sx * K, sz * K, 3, 3);
+    bAdd(zw.bi++, 'sx', sx * 6.5, sz * 7.3, 2, 2.4);
+    bAdd(zw.bi++, 'st', sx * 4.5, sz * 7.3, 2, 2.4);
   }
 }
 function bPlace(t){
@@ -4755,6 +4849,7 @@ function bPlace(t){
   const T = BT[t];
   if (prof.coins < T.cost){ showMsg('코인이 부족해요', 900); return; }
   if (bars.length >= 70){ showMsg('시설이 너무 많아요', 900); return; }
+  if (t === 'tur' && bars.filter(b => b.t === 'tur').length >= 8){ showMsg('터렛은 최대 8대까지예요', 1100); return; }
   const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw), sw = Math.abs(fx) > Math.abs(fz);
   const x = clamp(player.pos.x + fx * 3.4, -57, 57), z = clamp(player.pos.z + fz * 3.4, -57, 57);
   const w = sw ? T.d : T.w, d = sw ? T.w : T.d;
@@ -4769,6 +4864,14 @@ function bRepair(){
   if (isHost()) zFix(player.pos.x, player.pos.z); else send('bld', { t: 'fix', x: player.pos.x, z: player.pos.z });
   showMsg('🔧 주변 시설 수리!', 900);
 }
+function bRepairHq(){
+  const h = bars.find(b => b.t === 'hq');
+  if (!h || h.hp >= h.mhp){ showMsg('기지 체력이 가득해요', 900); return; }
+  if (prof.coins < 150){ showMsg('코인이 부족해요', 900); return; }
+  prof.coins -= 150; saveLocalProf(); updateWallet();
+  if (isHost()) zHqFix(); else send('bld', { t: 'hqfix', x: 0, z: 0 });
+  showMsg('🏠 기지 수리 +1000', 1200); beep(500, .1, .06);
+}
 function renderDef(box){
   const mk = (nm, sm, label, dis, fn) => {
     const row = document.createElement('div'); row.className = 'si';
@@ -4777,8 +4880,10 @@ function renderDef(box){
     const b = document.createElement('button'); b.textContent = label; b.disabled = dis; b.onclick = fn;
     row.append(info, b); box.appendChild(row);
   };
-  ['wood', 'sand', 'tur'].forEach(k => { const T = BT[k]; mk(T.name, '내 앞에 설치 · 체력 ' + T.hp + (k === 'tur' ? ' · 가까운 좀비를 자동 사격' : ' · 좀비가 먼저 부숴요'), '🪙 ' + T.cost, prof.coins < T.cost, () => { bPlace(k); closeShop(); }); });   // 설치하면 상점이 닫히고 바로 게임으로 돌아가요
-  mk('🔧 시설 수리', '주변 16m 시설 체력 전부 회복', '🪙 60', prof.coins < 60, () => { bRepair(); renderShop(); });
+  ['wood', 'sand', 'tur'].forEach(k => { const T = BT[k], full = k === 'tur' && bars.filter(b => b.t === 'tur').length >= 8; mk(T.name, '내 앞에 설치 · 체력 ' + T.hp + (k === 'tur' ? ' · 가까운 좀비를 자동 사격 · 최대 8대' : ' · 좀비가 먼저 부숴요'), full ? '최대' : '🪙 ' + T.cost, prof.coins < T.cost || full, () => { bPlace(k); closeShop(); }); });   // 설치하면 상점이 닫히고 바로 게임으로 돌아가요
+  mk('🔧 시설 수리', '주변 16m 시설 체력 전부 회복 (기지 본부 제외)', '🪙 60', prof.coins < 60, () => { bRepair(); renderShop(); });
+  const hqb = bars.find(b => b.t === 'hq');
+  mk('🏠 기지 수리', '군사 기지 체력 +1000 (어디서든 · 웨이브 클리어마다 20% 자동 회복)', '🪙 150', prof.coins < 150 || !hqb || hqb.hp >= hqb.mhp, () => { bRepairHq(); renderShop(); });
 }
 function zbSync(p){   // 호스트가 보낸 시설 목록을 따라가기 (호스트가 바뀌어도 시설이 이어져요)
   if (!p.b) return;
@@ -4802,7 +4907,7 @@ function zBoom(x, z){   // 폭탄 좀비 폭발: 사람은 피해, 시설은 호
   beep(90, .5, .15);
   const d = Math.hypot(player.pos.x - x, player.pos.z - z);
   if (!player.dead && d < 5) takeDamage(Math.round(45 * (1 - d / 5) + 8), 'zombie', '폭탄 좀비', 0, false, null);
-  if (isHost()) for (const b of bars.slice()) if (Math.hypot(b.x - x, b.z - z) < 6) zBarHit(b, 260);
+  if (isHost()) for (const b of bars.slice()) if (bxd(b, x, z) < 3.4) zBarHit(b, b.t === 'hq' ? 420 : 260);
 }
 function zBoomHost(z){ const x = z.x, zz = z.z; scene.remove(z.av.group); delete zomb[z.id]; send('zx', { x, z: zz }); zBoom(x, zz); }
 function zTurrets(dt){
@@ -4817,7 +4922,7 @@ function zTurrets(dt){
       const from = new THREE.Vector3(b.x, b.gun.position.y + .05, b.z), to = new THREE.Vector3(best.x, zy(best.x, best.z) + 1.2, best.z);
       tracer(from, to, 0x9ff28a); playShot(0, clamp(1 - bd / 60, 0, 1) * .4);
       send('shot', { id: 'tur', f: from.toArray(), t: to.toArray(), w: 0, h: 0 });
-      zDamage(best.id, 15 + zw.n, '', 0, false);
+      zDamage(best.id, (15 + zw.n) * (ZT[best.t].shield ? .4 : 1), '', 0, false);
     }
   }
 }
@@ -4826,13 +4931,333 @@ function zTurrets(dt){
    · 웨이브마다 무작위 이벤트(러시/군단/중장갑/폭탄/분열/보급)가 걸려서 매번 상대가 달라져요 (5웨이브마다 보스는 그대로)
    · 좀비 수·체력 증가는 완만하게 제한 → 대신 종류와 상황이 바뀌는 쪽으로 난이도를 올려요
    · 보급 상자(빛기둥)를 먹으면 2배 데미지 / 무한 탄창 / 무적 / 회복 / 충격파 중 하나가 걸려요 */
+/* ---------- 웨이브 구성 ----------
+   · 웨이브는 "부대(squad)" 여러 개로 이루어져요. 부대마다 종류(떼/러너/브루트/방패/산성/폭탄/분열/비명/의무)와 공격 방향(8방위)이 정해져 있고
+     맵 가장자리에서 시간차를 두고 나타나요. 부대가 나타날 때 "⚠ 북쪽에서 …!" 경고와 빛기둥이 떠요.
+   · 웨이브가 끝나면 다음 웨이브를 미리 짜 두고, 준비 시간에 "다음 웨이브: 종류 · 공격 방향"을 보여줘요.
+   · 테마 웨이브(러시/군단/중장갑/폭탄/분열/보급/산성/비명/의무병)는 섞어 뽑기(가방 방식)라 연속으로 같은 게 안 나와요.
+   · 5웨이브마다 보스: 5·15·25… 베히모스(땅 내려찍기), 10·20·30… 여왕(졸개 소환 + 산성 3연발) */
 const ZEV = [null,
-  { n: '🏃 러시 웨이브', d: '전부 빠른 좀비!' }, { n: '🧟 군단 웨이브', d: '약하지만 엄청 많아요!' },
-  { n: '🛡 중장갑 웨이브', d: '방패 좀비는 머리를 노리세요!' }, { n: '💣 폭탄 웨이브', d: '시설을 지키세요!' },
-  { n: '🧬 분열 웨이브', d: '죽으면 쪼개져요!' }, { n: '📦 보급 웨이브', d: '좀비는 적고 보급 상자가 자주 나와요!' }];
-const ZEVM = [1, .8, 1.8, .6, .8, .7, .5];
+  { n: '🏃 러시 웨이브', d: '빠른 러너 떼가 사방에서 몰려와요!' },
+  { n: '🧟 군단 웨이브', d: '약하지만 엄청 많아요!' },
+  { n: '🛡 중장갑 웨이브', d: '브루트·방패 부대 — 머리와 옆구리를 노리세요!' },
+  { n: '💣 폭탄 웨이브', d: '폭탄 좀비가 기지를 노려요!' },
+  { n: '🧬 분열 웨이브', d: '죽으면 쪼개져요!' },
+  { n: '📦 보급 웨이브', d: '좀비는 적고 보급 상자가 자주 나와요!' },
+  { n: '🤢 산성 웨이브', d: '멀리서 산성을 뱉어요 — 먼저 처치하세요!' },
+  { n: '😱 비명 웨이브', d: '비명 좀비가 주변 좀비를 흥분시켜요!' },
+  { n: '💉 의무병 웨이브', d: '의무병이 다른 좀비를 치료해요 — 먼저 처치!' }];
+const ZEVMIN = [0, 2, 2, 3, 4, 5, 2, 4, 6, 7];   // 테마별 등장 시작 웨이브
+const ZDN = ['북', '북동', '동', '남동', '남', '남서', '서', '북서'];
 const zHm = n => 1 + Math.min(n, 14) * .1;
-function zEvPick(){ let e = 0; if (zw.n >= 2 && zw.n % 5 !== 0 && Math.random() < .8){ do e = 1 + ((Math.random() * 6) | 0); while (e === zw.lev); } zw.lev = zw.ev = e; if (e === 6) zw.ct = 3; }
+const zRep = (t, c) => Array(Math.max(0, c | 0)).fill(t);
+function zShuffle(a){ for (let i = a.length - 1; i > 0; i--){ const j = (Math.random() * (i + 1)) | 0; const t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+const ZFL = {   // 부대 종류: [등장 웨이브, 이름, 구성(n)]
+  horde:  [1, '좀비 떼',     n => zRep(0, 5 + n * 1.2)],
+  fast:   [2, '러너 떼',     n => zRep(1, 4 + n * .8)],
+  heavy:  [3, '브루트 부대', n => zRep(2, 1 + n / 5).concat(zRep(0, 3 + n / 2))],
+  guard:  [4, '방패 부대',   n => zRep(6, 2 + n / 4).concat(zRep(0, 3 + n / 3))],
+  acid:   [4, '산성 부대',   n => zRep(3, 1 + n / 4).concat(zRep(0, 4 + n / 3))],
+  bomb:   [5, '폭탄 부대',   n => zRep(4, 2 + n / 4)],
+  split:  [6, '분열 부대',   n => zRep(7, 2 + n / 4)],
+  shriek: [7, '비명 부대',   n => [8].concat(zRep(1, 3 + n / 3))],
+  medic:  [8, '의무 부대',   n => [9].concat(zRep(6, 1 + n / 6), zRep(2, n >= 9 ? 1 : 0), zRep(0, 3 + n / 3))]
+};
+const ZTHEME = { 1: ['fast', 'fast', 'fast'], 2: ['horde', 'horde', 'horde'], 3: ['heavy', 'guard', 'heavy'], 4: ['bomb', 'horde', 'bomb'], 5: ['split', 'split', 'split'], 6: ['horde'], 7: ['acid', 'acid', 'acid'], 8: ['shriek', 'shriek', 'shriek'], 9: ['medic', 'guard', 'medic'] };
+function zBagPick(n){
+  const un = []; for (let e = 1; e < ZEV.length; e++) if (n >= ZEVMIN[e]) un.push(e);
+  if (!un.length) return 0;
+  zw.bag = zw.bag.filter(e => un.includes(e));
+  if (!zw.bag.length) zw.bag = zShuffle(un.filter(e => e !== zw.lev || un.length < 2));
+  return zw.bag.pop();
+}
+function zEdgePt(d){   // d 방향(0=북, 시계 방향)의 맵 가장자리 한 점
+  const a = d * Math.PI / 4, vx = Math.sin(a), vz = -Math.cos(a);
+  let x = 0, z = 0;
+  for (let i = 0; i < 14; i++){
+    const lat = (Math.random() - .5) * 16, r = 46 + Math.random() * 3;
+    x = clamp(vx * r - vz * lat, -56, 56); z = clamp(vz * r + vx * lat, -56, 56);
+    if (!collides(x, 0, z) && !inLake(x, z)) break;
+  }
+  return [x, z];
+}
+function zPlan(n, hu){
+  const boss = n % 5 === 0, mul = 1 + (hu - 1) * .6;
+  let ev = 0;
+  if (!boss && n >= 2 && Math.random() < .7) ev = zBagPick(n);
+  zw.lev = ev;
+  const un = Object.keys(ZFL).filter(k => ZFL[k][0] <= n), sq = [];
+  if (boss){
+    sq.push(n % 10 === 5 ? 'bossB' : 'bossQ');
+    sq.push(un[(Math.random() * un.length) | 0], un[(Math.random() * un.length) | 0]);
+  } else if (ev) sq.push(...ZTHEME[ev]);
+  else {
+    const k = clamp(1 + ((n / 2) | 0), 1, 5), pool = zShuffle(un.filter(x => x !== 'horde'));
+    sq.push('horde');
+    while (sq.length < k) sq.push(pool.length ? pool[(sq.length - 1) % pool.length] : 'horde');
+  }
+  const dirs = zShuffle([0, 1, 2, 3, 4, 5, 6, 7]), q = [];
+  let at = 0, dm = 0;
+  sq.forEach((key, i) => {
+    const d = dirs[i % 8], pt = zEdgePt(d);
+    let list, nm;
+    if (key === 'bossB'){ list = [5]; nm = ZT[5].nm; }
+    else if (key === 'bossQ'){ list = [10]; nm = ZT[10].nm; }
+    else {
+      list = ZFL[key][2](n); nm = ZFL[key][1];
+      if (ev){ const sc = clamp(.45 + n * .07, .5, 1.15) * (ev === 2 ? 1.3 : ev === 6 ? .6 : 1); list.length = Math.min(list.length, Math.max(3, Math.round(list.length * sc))); }   // 테마 웨이브는 초반엔 작게 시작
+    }
+    if (key.indexOf('boss') !== 0 && mul > 1){ const base = list.slice(), want = Math.round(list.length * mul); while (list.length < want) list.push(base[list.length % base.length]); }
+    if (list.length > 28) list.length = 28;
+    const gap = key === 'horde' ? .35 : .5;
+    list.forEach((t, j) => q.push({ at: at + j * gap, t, x: pt[0], z: pt[1], w: j === 0 ? [d, nm] : 0 }));
+    dm |= 1 << d;
+    at += 7 + Math.random() * 3 + list.length * gap * .6;
+  });
+  return { q, ev, dm, boss: boss ? (n % 10 === 5 ? 5 : 10) : 0, hu };
+}
+function zStartWave(){
+  const pl = zw.pl || zPlan(zw.n + 1, 1);
+  zw.pl = null; zw.n++; zw.q = pl.q; zw.wt = 0; zw.mine = 1; zw.ev = pl.ev; zw.dm = pl.dm; zw.hu = pl.hu; zw.sp = 0;
+  const E = ZEV[zw.ev];
+  showMsg(pl.boss ? '👹 보스 웨이브 ' + zw.n + ' — ' + ZT[pl.boss].nm + '!' : E ? E.n + ' ' + zw.n + ' — ' + E.d : '🧟 웨이브 ' + zw.n + ' 시작!', 3500);
+  beep(180, .4, .08);
+}
+function zSpawnAt(it){
+  let x = it.x, z = it.z;
+  for (let i = 0; i < 10; i++){
+    const tx = clamp(it.x + (Math.random() - .5) * 7, -57, 57), tz = clamp(it.z + (Math.random() - .5) * 7, -57, 57);
+    if (!collides(tx, 0, tz) && !inLake(tx, tz)){ x = tx; z = tz; break; }
+  }
+  const T = ZT[it.t], mhp = Math.round(T.hp * zHm(zw.n) * (T.boss ? 1 + ((zw.hu || 1) - 1) * .8 : 1));
+  zAdd(zw.id++, it.t, x, z, mhp, mhp);
+  if (it.w) zfx({ k: 'wn', x: +x.toFixed(1), z: +z.toFixed(1), m: '⚠ ' + ZDN[it.w[0]] + '쪽에서 ' + it.w[1] + '!' });
+}
+function zOver(){
+  if (zw.over) return;
+  zw.over = now() + 4; send('zo', { w: zw.n });
+  showMsg('💀 기지 함락! 웨이브 ' + zw.n, 3500);
+}
+function zHqDown(b){
+  const x = b.x, z = b.z; bRemove(b); zHq = null;
+  zfx({ k: 'hqx', x, z });
+  zOver();
+}
+
+/* ---------- 효과 (산성 침 · 내려찍기 · 비명 · 치료 · 경고 빛기둥 …) — 호스트가 'zfx' 로 알리면 모두의 화면에서 같이 재생돼요 ---------- */
+const zFxs = [];
+function zFxAdd(dur, upd, end){ zFxs.push({ t: 0, dur, upd, end }); }
+function zFxStep(dt){
+  for (let i = zFxs.length - 1; i >= 0; i--){
+    const e = zFxs[i]; e.t += dt;
+    if (e.t >= e.dur){ zFxs.splice(i, 1); try { if (e.end) e.end(e); } catch(err){} }
+    else if (e.upd) e.upd(e, e.t / e.dur);
+  }
+}
+function zfx(p){ zfxDo(p); send('zfx', p); }
+let _fxg = null;
+function zFxG(){ return _fxg || (_fxg = { ring: new THREE.RingGeometry(.94, 1, 40), disc: new THREE.CircleGeometry(1, 28), glob: new THREE.SphereGeometry(.17, 8, 6), beam: new THREE.CylinderGeometry(.35, .35, 40, 10, 1, true) }); }
+function zFlat(geo, x, z, col, op){
+  const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  m.rotation.x = -Math.PI / 2; m.position.set(x, zy(x, z) + .08, z); scene.add(m); return m;
+}
+function zFlatDone(m){ scene.remove(m); m.material.dispose(); }
+function zAcid(c){   // 산성 침이 떨어진 곳: 터지고 → 3초 동안 웅덩이가 남아 닿으면 아파요
+  const G = zFxG();
+  smokePuff(new THREE.Vector3(c.x, c.y + .3, c.z), .5, 1.9, .6, 0x7fe03a, .6, new THREE.Vector3(0, .8, 0)); beep(260, .12, .05);
+  const pool = zFlat(G.disc, c.x, c.z, 0x7fe03a, .5); pool.scale.setScalar(2.1);
+  const hurt = d => {
+    if (player.dead || zBuf.god > now()) return;
+    if (Math.hypot(player.pos.x - c.x, player.pos.z - c.z) < 2.2 && player.pos.y - c.y < 4.2 && player.pos.y - c.y > -1.5) takeDamage(d, 'zombie', '산성 좀비', 0, false, null);
+  };
+  hurt(Math.round(16 + zw.n * .8));
+  if (isHost()) for (const b of bars.slice()) if (bxd(b, c.x, c.z) < 2.2) zBarHit(b, 90);
+  zFxAdd(3.2, (e, a) => { pool.material.opacity = .5 * (1 - a * .7); if (e.t - (e.l || 0) >= .5){ e.l = e.t; hurt(5); } }, () => zFlatDone(pool));
+}
+function zfxDo(p){
+  if (!p) return;
+  const G = zFxG(), k = p.k, tn = now();
+  if (k === 'sp'){   // 산성 침 (포물선으로 날아가요 — 움직이면 피할 수 있어요)
+    const f = new THREE.Vector3(p.f[0], p.f[1], p.f[2]), to = new THREE.Vector3(p.t[0], p.t[1], p.t[2]), h = 1 + f.distanceTo(to) * .1;
+    const m = new THREE.Mesh(G.glob, new THREE.MeshBasicMaterial({ color: 0x9bff3a })); m.position.copy(f); scene.add(m);
+    zFxAdd(p.u || .8, (e, a) => { m.position.lerpVectors(f, to, a); m.position.y += Math.sin(a * Math.PI) * h; }, () => { scene.remove(m); m.material.dispose(); zAcid(to); });
+  } else if (k === 'ch'){   // 브루트 돌진 준비
+    const z = zomb[p.id]; if (z) z.warn = tn + .8; beep(70, .45, .12);
+  } else if (k === 'sl'){   // 베히모스 내려찍기: 바닥에 붉은 원이 차오르고, 다 차면 쾅 (점프하거나 높은 곳에 있으면 피해요)
+    const x = p.x, z = p.z, r = p.r, bz = zomb[p.id]; if (bz) bz.warn = tn + .9;
+    const ring = zFlat(G.ring, x, z, 0xff3030, .8), fill = zFlat(G.disc, x, z, 0xff2020, .18); ring.scale.setScalar(r); beep(60, .6, .12);
+    zFxAdd(.9, (e, a) => { fill.scale.setScalar(Math.max(.1, r * a)); fill.material.opacity = .12 + .22 * a; }, () => {
+      zFlatDone(ring); zFlatDone(fill);
+      const dist = Math.hypot(camera.position.x - x, camera.position.z - z);
+      camShake = Math.max(camShake, clamp(1.3 - dist / 30, 0, 1) * 1.1); beep(45, .5, .18);
+      for (let i = 0; i < 12; i++){ const a = i / 12 * 6.283; smokePuff(new THREE.Vector3(x + Math.cos(a) * r * .7, zy(x, z) + .4, z + Math.sin(a) * r * .7), .8, 2.6, 1, 0x7a6e5c, .6, new THREE.Vector3(Math.cos(a) * 1.5, .8, Math.sin(a) * 1.5)); }
+      if (!player.dead && zBuf.god <= now()){
+        const d = Math.hypot(player.pos.x - x, player.pos.z - z);
+        if (d < r && player.pos.y - zy(player.pos.x, player.pos.z) < 1.0) takeDamage(Math.round(36 * (1 - d / r * .4)), 'zombie', ZT[5].nm, 0, false, null);
+      }
+      if (isHost()) for (const b of bars.slice()) if (bxd(b, x, z) < r) zBarHit(b, 330);
+    });
+  } else if (k === 'sc'){   // 비명: 주변 좀비들이 5초 동안 빨라져요
+    const z = zomb[p.id]; if (z) z.scr = tn + 1.2;
+    const ring = zFlat(G.ring, p.x, p.z, 0xffb347, .8); beep(820, .7, .1);
+    zFxAdd(1, (e, a) => { ring.scale.setScalar(1 + a * 22); ring.material.opacity = .8 * (1 - a); }, () => zFlatDone(ring));
+    if (Math.hypot(camera.position.x - p.x, camera.position.z - p.z) < 45) showMsg('😱 비명! 좀비들이 흥분했어요!', 1600);
+  } else if (k === 'hl'){   // 의무병 치료 광선
+    const m = zomb[p.id]; if (!m) return;
+    for (const id of p.to){
+      const o = zomb[id]; if (!o) continue;
+      tracer(new THREE.Vector3(m.x, zy(m.x, m.z) + 1.7, m.z), new THREE.Vector3(o.x, zy(o.x, o.z) + 1.2, o.z), 0x5cff9a);
+      smokePuff(new THREE.Vector3(o.x, zy(o.x, o.z) + 1.4, o.z), .3, 1, .8, 0x5cff9a, .5, new THREE.Vector3(0, 1, 0));
+    }
+    beep(1100, .12, .04);
+  } else if (k === 'sm'){   // 여왕의 소환
+    const ring = zFlat(G.ring, p.x, p.z, 0xd070ff, .9); beep(160, .6, .1);
+    zFxAdd(.9, (e, a) => { ring.scale.setScalar(1 + a * 6); ring.material.opacity = .9 * (1 - a); }, () => zFlatDone(ring));
+  } else if (k === 'wn'){   // 부대 출현 경고: 메시지 + 붉은 빛기둥
+    showMsg(p.m, 2600); beep(330, .3, .08);
+    const m = new THREE.Mesh(G.beam, new THREE.MeshBasicMaterial({ color: 0xff3030, transparent: true, opacity: .3, depthWrite: false, side: THREE.DoubleSide }));
+    m.position.set(p.x, zy(p.x, p.z) + 20, p.z); scene.add(m);
+    zFxAdd(6, (e, a) => { m.material.opacity = .15 + .15 * Math.sin(e.t * 8); }, () => { scene.remove(m); m.material.dispose(); });
+  } else if (k === 'hqx'){   // 기지 함락 폭발
+    const c = new THREE.Vector3(p.x || 0, 1.6, p.z || 0);
+    boomAt(c); camShake = Math.max(camShake, 1.4);
+    for (let i = 1; i < 6; i++) zFxAdd(i * .22, null, () => boomAt(new THREE.Vector3(c.x + (Math.random() - .5) * 6, 1 + Math.random() * 3, c.z + (Math.random() - .5) * 5)));
+    showMsg('💀 기지가 함락됐어요!', 3500);
+  }
+}
+
+/* ---------- 좀비 모델 ---------- */
+const ZBOX = new THREE.BoxGeometry(1, 1, 1), ZCONE = new THREE.ConeGeometry(1, 1, 6), ZSPH = new THREE.SphereGeometry(1, 10, 8), ZCYL = new THREE.CylinderGeometry(1, 1, 1, 10);
+const _zm = {};
+function zMat(c, glow){ const k = c + (glow ? 'g' : ''); return _zm[k] || (_zm[k] = glow ? new THREE.MeshBasicMaterial({ color: c }) : new THREE.MeshLambertMaterial({ color: c })); }
+function zPart(par, geo, c, sx, sy, sz, x, y, z, rx, ry, rz, glow){
+  const m = new THREE.Mesh(geo, zMat(c, glow)); m.scale.set(sx, sy, sz); m.position.set(x, y, z);
+  if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0);
+  m.castShadow = !glow; par.add(m); return m;
+}
+/* 종류마다 겉모습이 확 달라요: 기본 몸(makeAvatar)에 장비·뿔·가시·방패·배낭 같은 부품을 덧붙이고, 움직이는 부품은 갱신 함수로 돌려줘요 */
+function zDecor(av, t, id){
+  const P = av.parts, pv = av.pivot, L = av.limbs, hd = P.head, tr = P.torso, B = zPart, PI = Math.PI;
+  const r = mulberry32(((+id || 1) * 2654435761) >>> 0);
+  const eyes = (col, y, s) => {
+    if (hd.children[0]) hd.children[0].visible = false;   // 기본 바이저 숨김
+    s = s || 1; B(hd, ZBOX, col, .07 * s, .045 * s, .03, -.075, y == null ? .05 : y, -.2, 0, 0, 0, true); B(hd, ZBOX, col, .07 * s, .045 * s, .03, .075, y == null ? .05 : y, -.2, 0, 0, 0, true);
+  };
+  const claws = (limb, col, n) => { for (let i = 0; i < n; i++) B(limb, ZCONE, col, .028, .2, .028, (i - (n - 1) / 2) * .055, -.72, -.02, PI, 0, 0); };
+  if (t === 0){   // 걸어다니는 시체: 핏자국 · 찢어진 옷 · 비뚤어진 목
+    tr.material.color.offsetHSL((r() - .5) * .06, 0, (r() - .5) * .12);
+    B(tr, ZBOX, 0x7a1414, .18 + r() * .14, .22, .04, (r() - .5) * .3, .05, -.19);
+    B(tr, ZBOX, 0x26241f, .14, .2, .05, -.16, -.43, -.12); B(tr, ZBOX, 0x26241f, .12, .26, .05, .12, -.45, -.1);
+    B(hd, ZBOX, 0x8a1515, .2, .06, .05, 0, -.13, -.17);
+    hd.rotation.z = (r() - .5) * .5; hd.rotation.x = r() * .2;
+    return null;
+  }
+  if (t === 1){   // 러너: 앙상하고 구부정 · 후드 · 발톱 · 노란 눈 · 드러난 척추
+    pv.scale.set(.82, 1, .9);
+    B(hd, ZBOX, 0x2a2e33, .44, .12, .42, 0, .17, .02); B(hd, ZBOX, 0x2a2e33, .44, .36, .1, 0, 0, .19); B(hd, ZBOX, 0x2a2e33, .08, .3, .36, -.2, 0, .02); B(hd, ZBOX, 0x2a2e33, .08, .3, .36, .2, 0, .02);
+    eyes(0xffd23a, .04, 1.2); claws(L.armL, 0xd9d3c0, 3); claws(L.armR, 0xd9d3c0, 3);
+    for (let i = 0; i < 4; i++) B(tr, ZBOX, 0xe8e0c8, .07, .05, .06, 0, .25 - i * .17, .19);
+    return null;
+  }
+  if (t === 2){   // 브루트: 거대한 팔과 주먹 · 어깨 가시 · 등뼈 가시 · 작고 사나운 머리
+    tr.scale.set(1.45, 1.1, 1.5); L.armL.position.x = -.62; L.armR.position.x = .62; L.armL.scale.set(1.6, 1.2, 1.6); L.armR.scale.set(1.6, 1.2, 1.6);
+    L.legL.scale.set(1.35, 1, 1.35); L.legR.scale.set(1.35, 1, 1.35); hd.scale.setScalar(.82); hd.position.y = 1.58;
+    eyes(0xff3030, .05, 1.1);
+    B(L.armL, ZBOX, 0x6b3a3a, .27, .27, .29, 0, -.64, 0); B(L.armR, ZBOX, 0x6b3a3a, .27, .27, .29, 0, -.64, 0);
+    for (const s of [-1, 1]) for (let i = 0; i < 3; i++) B(pv, ZCONE, 0xd8d2bd, .09, .34 - i * .05, .09, s * (.5 + i * .09), 1.58 - i * .05, .02, 0, 0, -s * (.5 + i * .35));
+    for (let i = 0; i < 4; i++) B(pv, ZCONE, 0xd8d2bd, .08, .3, .08, 0, 1.0 + i * .22, .36, PI / 2, 0, 0);
+    B(tr, ZBOX, 0x3b2a2a, .9, .12, .05, 0, -.1, -.28);   // 가슴 흉터
+    return null;
+  }
+  if (t === 3){   // 산성 좀비: 부풀어 오른 산성 주머니 · 벌어진 입에서 줄줄 · 고개를 젖힘
+    hd.rotation.x = -.5; eyes(0xb6ff3a, .06, 1.1);
+    B(hd, ZBOX, 0x0a1a05, .16, .1, .06, 0, -.08, -.19); B(hd, ZBOX, 0x9bff3a, .025, .16, .025, 0, -.2, -.19, 0, 0, 0, true); B(hd, ZBOX, 0x9bff3a, .025, .1, .025, .06, -.18, -.19, 0, 0, 0, true);
+    const sac = B(pv, ZSPH, 0x9bff3a, .17, .2, .16, 0, 1.4, -.12, 0, 0, 0, true);
+    for (let i = 0; i < 5; i++) B(tr, ZSPH, 0xc6ff6a, .07, .07, .07, (r() - .5) * .5, (r() - .5) * .5, -.19, 0, 0, 0, true);
+    B(tr, ZBOX, 0x2f4a1a, .66, .5, .4, 0, -.05, 0);
+    return (z, tn) => { const k = 1 + Math.sin(tn * 5 + z.ph) * .15; sac.scale.set(.17 * k, .2 * k, .16 * k); };
+  }
+  if (t === 4){   // 폭탄 좀비: 다이너마이트 조끼 · 깜빡이는 뇌관 · 폭약 배낭
+    for (let i = 0; i < 4; i++) B(tr, ZCYL, 0xb0201c, .06, .32, .06, -.21 + i * .14, -.05, -.2);
+    B(tr, ZBOX, 0x222222, .66, .07, .4, 0, .14, 0); B(tr, ZBOX, 0x222222, .66, .07, .4, 0, -.2, 0);
+    B(pv, ZBOX, 0x5a4a2a, .42, .46, .22, 0, 1.2, .29); for (let i = 0; i < 3; i++) B(pv, ZCYL, 0xb0201c, .05, .4, .05, -.12 + i * .12, 1.22, .42);
+    const led = new THREE.Mesh(ZSPH, new THREE.MeshBasicMaterial({ color: 0xff2a2a })); led.scale.setScalar(.05); led.position.set(0, .0, -.23); tr.add(led);
+    B(tr, ZBOX, 0x111111, .02, .3, .02, .1, .0, -.22, 0, 0, .4);
+    eyes(0xffffff, .05, 1.3);
+    return (z, tn) => { led.visible = ((tn * (z.chase ? 6 : 3)) % 1) < .5; };
+  }
+  if (t === 5){   // 베히모스(보스): 뿔 · 어깨 갑옷과 가시 · 갈라진 가슴의 보랏빛 핵 · 큰 주먹
+    tr.scale.set(1.3, 1.1, 1.3); L.armL.position.x = -.58; L.armR.position.x = .58; L.armL.scale.set(1.5, 1.2, 1.5); L.armR.scale.set(1.5, 1.2, 1.5);
+    L.legL.scale.set(1.3, 1, 1.3); L.legR.scale.set(1.3, 1, 1.3);
+    for (const s of [-1, 1]){
+      B(hd, ZCONE, 0x2a2018, .09, .55, .09, s * .18, .24, 0, 0, 0, -s * .7); B(hd, ZCONE, 0x2a2018, .07, .3, .07, s * .23, .05, .02, 0, 0, -s * 1.2);
+      B(pv, ZBOX, 0x3b2f47, .46, .2, .46, s * .6, 1.6, 0);
+      for (let i = 0; i < 3; i++) B(pv, ZCONE, 0xcfc7b0, .08, .38, .08, s * (.5 + i * .12), 1.76, (i - 1) * .14, 0, 0, -s * (.4 + i * .3));
+      B(s < 0 ? L.armL : L.armR, ZBOX, 0x4b3a5c, .3, .3, .32, 0, -.64, 0);
+    }
+    eyes(0xd070ff, .05, 1.6);
+    B(tr, ZBOX, 0x4a3d58, .5, .5, .06, 0, .05, -.2);
+    const core = B(tr, ZSPH, 0xc060ff, .12, .12, .05, 0, .05, -.24, 0, 0, 0, true);
+    B(tr, ZBOX, 0xb050ff, .02, .42, .02, .18, 0, -.22, 0, 0, .35, true); B(tr, ZBOX, 0xb050ff, .02, .36, .02, -.17, .02, -.22, 0, 0, -.3, true);
+    for (let i = 0; i < 5; i++) B(pv, ZCONE, 0xcfc7b0, .09, .36, .09, (i - 2) * .2, 1.15 + (i % 2) * .22, .34, PI / 2, 0, 0);
+    return (z, tn) => { const k = .12 + Math.sin(tn * 3) * .025; core.scale.set(k, k, .05); };
+  }
+  if (t === 6){   // 방패 좀비: 진압 방패(앞쪽 총알을 거의 막아요) · 헬멧 · 흉갑 → 머리·옆·뒤를 노리세요
+    if (hd.children[0]) hd.children[0].visible = false;
+    B(hd, ZSPH, 0x2d343b, .23, .17, .23, 0, .09, 0); B(hd, ZBOX, 0xffb000, .22, .04, .03, 0, .01, -.2, 0, 0, 0, true);
+    B(tr, ZBOX, 0x2d343b, .66, .5, .4, 0, .08, 0);
+    const sh = B(pv, ZBOX, 0x3b5566, 1.0, 1.1, .09, 0, 1.0, -.72);
+    sh.userData = { part: 'shield', kind: 'zombie', zid: id }; av.hit.push(sh);
+    B(pv, ZBOX, 0x1a2228, 1.06, .07, .11, 0, 1.56, -.72); B(pv, ZBOX, 0x1a2228, 1.06, .07, .11, 0, .44, -.72);
+    B(pv, ZBOX, 0x1a2228, .07, 1.1, .11, -.5, 1.0, -.72); B(pv, ZBOX, 0x1a2228, .07, 1.1, .11, .5, 1.0, -.72);
+    B(pv, ZBOX, 0x9ad0ff, .55, .11, .02, 0, 1.32, -.775, 0, 0, 0, true); B(pv, ZBOX, 0xf2c200, .96, .09, .02, 0, .78, -.775, 0, 0, 0, true);
+    return null;
+  }
+  if (t === 7){   // 분열 좀비: 퉁퉁 부은 몸 · 꿈틀대는 분홍 혹 · 어깨에 자라난 작은 머리
+    tr.scale.set(1.35, 1.15, 1.7); hd.scale.setScalar(1.1);
+    const pu = [];
+    for (let i = 0; i < 8; i++){ const a = r() * 6.283, s = .07 + r() * .06; pu.push(B(tr, ZSPH, 0xe05fd0, s, s, s, Math.cos(a) * .3, (r() - .5) * .6, Math.sin(a) * .2 + (a > 3.14 ? .08 : -.08), 0, 0, 0, true)); }
+    B(pv, ZSPH, 0xb88ab8, .14, .14, .14, .36, 1.7, -.02); B(pv, ZBOX, 0xffe27a, .05, .03, .02, .33, 1.72, -.15, 0, 0, 0, true); B(pv, ZBOX, 0xffe27a, .05, .03, .02, .4, 1.72, -.15, 0, 0, 0, true);
+    B(tr, ZBOX, 0x2a0a2a, .03, .75, .02, 0, 0, -.28);
+    eyes(0xffe27a, .05, 1);
+    const base = pu.map(m => m.scale.x);
+    return (z, tn) => { for (let i = 0; i < pu.length; i++){ const k = base[i] * (1 + Math.sin(tn * 5 + i * 1.7) * .25); pu[i].scale.setScalar(k); } };
+  }
+  if (t === 8){   // 비명 좀비: 비쩍 마른 몸 · 거대한 머리와 턱 · 길게 늘어진 팔 · 목울대
+    pv.scale.set(.85, 1.08, .85); hd.scale.setScalar(1.3); L.armL.scale.set(.8, 1.35, .8); L.armR.scale.set(.8, 1.35, .8);
+    eyes(0xffffff, .06, 1.3);
+    const jaw = new THREE.Group(); jaw.position.set(0, -.1, -.08); hd.add(jaw); B(jaw, ZBOX, 0x3a1a1a, .26, .08, .24, 0, -.04, -.04);
+    B(hd, ZBOX, 0x050000, .22, .12, .05, 0, -.06, -.19);
+    for (let i = 0; i < 4; i++) B(hd, ZCONE, 0x333333, .03, .3, .03, (i - 1.5) * .09, .22, .1, .5, 0, (i - 1.5) * .3);
+    const th = B(pv, ZSPH, 0xff8a3a, .1, .12, .1, 0, 1.45, -.1, 0, 0, 0, true);
+    return (z, tn) => { const sc = z.scr > tn; jaw.rotation.x = sc ? .9 + Math.sin(tn * 40) * .15 : .12; const k = sc ? 1.8 + Math.sin(tn * 30) * .3 : 1; th.scale.set(.1 * k, .12 * k, .1 * k); };
+  }
+  if (t === 9){   // 의무병 좀비: 방독면 · 치료약 탱크 배낭 · 가슴의 녹색 십자 · 머리 위에서 도는 십자 표시
+    B(hd, ZBOX, 0xdfe9e4, .24, .13, .09, 0, -.07, -.17); B(hd, ZCYL, 0x888888, .05, .08, .05, .06, -.1, -.24, PI / 2, 0, 0);
+    eyes(0x5cff9a, .06, 1.1);
+    B(pv, ZCYL, 0x2f9e6a, .13, .36, .13, -.14, 1.25, .27); B(pv, ZCYL, 0x2f9e6a, .13, .36, .13, .14, 1.25, .27);
+    B(tr, ZBOX, 0xffffff, .22, .07, .02, 0, .05, -.19); B(tr, ZBOX, 0xffffff, .07, .22, .02, 0, .05, -.19);
+    B(tr, ZBOX, 0x3dff8a, .14, .04, .03, 0, .05, -.2, 0, 0, 0, true); B(tr, ZBOX, 0x3dff8a, .04, .14, .03, 0, .05, -.2, 0, 0, 0, true);
+    B(L.armR, ZCYL, 0xdfe9e4, .03, .22, .03, 0, -.74, -.1, PI / 2, 0, 0); B(L.armR, ZCYL, 0x5cff9a, .02, .16, .02, 0, -.74, -.1, PI / 2, 0, 0, true);
+    const cr = new THREE.Group(); cr.position.set(0, 2.3, 0); pv.add(cr);
+    B(cr, ZBOX, 0x5cff9a, .34, .1, .08, 0, 0, 0, 0, 0, 0, true); B(cr, ZBOX, 0x5cff9a, .1, .34, .08, 0, 0, 0, 0, 0, 0, true);
+    return (z, tn) => { cr.rotation.y = tn * 2.2; cr.position.y = 2.3 + Math.sin(tn * 3 + z.ph) * .06; };
+  }
+  if (t === 10){   // 여왕(보스): 뼈 왕관 · 날씬한 몸에 치마처럼 퍼진 하반신 · 보조 팔 · 등 가시 · 꼬리 · 빛나는 알주머니
+    tr.scale.set(.9, 1.1, .9);
+    for (let i = 0; i < 5; i++){ const a = i / 5 * 6.283; B(hd, ZCONE, 0xe8dcc0, .05, .3, .05, Math.cos(a) * .15, .2, Math.sin(a) * .15, Math.sin(a) * .4, 0, -Math.cos(a) * .4); }
+    eyes(0xff4fd8, .05, 1.4);
+    B(pv, ZCONE, 0x3a1a3a, .58, .95, .58, 0, .62, 0);
+    for (const s of [-1, 1]) for (let i = 0; i < 2; i++){ B(pv, ZBOX, 0xd9a0d0, .09, .55, .09, s * .38, 1.28 - i * .22, -.12, -.7 - i * .3, 0, -s * .25); B(pv, ZCONE, 0xe8dcc0, .04, .16, .04, s * .38, 1.0 - i * .22, -.36 - i * .1, PI - .7 - i * .3, 0, 0); }
+    for (let i = 0; i < 5; i++) B(pv, ZCONE, 0xe8dcc0, .07, .34, .07, 0, 1.0 + i * .17, .24 + (i % 2) * .04, PI / 2 + .5, 0, 0);
+    const tail = new THREE.Group(); tail.position.set(0, .85, .18); pv.add(tail);
+    for (let i = 0; i < 3; i++) B(tail, ZCONE, 0x5a2a55, .14 - i * .035, .7, .14 - i * .035, 0, 0, .35 + i * .6, PI / 2, 0, 0);
+    const sac = B(pv, ZSPH, 0xff69d6, .22, .26, .2, 0, 1.3, .36, 0, 0, 0, true);
+    return (z, tn) => { tail.rotation.y = Math.sin(tn * 2.2) * .45; const k = 1 + Math.sin(tn * 3) * .1; sac.scale.set(.22 * k, .26 * k, .2 * k); };
+  }
+  return null;
+}
+
 let zCr = null, zCrGone = -999;
 const zBuf = { dmg: 0, ammo: 0, god: 0 };
 const ZCN = ['⚡ 2배 데미지 20초', '🔋 무한 탄창 20초', '🛡 무적 8초', '❤ 체력 완전 회복', '💥 충격파!'];
@@ -4883,45 +5308,31 @@ function zHud(){
   if (zBuf.dmg > t) b.push('⚡' + Math.ceil(zBuf.dmg - t)); if (zBuf.ammo > t) b.push('🔋' + Math.ceil(zBuf.ammo - t)); if (zBuf.god > t) b.push('🛡' + Math.ceil(zBuf.god - t));
   if (zCr) b.push('📦 상자 있음');
   if (b.length) l.textContent += ' · ' + b.join(' ');
+  zHudBars();
 }
 function zAdd(id, t, x, z, hp, mhp){
-  if (t === 3) t = 0;   // 예전 버전 호스트가 보낸 원거리 좀비는 일반 좀비로
+  if (!ZT[t]) t = 0;
   const T = ZT[t], av = makeAvatar('', T.col, { kind: 'zombie', zid: id });
   av.label.visible = false; av.parts.gun.visible = false;
-  av.parts.head.material.color.set(t === 4 ? 0xe0a24a : t === 5 ? 0x8a4a9a : t === 6 ? 0x9aa6b3 : t === 7 ? 0xb06ab0 : 0x7ea35c);
+  av.parts.head.material.color.set(T.hc || 0x7ea35c);
   av.group.scale.setScalar(T.sc);
   av.group.position.set(x, zy(x, z), z);
-  return (zomb[id] = { id, t, x, z, yaw: 0, hp, mhp, av, ph: 0, atk: 0, batk: 0, ar: 0, ax: x, az: z, sc: 0, sx: x, sz: z, esc: 0, ed: 1, want: false });
-}
-function zSpawn(){
-  const T = zTargets(), c = T[(Math.random() * T.length) | 0] || { x: 0, z: 0 };
-  let x = 0, z = 0;
-  for (let i = 0; i < 14; i++){
-    const a = Math.random() * 6.283, r = 26 + Math.random() * 10;
-    x = clamp(c.x + Math.cos(a) * r, -57, 57); z = clamp(c.z + Math.sin(a) * r, -57, 57);
-    if (!collides(x, 0, z)) break;
-  }
-  const q = Math.random(), n = zw.n;
-  let t = 0;
-  if (zw.boss){ zw.boss = 0; t = 5; }
-  else if (zw.ev === 1) t = q < .8 ? 1 : 0;
-  else if (zw.ev === 2) t = q < .9 ? 0 : 1;
-  else if (zw.ev === 3) t = q < .5 ? 6 : q < .65 ? 2 : 0;
-  else if (zw.ev === 4) t = q < .45 ? 4 : 0;
-  else if (zw.ev === 5) t = q < .6 ? 7 : 0;
-  else if (zw.ev === 6) t = 0;
-  else if (n >= 5 && q < .08) t = 4; else if (n >= 6 && q < .17) t = 7; else if (n >= 4 && q < .27) t = 6; else if (n >= 3 && q < .35) t = 2; else if (n >= 2 && q < .6) t = 1;
-  const mhp = Math.round(ZT[t].hp * zHm(n));
-  zAdd(zw.id++, t, x, z, mhp, mhp);
+  const tn = now();
+  const o = (zomb[id] = { id, t, x, z, yaw: 0, hp, mhp, av, ph: Math.random() * 6, atk: 0, batk: 0, ar: 0, ax: x, az: z, sc: 0, sx: x, sz: z, esc: 0, ed: 1, want: false,
+    cdn: tn + 1.5 + Math.random() * 2.5, cdn2: tn + 6, ratk: tn + 1, dsh: 0, st: 0, stT: 0, stun: 0, rg: 0, warn: 0, scr: 0, chase: false, dx: 0, dz: 0, wp: 0, ign: 0, fxu: null });
+  o.fxu = zDecor(av, t, id);
+  return o;
 }
 function zReset(){
   for (const id in zomb){ scene.remove(zomb[id].av.group); delete zomb[id]; }
   for (const b of bars.slice()) bRemove(b);
-  zw.n = 0; zw.left = 0; zw.cd = 12; zw.sp = 0; zw.over = 0; zw.dead = 0; zw.boss = 0; zw.base = 0; zw.ev = 0; zw.lev = 0; zw.ct = 20; zw.cr = null; zCrSet(null);
+  zHq = null; zHqLast = -1;
+  zw.n = 0; zw.left = 0; zw.cd = 25; zw.sp = 0; zw.over = 0; zw.dead = 0; zw.boss = 0; zw.base = 0; zw.ev = 0; zw.lev = 0; zw.ct = 20; zw.cr = null;
+  zw.q = []; zw.wt = 0; zw.mine = 0; zw.pl = null; zw.bag = []; zw.dm = 0; zw.hu = 1; zCrSet(null);
 }
 function zSaveBest(n){ if (n > zbest){ zbest = n; try { localStorage.setItem('is_zbest', String(n)); } catch(e){} } }
 function zClear(n){
-  const c = 30 + n * 10;
+  const c = 60 + n * 15;
   prof.coins += c; prof.xp += 30 + n * 5;
   WEAPONS.forEach((w, i) => { ammo[i].mag = w.mag; ammo[i].res = w.res; });
   reloading = false;
@@ -4933,24 +5344,35 @@ function zClear(n){
    1m 격자 위에 바위·집·나무(고정 장애물)를 막힌 칸으로 표시하고, 플레이어 위치에서 퍼지는 "거리장"을 0.35초마다 새로 계산해요.
    좀비는 직선으로 갈 수 있으면 직진, 막혀 있으면 거리장을 따라 돌아가요. 바리케이드·성벽은 일부러 길로 취급 → 부수면서 지나가요.
    그래도 한 자리에서 맴돌면 잠깐 옆으로 비켜 걸어요. */
-const ZG = { N: 124, H: 62, blocked: null, dist: null, q: null, t: -9 };
+const ZG = { N: 124, H: 62, blocked: null, dist: null, dh: null, q: null, t: -9, sig: -1, src: [] };
 const ZD = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 function zGridInit(){
-  if (ZG.blocked) return;
-  const N = ZG.N, H = ZG.H, rr = R + .3, bb = new Set(bars.map(b => b.box)), st = boxes.filter(b => !bb.has(b) && b.top > .05);
+  const base = bars.filter(b => ZBASE[b.t]), sig = base.length;
+  if (ZG.blocked && ZG.sig === sig) return;   // 기지 구조물이 부서지면 격자를 다시 만들어요 (부서진 틈으로도 좀비가 다녀요)
+  const N = ZG.N, H = ZG.H, rr = R + .3, bb = new Set(bars.filter(b => !ZBASE[b.t]).map(b => b.box)), st = boxes.filter(b => !bb.has(b) && b.top > .05);
   const bl = new Uint8Array(N * N);
   for (let iz = 0; iz < N; iz++) for (let ix = 0; ix < N; ix++){
     const x = ix - H + .5, z = iz - H + .5;
     for (const b of st){ if (x + rr > b.minX && x - rr < b.maxX && z + rr > b.minZ && z - rr < b.maxZ){ bl[iz * N + ix] = 1; break; } }
   }
-  ZG.blocked = bl; ZG.dist = new Int16Array(N * N); ZG.q = new Int32Array(N * N);
+  ZG.blocked = bl; ZG.sig = sig;
+  if (!ZG.dist){ ZG.dist = new Int16Array(N * N); ZG.dh = new Int16Array(N * N); ZG.q = new Int32Array(N * N); }
+  const hq = base.find(b => b.t === 'hq'), src = [];
+  if (hq) for (let iz = 0; iz < N; iz++) for (let ix = 0; ix < N; ix++){ if (!bl[iz * N + ix] && bxd(hq, ix - H + .5, iz - H + .5) < 1.9) src.push(iz * N + ix); }
+  ZG.src = src;
 }
 const zCell = (x, z) => clamp(Math.floor(z + ZG.H), 0, ZG.N - 1) * ZG.N + clamp(Math.floor(x + ZG.H), 0, ZG.N - 1);
-function zField(T){
-  zGridInit();
-  const N = ZG.N, bl = ZG.blocked, d = ZG.dist, q = ZG.q;
+function zFlood(srcs, d){   // srcs 칸들에서 퍼져나가는 거리장 (막힌 칸은 피함)
+  const N = ZG.N, bl = ZG.blocked, q = ZG.q;
   d.fill(32767); let h = 0, tl = 0;
-  for (const p of T){ const c = zCell(p.x, p.z); if (d[c] !== 0){ d[c] = 0; q[tl++] = c; } }
+  for (const c0 of srcs){
+    if (!bl[c0]){ if (d[c0] !== 0){ d[c0] = 0; q[tl++] = c0; } continue; }
+    const cx = c0 % N, cz = (c0 / N) | 0;   // 탑·지붕 위처럼 막힌 칸에 서 있으면 근처의 열린 칸에서 출발
+    for (let oz = -4; oz <= 4; oz++) for (let ox = -4; ox <= 4; ox++){
+      const nx = cx + ox, nz = cz + oz; if (nx < 0 || nz < 0 || nx >= N || nz >= N) continue;
+      const n = nz * N + nx; if (!bl[n] && d[n] !== 0){ d[n] = 0; q[tl++] = n; }
+    }
+  }
   while (h < tl){
     const c = q[h++], cx = c % N, cz = (c / N) | 0, nd = d[c] + 1;
     for (let k = 0; k < 8; k++){
@@ -4963,6 +5385,11 @@ function zField(T){
     }
   }
 }
+function zField(T){
+  zGridInit();
+  zFlood(T.map(p => zCell(p.x, p.z)), ZG.dist);   // 플레이어 쪽 거리장
+  zFlood(ZG.src, ZG.dh);                           // 기지 쪽 거리장
+}
 function zLos(x0, z0, x1, z1){   // 두 점 사이에 막힌 칸이 없는가 (조금 보수적)
   const N = ZG.N, H = ZG.H, bl = ZG.blocked, n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, z1 - z0) / .5));
   for (let i = 1; i <= n; i++){
@@ -4971,8 +5398,8 @@ function zLos(x0, z0, x1, z1){   // 두 점 사이에 막힌 칸이 없는가 (�
   }
   return true;
 }
-function zNext(c){   // 거리장에서 한 칸 더 목표에 가까운 이웃 칸 (없으면 -1)
-  const N = ZG.N, bl = ZG.blocked, d = ZG.dist, cx = c % N, cz = (c / N) | 0;
+function zNext(c, d){   // 거리장에서 한 칸 더 목표에 가까운 이웃 칸 (없으면 -1)
+  const N = ZG.N, bl = ZG.blocked, cx = c % N, cz = (c / N) | 0;
   let best = -1, bd = d[c];
   for (let k = 0; k < 8; k++){
     const ox = ZD[k][0], oz = ZD[k][1], nx = cx + ox, nz = cz + oz;
@@ -4984,10 +5411,10 @@ function zNext(c){   // 거리장에서 한 칸 더 목표에 가까운 이웃 �
   }
   return best;
 }
-function zAim(z, tx, tz){   // 좀비가 지금 향해 걸어갈 지점을 z.ax / z.az 에 저장
+function zAim(z, tx, tz, d){   // 좀비가 지금 향해 걸어갈 지점을 z.ax / z.az 에 저장 (d = 따라갈 거리장)
   z.ax = tx; z.az = tz;
-  if (!ZG.blocked || Math.hypot(tx - z.x, tz - z.z) < 3 || zLos(z.x, z.z, tx, tz)) return;   // 가깝거나 직선이 뚫려 있으면 직진
-  const N = ZG.N, H = ZG.H, d = ZG.dist;
+  if (!ZG.blocked || !d || Math.hypot(tx - z.x, tz - z.z) < 3 || zLos(z.x, z.z, tx, tz)) return;   // 가깝거나 직선이 뚫려 있으면 직진
+  const N = ZG.N, H = ZG.H;
   let c = zCell(z.x, z.z);
   if (d[c] >= 32767){   // 장애물 가장자리 칸에 서 있으면 거리장이 있는 이웃 칸으로
     const cx = c % N, cz = (c / N) | 0; let bc = -1, bv = 32767;
@@ -4997,42 +5424,118 @@ function zAim(z, tx, tz){   // 좀비가 지금 향해 걸어갈 지점을 z.ax 
   }
   let cur = c, tgt = c;
   for (let st = 0; st < 8; st++){
-    const nb = zNext(cur); if (nb < 0) break;
+    const nb = zNext(cur, d); if (nb < 0) break;
     cur = nb;
     const px = cur % N - H + .5, pz = ((cur / N) | 0) - H + .5;
     if (st === 0 || zLos(z.x, z.z, px, pz)) tgt = cur; else break;   // 보이는 데까지만 앞질러 가요
   }
   z.ax = tgt % N - H + .5; z.az = ((tgt / N) | 0) - H + .5;
 }
-/* 좀비 한 마리의 한 프레임 (호스트만 실행) */
+/* 좀비 한 마리의 한 프레임 (호스트만 실행)
+   · 가까운 플레이어(종류마다 반응 거리 aggro)가 있으면 그 사람을, 없으면 가운데 군사 기지를 향해 가요
+   · 종류별 능력: 러너 돌진 · 브루트 돌진(벽 부수기) · 산성 침 · 폭탄 · 베히모스 내려찍기 · 여왕 소환/3연발 · 비명(주변 가속) · 의무병 치료 */
 function zStep(z, T, tn, dt){
-  const s = ZT[z.t];
-  let bd = 1e9, bx = 0, bz = 0;
-  for (const p of T){ const d = Math.hypot(p.x - z.x, p.z - z.z); if (d < bd){ bd = d; bx = p.x - z.x; bz = p.z - z.z; } }
-  if (bd < 1e-6){ bd = 1e-6; bx = 1e-6; }
+  const s = ZT[z.t], hq = zHq;
+  if (z.stun > tn){ z.want = false; return; }
+  let pd = 1e9, px = 0, pz = 0;
+  for (const p of T){
+    const d = Math.hypot(p.x - z.x, p.z - z.z);
+    if (d < pd){
+      if (p.y - zy(p.x, p.z) > 1.7){ if (d < 3.2 + s.reach) z.ign = tn + 4; if (z.ign > tn) continue; }   // 닿지 않는 높은 곳(탑·지붕) 사람은 잠깐 무시하고 기지·성벽을 공격
+      pd = d; px = p.x; pz = p.z;
+    }
+  }
+  const rg = z.rg > tn;
+  z.chase = pd < 1e8 && pd < s.aggro * (rg ? 1.4 : 1) * (z.chase ? 1.7 : 1);
+  let tx, tz, td, F = ZG.dist;
+  if (z.chase){ tx = px; tz = pz; td = pd; }
+  else { tx = clamp(z.x, hq.x - hq.w / 2, hq.x + hq.w / 2); tz = clamp(z.z, hq.z - hq.d / 2, hq.z + hq.d / 2); td = Math.hypot(tx - z.x, tz - z.z); F = ZG.dh; }
+  let bx = tx - z.x, bz = tz - z.z;
+  if (td < 1e-6){ td = 1e-6; bx = 1e-6; }
   z.yaw = Math.atan2(-bx, -bz);
-  if (s.boom && bd < 2.2){ zBoomHost(z); return; }
-  if (tn >= z.ar){ z.ar = tn + .2 + Math.random() * .1; zAim(z, z.x + bx, z.z + bz); }   // 좀비마다 시점을 달리해서 계산을 분산
+  if (s.boom && td < 2.2){ zBoomHost(z); return; }
+  let spd = s.sp * (1 + Math.min(zw.n, 12) * .03) * (inLake(z.x, z.z) ? .55 : 1) * (rg ? 1.45 : 1);
+  // ─ 특수 능력 ─
+  if (s.lunge){   // 러너: 가까워지면 번쩍 달려들어요
+    if (z.dsh > tn) spd *= 2.3;
+    else if (td < 7 && td > 2.2 && tn > z.cdn){ z.dsh = tn + .5; z.cdn = tn + 3.5 + Math.random() * 1.5; }
+  }
+  if (s.charge){   // 브루트: 포효(0.8초) 후 일직선 돌진 — 벽·바리케이드를 부수고 부딪히면 잠깐 기절
+    if (z.st === 1){ if (tn >= z.stT){ z.st = 2; z.stT = tn + 1; } z.want = false; return; }
+    if (z.st === 2){
+      if (tn >= z.stT){ z.st = 0; z.stun = tn + .5; return; }
+      const v = 10.5 * dt, nx = z.x + z.dx * v, nz = z.z + z.dz * v;
+      let hit = null;
+      for (const b of bars) if (b !== hq && Math.abs(nx - b.x) < b.w / 2 + .6 && Math.abs(nz - b.z) < b.d / 2 + .6){ hit = b; break; }
+      if (hit){ zBarHit(hit, 180); beep(80, .2, .1); z.st = 0; z.stun = tn + 1.1; return; }
+      if (!collides(nx, 0, nz)){ z.x = nx; z.z = nz; } else { z.st = 0; z.stun = tn + .9; }
+      z.want = false; return;
+    }
+    if (td > 6 && td < 16 && tn > z.cdn){ z.st = 1; z.stT = tn + .8; z.cdn = tn + 7 + Math.random() * 3; z.dx = bx / td; z.dz = bz / td; zfx({ k: 'ch', id: z.id }); return; }
+  }
+  if (s.slam){   // 베히모스: 가까우면 내려찍기 (0.9초 예고 후 반경 7m)
+    if (z.st === 3){ z.want = false; if (tn >= z.stT) z.st = 0; return; }
+    if (td < 8 && tn > z.cdn){ z.st = 3; z.stT = tn + .9; z.cdn = tn + 6 + Math.random() * 2; zfx({ k: 'sl', x: +z.x.toFixed(1), z: +z.z.toFixed(1), r: 7, id: z.id }); return; }
+  }
+  if (s.rng && td <= s.rng && tn > z.ratk){   // 산성 침 (여왕은 3연발)
+    z.ratk = tn + (s.queen ? 5.5 : 3.4) + Math.random() * .6;
+    const n = s.queen ? 3 : 1, fy = zy(z.x, z.z) + 1.5 * s.sc, u = +clamp(td / 16, .5, 1.4).toFixed(2);
+    for (let i = 0; i < n; i++){
+      const jx = n > 1 ? (i - 1) * 2.4 : (Math.random() - .5) * 1.4, jz = (Math.random() - .5) * 1.6;
+      zfx({ k: 'sp', f: [+z.x.toFixed(1), +fy.toFixed(1), +z.z.toFixed(1)], t: [+(tx + jx).toFixed(1), +zy(tx, tz).toFixed(1), +(tz + jz).toFixed(1)], u });
+    }
+  }
+  if (s.queen && tn > z.cdn2){   // 여왕: 러너 3마리 소환
+    z.cdn2 = tn + 11;
+    if (Object.keys(zomb).length < ZMAX + 6){
+      const hp = Math.round(ZT[1].hp * zHm(zw.n));
+      for (let i = 0; i < 3; i++){ const a = i * 2.1 + Math.random(); zAdd(zw.id++, 1, clamp(z.x + Math.cos(a) * 2.4, -57, 57), clamp(z.z + Math.sin(a) * 2.4, -57, 57), hp, hp); }
+      zfx({ k: 'sm', x: +z.x.toFixed(1), z: +z.z.toFixed(1) });
+    }
+  }
+  if (s.scream && tn > z.cdn){   // 비명: 주변 좀비를 5초간 1.45배 빠르게
+    let c = 0; for (const id in zomb){ const o = zomb[id]; if (o !== z && Math.hypot(o.x - z.x, o.z - z.z) < 26) c++; }
+    if (c > 1 && td < 40){
+      z.cdn = tn + 8 + Math.random() * 2;
+      for (const id in zomb){ const o = zomb[id]; if (o !== z && Math.hypot(o.x - z.x, o.z - z.z) < 26) o.rg = tn + 5; }
+      zfx({ k: 'sc', id: z.id, x: +z.x.toFixed(1), z: +z.z.toFixed(1) });
+      z.stun = tn + .9; z.want = false; return;
+    }
+    z.cdn = tn + 2;
+  }
+  if (s.medic && tn > z.cdn){   // 의무병: 다친 좀비를 최대 4마리까지 20% 치료
+    z.cdn = tn + 2.6;
+    const hurt = [];
+    for (const id in zomb){ const o = zomb[id]; if (o !== z && o.hp < o.mhp * .92 && Math.hypot(o.x - z.x, o.z - z.z) < 10) hurt.push(o); }
+    hurt.sort((a, b) => a.hp / a.mhp - b.hp / b.mhp); hurt.length = Math.min(hurt.length, 4);
+    if (hurt.length){ hurt.forEach(o => { o.hp = Math.min(o.mhp, o.hp + o.mhp * (ZT[o.t].boss ? .03 : .2)); }); zfx({ k: 'hl', id: z.id, to: hurt.map(o => o.id) }); }
+  }
+  // ─ 이동 ─
+  if (tn >= z.ar){ z.ar = tn + .2 + Math.random() * .1; zAim(z, tx, tz, F); }   // 좀비마다 시점을 달리해서 계산을 분산
   let dx = z.ax - z.x, dz = z.az - z.z; const dl = Math.hypot(dx, dz);
-  if (dl > .05){ dx /= dl; dz /= dl; } else { dx = bx / bd; dz = bz / bd; }
+  if (dl > .05){ dx /= dl; dz /= dl; } else { dx = bx / td; dz = bz / td; }
   if (tn < z.esc){   // 끼었을 때: 옆으로 비켜 걷기
     const ex = -dz * z.ed * .9 + dx * .35, ez = dx * z.ed * .9 + dz * .35, el = Math.hypot(ex, ez) || 1;
     dx = ex / el; dz = ez / el;
   }
-  if (bd > s.reach * 2.5) z.yaw = Math.atan2(-dx, -dz);   // 멀 땐 가는 방향을 보고, 가까우면 플레이어를 봄
+  if (td > s.reach * 2.5) z.yaw = Math.atan2(-dx, -dz);   // 멀 땐 가는 방향을 보고, 가까우면 목표를 봄
+  if (!z.chase && td < s.reach * .9 + .35){   // 기지에 닿았다 → 기지를 때려요
+    if (s.dmg && tn - z.batk > (s.cd || 1)){ z.batk = tn; zBarHit(hq, s.dmg * (s.boss ? 3 : 1.4)); }
+    z.want = false; return;
+  }
   let blk = null;   // 가는 길을 막는 시설이 있으면 멈춰서 부숨
-  if (bd > s.reach * .8){
-    const px = z.x + dx * .35, pz = z.z + dz * .35;
-    for (const b of bars) if (Math.abs(px - b.x) < b.w / 2 + .45 && Math.abs(pz - b.z) < b.d / 2 + .45){ blk = b; break; }
+  if (td > s.reach * .8){
+    const qx = z.x + dx * .35, qz = z.z + dz * .35;
+    for (const b of bars) if (b !== hq && Math.abs(qx - b.x) < b.w / 2 + .45 && Math.abs(qz - b.z) < b.d / 2 + .45){ blk = b; break; }
   }
   if (blk){
     if (s.boom){ zBoomHost(z); return; }
-    if (tn - z.batk > 1){ z.batk = tn; zBarHit(blk, s.dmg * (s.boss ? 3 : 1.4)); }
+    if (tn - z.batk > 1){ z.batk = tn; zBarHit(blk, (s.dmg || 8) * (s.boss ? 3 : 1.4)); }
     z.sx = z.x; z.sz = z.z; z.sc = tn + .6; z.want = false;
     return;
   }
-  if (bd > (s.keep || s.reach * .8)){
-    const v = s.sp * (1 + Math.min(zw.n, 12) * .03) * (inLake(z.x, z.z) ? .55 : 1) * dt, sx = dx * v, sz = dz * v;   // 물속에서는 느려지지만 들어올 수 있어요
+  if (td > (s.keep || s.reach * .8)){
+    const v = spd * dt, sx = dx * v, sz = dz * v;
     let moved = false;
     if (!collides(z.x + sx, 0, z.z)){ z.x += sx; moved = true; }
     if (!collides(z.x, 0, z.z + sz)){ z.z += sz; moved = true; }
@@ -5052,48 +5555,57 @@ function zStep(z, T, tn, dt){
 function zHostSim(dt){
   if (zw.over){ if (now() > zw.over) zReset(); return; }
   if (!zw.base){ zw.base = 1; if (!bars.length) zBuildBase(); }
-  const T = zTargets(), ids = Object.keys(zomb), alive = ids.length;
+  zHq = bars.find(b => b.t === 'hq') || null;
+  if (!zHq){ zOver(); return; }
+  const T = zTargets(), ids = Object.keys(zomb);
+  let alive = ids.length;
   const humans = netReady ? Math.max(1, onlineList.length) : 1;
-  if (!T.length){
-    zw.dead += dt;
-    if (zw.dead > 4){ zw.over = now() + 1.5; send('zo', { w: zw.n }); showMsg('💀 게임 오버 · 웨이브 ' + zw.n, 3000); }
-    return;
-  }
-  zw.dead = 0;
-  if (zw.cd > 0){
+  if (zw.cd > 0){   // 준비 시간: 다음 웨이브를 미리 짜 두고 종류와 공격 방향을 알려줘요
+    if (!zw.pl){ zw.pl = zPlan(zw.n + 1, humans); zw.ev = zw.pl.ev; zw.dm = zw.pl.dm; }
     zw.cd -= dt;
-    if (zw.cd <= 0){
-      zw.n++; zw.sp = 1; zEvPick();
-      zw.left = Math.round(Math.min(34, 6 + zw.n * 2.2) * ZEVM[zw.ev] * (1 + (humans - 1) * .6));
-      if (zw.n % 5 === 0){ zw.boss = 1; zw.left++; }
-      showMsg(zw.n % 5 === 0 ? '👹 보스 웨이브 ' + zw.n + '!' : zw.ev ? ZEV[zw.ev].n + ' ' + zw.n + ' — ' + ZEV[zw.ev].d : '🧟 웨이브 ' + zw.n + ' 시작!', 3200); beep(180, .4, .08);
-    }
+    if (zw.cd <= 0) zStartWave();
   } else {
-    zw.sp -= dt;
+    if (!zw.mine){   // 호스트가 바뀌어 대기열이 사라졌으면 남은 수만큼 새로 채움
+      zw.mine = 1; zw.q = []; zw.wt = 0;
+      for (let i = 0; i < zw.left; i++){ const pt = zEdgePt((Math.random() * 8) | 0); zw.q.push({ at: i * .6, t: 0, x: pt[0], z: pt[1], w: 0 }); }
+    }
+    zw.wt += dt;
     zw.ct -= dt; if (zw.ct <= 0 && !zw.cr){ zCrate(); zw.ct = (zw.ev === 6 ? 10 : 28) + Math.random() * 12; }
-    if (zw.left > 0 && alive < ZMAX && zw.sp <= 0){ zSpawn(); zw.left--; zw.sp = Math.max(.3, 1.5 - zw.n * .07) * (zw.ev === 2 ? .5 : 1); }
-    if (zw.left <= 0 && alive === 0){ zw.cd = 12; send('zc', { w: zw.n }); zClear(zw.n); bars.forEach(b => { b.hp = Math.min(b.mhp, b.hp + b.mhp * .5); bTint(b); }); }
+    while (zw.q.length && zw.q[0].at <= zw.wt && alive < ZMAX){ zSpawnAt(zw.q.shift()); alive++; }
+    zw.left = zw.q.length;
+    if (!alive && zw.q.length && zw.q[0].at - zw.wt > 2) zw.wt = zw.q[0].at - 1.2;   // 다 잡았으면 다음 부대를 곧바로 불러요
+    if (!zw.q.length && !alive && zw.wt > 1){
+      zw.cd = 16 + Math.min(zw.n, 10) * 1.2; send('zc', { w: zw.n }); zClear(zw.n);
+      bars.forEach(b => { b.hp = Math.min(b.mhp, b.hp + b.mhp * (b.t === 'hq' ? .2 : .5)); bTint(b); });
+    }
   }
   const tn = now();
-  if (ids.length && tn - ZG.t > .35){ ZG.t = tn; zField(T); }   // 거리장 갱신
-  for (const id of ids){ const z = zomb[id]; if (z) zStep(z, T, tn, dt); }
+  if (zw.cd <= 0 && Object.keys(zomb).length && tn - ZG.t > .35){ ZG.t = tn; zField(T); }   // 거리장 갱신
+  for (const id of Object.keys(zomb)){ const z = zomb[id]; if (z && !zw.over) zStep(z, T, tn, dt); }
   zTurrets(dt);
 }
 function animZ(z, dt, sp){
-  const L = z.av.limbs; z.ph += dt * (2 + sp * 1.6);
-  const s = Math.sin(z.ph) * Math.min(1, sp / 1.5) * .7, w = Math.sin(z.ph * .5) * .08;
-  L.legL.rotation.x = s; L.legR.rotation.x = -s;
-  L.armL.rotation.set(1.45 + w, 0, .1); L.armR.rotation.set(1.45 - w, 0, -.1);
+  const L = z.av.limbs, s = ZT[z.t], tn = now(); z.ph += dt * (2 + sp * 1.6);
+  const sw = Math.sin(z.ph) * Math.min(1, sp / 1.5) * (s.stride || .7), w = Math.sin(z.ph * .5) * (s.swy == null ? .08 : s.swy);
+  let ar = s.arm == null ? 1.45 : s.arm;
+  if (z.warn > tn) ar = 2.7;                                   // 공격 준비: 팔을 번쩍
+  else if (z.scr > tn) ar = 2.9 + Math.sin(tn * 30) * .2;      // 비명
+  L.legL.rotation.x = sw; L.legR.rotation.x = -sw;
+  L.armL.rotation.set(ar + w, 0, .1 + (s.spr || 0)); L.armR.rotation.set(ar - w, 0, -.1 - (s.spr || 0));
   z.av.pivot.rotation.z = Math.sin(z.ph) * .06;
+  z.av.pivot.rotation.x = s.lean || 0;
 }
 function zRender(dt){
-  const k = 1 - Math.exp(-10 * dt);
+  const k = 1 - Math.exp(-10 * dt), tn = now();
   for (const id in zomb){
     const z = zomb[id], g = z.av.group, ox = g.position.x, oz = g.position.z;
     g.position.x += (z.x - ox) * k; g.position.z += (z.z - oz) * k;
     g.position.y = zy(g.position.x, g.position.z);
     let dr = z.yaw - g.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); g.rotation.y += dr * k;
     animZ(z, dt, Math.hypot(g.position.x - ox, g.position.z - oz) / Math.max(dt, .001));
+    if (z.warn > tn){ g.scale.setScalar(ZT[z.t].sc * (1 + .06 * Math.sin(tn * 45))); z.wp = 1; }
+    else if (z.wp){ g.scale.setScalar(ZT[z.t].sc); z.wp = 0; }
+    if (z.fxu) z.fxu(z, tn, dt);
   }
 }
 function zAttackMe(){
@@ -5101,19 +5613,18 @@ function zAttackMe(){
   const t = now();
   for (const id in zomb){
     const z = zomb[id], s = ZT[z.t], p = z.av.group.position;
-    if (s.boom || t - z.atk < (s.cd || 1)) continue;
+    if (s.boom || !s.dmg || t - z.atk < (s.cd || 1)) continue;
     const d = Math.hypot(p.x - player.pos.x, p.z - player.pos.z);
-    if (d < (s.rng || s.reach) && Math.abs(p.y - player.pos.y) < (s.rng ? 6 : 1.8)){
+    if (d < s.reach && Math.abs(p.y - player.pos.y) < 1.8){
       z.atk = t; beep(120 + Math.random() * 40, .2, .05);
-      if (s.rng) tracer(new THREE.Vector3(p.x, p.y + 1.4, p.z), new THREE.Vector3(player.pos.x, player.pos.y + 1.2, player.pos.z), 0x9bff5a);
-      takeDamage(Math.round(s.dmg * (1 + Math.min(zw.n, 15) * .04)), 'zombie', '좀비', 0, false, null);
+      takeDamage(Math.round(s.dmg * (1 + Math.min(zw.n, 15) * .04)), 'zombie', s.nm, 0, false, null);
       if (player.dead) return;
     }
   }
 }
 function zDamage(id, d, by, w, head){
   const z = zomb[id]; if (!z) return;
-  const T0 = ZT[z.t]; if (T0.armor && !head) d *= .35;   // 방패 좀비: 머리 말고는 피해 감소
+  const T0 = ZT[z.t];
   z.hp -= d;
   if (z.hp <= 0){
     if (T0.split) for (let i = 0; i < 2; i++){ const sx = clamp(z.x + (i ? 1 : -1), -57, 57); zAdd(zw.id++, 1, sx, z.z, 45, 45); }   // 분열
@@ -5127,28 +5638,30 @@ function zShoot(id, d, head){
 }
 function zKill(id, by, w, head){
   const z = zomb[id]; if (!z) return;
-  const g = z.av.group, p = g.position;
+  const g = z.av.group, p = g.position, T0 = ZT[z.t];
   spawnBlood(new THREE.Vector3(p.x, p.y + 1.1, p.z), 30, 4);
   spawnCorpse(z.av, p.x, p.y, p.z, g.rotation.y, p.x - player.pos.x, p.z - player.pos.z);
   scene.remove(g); delete zomb[id];
   if (by === myId){
-    kills++; prof.coins += z.t === 5 ? 300 : z.t === 2 ? 40 : z.t >= 3 ? 20 : 10; prof.xp += z.t === 5 ? 200 : 15;
-    showMsg(head ? '헤드샷!' : 'KILL +1', 800); beep(900, .08, .06);
+    kills++; prof.coins += T0.coin || 10; prof.xp += T0.boss ? 200 : 15;
+    showMsg(T0.boss ? '👹 ' + T0.nm + ' 처치! 🪙 +' + T0.coin : head ? '헤드샷!' : 'KILL +1', T0.boss ? 2400 : 800); beep(900, .08, .06);
     saveLocalProf(); updateWallet(); trackMe();
   }
 }
 function onZs(p){
   if (!p || isHost()) return;
-  if (p.w > 0 && p.w !== zw.n){ const E = ZEV[p.ev | 0]; showMsg(p.w % 5 === 0 ? '👹 보스 웨이브 ' + p.w + '!' : E ? E.n + ' ' + p.w + ' — ' + E.d : '🧟 웨이브 ' + p.w, 3200); }
-  zw.n = p.w; zw.left = p.l; zw.cd = p.c; zw.id = Math.max(zw.id, p.i); zw.over = p.o; zw.ev = p.ev | 0; zCrSet(p.cr || null);
+  if (p.w > 0 && p.w !== zw.n){ const E = ZEV[p.ev | 0]; showMsg(p.w % 5 === 0 ? '👹 보스 웨이브 ' + p.w + ' — ' + ZT[p.w % 10 === 5 ? 5 : 10].nm + '!' : E ? E.n + ' ' + p.w + ' — ' + E.d : '🧟 웨이브 ' + p.w, 3200); }
+  zw.n = p.w; zw.left = p.l; zw.cd = p.c; zw.id = Math.max(zw.id, p.i); zw.over = p.o; zw.ev = p.ev | 0; zw.dm = p.dm | 0; zw.mine = 0; zw.pl = null; zCrSet(p.cr || null);
   const seen = {};
   for (const a of p.z){
     seen[a[0]] = 1;
-    const z = zomb[a[0]] || zAdd(a[0], a[5], a[1], a[2], a[4], Math.round(ZT[a[5]].hp * zHm(p.w)));
-    z.x = a[1]; z.z = a[2]; z.yaw = a[3]; z.hp = a[4];
+    const tt = ZT[a[5]] ? a[5] : 0, z = zomb[a[0]] || zAdd(a[0], tt, a[1], a[2], a[4], a[6] || Math.round(ZT[tt].hp * zHm(p.w)));
+    z.x = a[1]; z.z = a[2]; z.yaw = a[3]; z.hp = a[4]; if (a[6]) z.mhp = a[6];
   }
   for (const id in zomb) if (!seen[id]){ scene.remove(zomb[id].av.group); delete zomb[id]; }
   zbSync(p);
+  const hb = bars.find(b => b.t === 'hq');
+  if (hb && p.h != null && Math.abs(hb.hp - p.h) > 0.5){ hb.hp = p.h; bTint(hb); }
 }
 function onZe(ev, p){
   if (!p) return;
@@ -5156,7 +5669,8 @@ function onZe(ev, p){
   if (ev === 'bld'){
     if (isHost() && isFinite(+p.x + +p.z)){
       if (p.t === 'fix') zFix(+p.x, +p.z);
-      else if (BT[p.t] && BT[p.t].cost && isFinite(+p.w + +p.d) && bars.length < 70) bAdd(zw.bi++, p.t, +p.x, +p.z, +p.w, +p.d);
+      else if (p.t === 'hqfix') zHqFix();
+      else if (BT[p.t] && BT[p.t].cost && isFinite(+p.w + +p.d) && bars.length < 70 && (p.t !== 'tur' || bars.filter(b => b.t === 'tur').length < 8)) bAdd(zw.bi++, p.t, +p.x, +p.z, +p.w, +p.d);
     }
     return;
   }
@@ -5165,31 +5679,57 @@ function onZe(ev, p){
   if (isHost()) return;
   if (ev === 'zk') zKill(p.id, p.by, p.w, !!p.h);
   else if (ev === 'zc') zClear(p.w);
-  else if (ev === 'zo') showMsg('💀 게임 오버 · 웨이브 ' + p.w, 3000);
+  else if (ev === 'zo') showMsg('💀 기지 함락 · 웨이브 ' + p.w, 3000);
+  else if (ev === 'zfx') zfxDo(p);
 }
+const zDirTxt = m => { const a = []; for (let i = 0; i < 8; i++) if ((m >> i) & 1) a.push(ZDN[i]); return a.join('·'); };
 function zHud0(){
   const t = $('roundTime'), l = $('roundLead');
   t.classList.remove('low');
-  if (zw.over){ t.textContent = '💀 게임 오버'; l.textContent = '웨이브 ' + zw.n + ' 도달 · 곧 다시 시작'; }
-  else if (zw.cd > 0){ t.textContent = '🧟 웨이브 ' + (zw.n + 1) + ' · ' + Math.ceil(zw.cd) + '초'; l.textContent = '대비하세요! · G 나무벽 · H 모래주머니 · J 터렛 · K 수리 · B 상점 · 최고 ' + zbest; }
+  if (zw.over){ t.textContent = '💀 기지 함락'; l.textContent = '웨이브 ' + zw.n + ' 도달 · 곧 다시 시작'; }
+  else if (zw.cd > 0){
+    t.textContent = '🧟 웨이브 ' + (zw.n + 1) + ' · ' + Math.ceil(zw.cd) + '초';
+    const E = ZEV[zw.ev | 0], bs = (zw.n + 1) % 5 === 0;
+    l.textContent = (bs ? '👹 보스 웨이브 · ' : E ? E.n + ' · ' : '') + (zw.dm ? '공격 방향 ' + zDirTxt(zw.dm) : '대비하세요!') + (zw.n < 3 ? ' · G 나무벽 H 모래 J 터렛 K 수리 B 상점' : ' · B 상점');
+  }
   else { t.textContent = '🧟 웨이브 ' + zw.n; l.textContent = '남은 좀비 ' + (zw.left + Object.keys(zomb).length) + ' · 최고 ' + zbest; }
 }
+let zHqLast = -1, zHqWarn = 0;
+function zHudBars(){   // 기지 체력 막대 · 보스 체력 막대 · 기지 공격 경고
+  const el = $('hqBar'), be = $('bossBar');
+  if (!zmode || !joined){ el.style.display = be.style.display = 'none'; return; }
+  el.style.display = 'block';
+  const hq = bars.find(b => b.t === 'hq');
+  if (hq){
+    const r = clamp(hq.hp / hq.mhp, 0, 1);
+    $('hqFl').style.width = (r * 100) + '%'; $('hqTxt').textContent = '🏠 군사 기지 ' + Math.ceil(hq.hp) + ' / ' + hq.mhp;
+    el.classList.toggle('low', r < .3); el.classList.toggle('hit', zHqLast > 0 && hq.hp < zHqLast - 1);
+    if (zHqLast > 0 && hq.hp < zHqLast - 8 && now() - zHqWarn > 7 && !zw.over){
+      zHqWarn = now(); showMsg(r < .3 ? '🚨 기지가 무너지기 직전이에요! (B 상점에서 수리)' : '⚠ 기지가 공격받고 있어요!', 1900); beep(220, .25, .08);
+    }
+    zHqLast = hq.hp;
+  } else { $('hqFl').style.width = '0%'; $('hqTxt').textContent = '🏠 기지 파괴됨'; el.classList.remove('hit'); zHqLast = -1; }
+  let boss = null; for (const id in zomb){ if (ZT[zomb[id].t].boss){ boss = zomb[id]; break; } }
+  if (boss){ be.style.display = 'block'; $('bossTxt').textContent = '👹 ' + ZT[boss.t].nm + ' ' + Math.max(0, Math.ceil(boss.hp)) + ' / ' + Math.round(boss.mhp); $('bossFl').style.width = clamp(boss.hp / boss.mhp, 0, 1) * 100 + '%'; }
+  else be.style.display = 'none';
+}
 function zTick(dt){
-  zFun(dt);
+  zFun(dt); zFxStep(dt);
   const host = isHost();
   if (host && (locked || netReady)) zHostSim(dt);
   zRender(dt); zAttackMe();
+  const hqb = bars.find(b => b.t === 'hq'); if (hqb && hqb.fx && hqb.fx.upd) hqb.fx.upd(now(), dt);
   if (host && netReady){
     zSendT += dt;
     if (zSendT >= Math.max(.15, netN() / 30) * netSlow){
       zSendT = 0;
       zSN = (zSN + 1) % 5;
-      send('zs', { b: zSN ? undefined : bars.map(b => [b.id, b.t, +b.x.toFixed(1), +b.z.toFixed(1), +b.w.toFixed(1), +b.d.toFixed(1), Math.round(b.hp), b.gun ? +b.gun.rotation.y.toFixed(2) : 0]), bi: zw.bi, ev: zw.ev | 0, cr: zw.cr || 0, w: zw.n, l: zw.left, c: Math.ceil(zw.cd), o: zw.over ? 1 : 0, i: zw.id,
-        z: Object.values(zomb).map(z => [z.id, +z.x.toFixed(1), +z.z.toFixed(1), +z.yaw.toFixed(2), Math.round(z.hp), z.t]) });
+      send('zs', { b: zSN ? undefined : bars.map(b => [b.id, b.t, +b.x.toFixed(1), +b.z.toFixed(1), +b.w.toFixed(1), +b.d.toFixed(1), Math.round(b.hp), b.gun ? +b.gun.rotation.y.toFixed(2) : 0]), bi: zw.bi, ev: zw.ev | 0, dm: zw.dm | 0, h: hqb ? Math.round(hqb.hp) : 0, cr: zw.cr || 0, w: zw.n, l: zw.left, c: Math.ceil(zw.cd), o: zw.over ? 1 : 0, i: zw.id,
+        z: Object.values(zomb).map(z => [z.id, +z.x.toFixed(1), +z.z.toFixed(1), +z.yaw.toFixed(2), Math.round(z.hp), z.t, Math.round(z.mhp)]) });
     }
   }
 }
-const MODE_INFO = ['다른 플레이어와 4분 라운드 대전', '혼자서 몰려오는 좀비를 막아내요', '같은 방 사람들과 함께 좀비 방어 (호스트가 나가도 이어져요)'];
+const MODE_INFO = ['다른 플레이어와 4분 라운드 대전', '혼자서 가운데 군사 기지를 지키며 좀비를 막아내요 (기지가 무너지면 끝!)', '같은 방 사람들과 함께 군사 기지를 지켜요 (호스트가 나가도 이어져요)'];
 function markMode(){ document.querySelectorAll('.mb').forEach(b => b.classList.toggle('on', +b.dataset.m === zmode)); $('modeInfo').textContent = MODE_INFO[zmode] || ''; }
 document.querySelectorAll('.mb').forEach(b => b.addEventListener('click', () => {
   if (joined) return;
