@@ -670,6 +670,20 @@ const gunSun = ZLOOK ? new THREE.DirectionalLight(0xffa066, 1.3) : new THREE.Dir
 gunSun.position.copy(SUN_DIR); gunScene.add(gunSun, gunSun.target);
 const gunFill = new THREE.DirectionalLight(0xc4b090, 0.12);
 gunFill.position.set(-0.62, 0.35, -0.38); gunScene.add(gunFill);
+/* 총구 화염 조명: 쏠 때마다 총구 앞이 순간적으로 환해져요 (어두운 곳일수록 확 티나요). 광원 개수는 늘 같게 유지해서 셰이더가 다시 컴파일되지 않아요 */
+const mzLight = new THREE.PointLight(0xffa955, 0, 20, 1.6), mzGun = new THREE.PointLight(0xffb066, 0, 3.2, 1.4);
+scene.add(mzLight); gunScene.add(mzGun);
+let mzI = 0, mzGI = 0, mzT = 0;
+function muzzleLight(pos, k, mine){
+  mzLight.position.copy(pos); mzI = Math.max(mzI, 4.2 * k);
+  if (mine){ mzGun.position.copy(pos); mzGun.position.addScaledVector(new THREE.Vector3(0, .02, -1).applyQuaternion(camera.quaternion), .12); mzGI = Math.max(mzGI, 2.6 * k); }
+}
+function muzzleLightUpd(){
+  const t = performance.now() / 1000, dt = Math.min(.1, t - mzT); mzT = t;
+  const d = Math.exp(-dt * 26); mzI *= d; mzGI *= d;
+  if (mzI < .03) mzI = 0; if (mzGI < .03) mzGI = 0;
+  mzLight.intensity = mzI; mzGun.intensity = mzGI;
+}
 const _sr = new THREE.Vector3(0,1,0).cross(SUN_DIR).normalize();
 const _su = new THREE.Vector3().crossVectors(SUN_DIR, _sr), _st = new THREE.Vector3();
 /* [그림자] 시야 쪽만 그리고, 필요할 때만 다시 그림
@@ -2249,6 +2263,40 @@ function playShot(idx, vol){
   og.gain.setValueAtTime(vol*.8, t); og.gain.exponentialRampToValueAtTime(0.001, t + .15);
   o.connect(og); og.connect(ac.destination); o.start(t); o.stop(t + .16);
 }
+/* 전기톱 엔진 소리: 2행정 엔진의 '부르릉' 맥동(톱니파 + 저음 + 왜곡) + 체인이 돌아가는 금속성 잡음. 눌러서 갈 때는 회전수가 오르고, 뭔가를 자르면 부하가 걸려 음이 떨어져요 */
+const sawA = { n: null, rev: 0, t: 0 };
+function sawAudio(on, rev, grind){
+  const A = sawA;
+  if (!ac) return;
+  if (!on){
+    if (A.n){ const n = A.n; A.n = null; try { n.mg.gain.setTargetAtTime(0, ac.currentTime, .06); } catch(e){} setTimeout(() => { try { n.o1.stop(); n.o2.stop(); n.lfo.stop(); n.lfo2.stop(); n.ns.stop(); } catch(e){} }, 350); }
+    return;
+  }
+  const t = ac.currentTime;
+  if (!A.n){
+    const o1 = ac.createOscillator(), o2 = ac.createOscillator(), lfo = ac.createOscillator(), lfo2 = ac.createOscillator(), ns = ac.createBufferSource();
+    o1.type = 'sawtooth'; o2.type = 'square'; lfo.type = 'sawtooth'; lfo2.type = 'sine'; ns.buffer = noiseBuf; ns.loop = true;
+    const g1 = ac.createGain(), g2 = ac.createGain(), sh = ac.createWaveShaper(), lp = ac.createBiquadFilter(), eg = ac.createGain(), ld = ac.createGain(), ld2 = ac.createGain();
+    const bp = ac.createBiquadFilter(), hp = ac.createBiquadFilter(), ng = ac.createGain(), nd = ac.createGain(), mg = ac.createGain();
+    const cv = new Float32Array(256); for (let i = 0; i < 256; i++){ const x = i / 128 - 1; cv[i] = Math.tanh(x * 3.2); } sh.curve = cv;
+    g1.gain.value = .55; g2.gain.value = .35; lp.type = 'lowpass'; lp.frequency.value = 1500; eg.gain.value = .55; ld.gain.value = .42; ld2.gain.value = 6;
+    bp.type = 'bandpass'; bp.frequency.value = 2400; bp.Q.value = .8; hp.type = 'highpass'; hp.frequency.value = 900; ng.gain.value = .08; nd.gain.value = .05; mg.gain.value = 0;
+    o1.connect(g1); o2.connect(g2); g1.connect(sh); g2.connect(sh); sh.connect(lp); lp.connect(eg); eg.connect(mg);
+    lfo.connect(ld); ld.connect(eg.gain);               // 실린더가 터지는 박자로 소리가 쿵쿵 끊김
+    lfo2.connect(ld2); ld2.connect(o1.frequency);       // 회전수가 미세하게 흔들림
+    ns.connect(bp); bp.connect(hp); hp.connect(ng); ng.connect(mg); lfo.connect(nd); nd.connect(ng.gain);   // 체인 소리 (박자에 맞춰 같이 맥동)
+    mg.connect(ac.destination); o1.start(); o2.start(); lfo.start(); lfo2.start(); ns.start();
+    A.n = { o1, o2, lfo, lfo2, ns, bp, ng, eg, mg, lp, ld }; A.rev = 1;   // 시동 걸릴 때 한 번 확 올라가요
+  }
+  const n = A.n; A.rev += (rev - A.rev) * .12;
+  const rv = A.rev, load = grind ? 1 : 0, f = 50 + rv * 78 - load * 18 + (grind ? (Math.random() - .5) * 8 : 0);
+  n.o1.frequency.setTargetAtTime(f, t, .05); n.o2.frequency.setTargetAtTime(f * .5, t, .05);
+  n.lfo.frequency.setTargetAtTime(13 + rv * 30 - load * 5, t, .05);
+  n.lp.frequency.setTargetAtTime(900 + rv * 1700, t, .06);
+  n.bp.frequency.setTargetAtTime(1700 + rv * 1500 + (grind ? 500 : 0), t, .05);
+  n.ng.gain.setTargetAtTime(.05 + rv * .13 + load * .12, t, .05);
+  n.mg.gain.setTargetAtTime(.12 + rv * .16 + load * .04, t, .05);
+}
 function beep(freq, dur, vol){
   if (!ac) return;
   const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
@@ -2271,7 +2319,7 @@ function impact(p){
   effects.push({ obj: m, until: now() + 0.18, kind: 'mesh' });
 }
 function updateEffects(){
-  const t = now();
+  const t = now(); muzzleLightUpd();
   for (let i = effects.length - 1; i >= 0; i--){
     if (t >= effects[i].until){
       const o = effects[i].obj; scene.remove(o);
@@ -2635,6 +2683,7 @@ function onShot(p){
   const rr = remotes[p.id];
   if (rr && rr.avatar.gunTip && rr.avatar.group.visible){ rr.avatar.group.updateMatrixWorld(true); rr.avatar.gunTip.getWorldPosition(a); }
   tracer(a, b, 0xffb86b);
+  if (!p.q) muzzleLight(a, .55, false);
   if (remotes[p.id]) remotes[p.id].avatar.kick = 1;
   if (p.h) spawnBlood(b, bloodCount(p.hp), 3.2, b.clone().sub(a).normalize());
   const dist = a.distanceTo(player.pos);
@@ -3188,8 +3237,7 @@ function meleePose(dt, w){
     MP[0] = (Math.random() - .5) * .006 * k + Math.sin(tt * 61) * .002 * k; MP[1] = (Math.random() - .5) * .006 * k; MP[2] = on ? -.07 : 0;
     MP[3] = (Math.random() - .5) * .014 * k - (on ? .06 : 0); MP[4] = (Math.random() - .5) * .014 * k + (on ? .08 * Math.sin(tt * 3) : 0); MP[5] = (Math.random() - .5) * .02 * k;
     if (sawHit > 0){ sawHit -= dt; MP[0] += (Math.random() - .5) * .012; MP[1] += (Math.random() - .5) * .012; }
-    sawT -= dt;   // 엔진 소리: 가동 중엔 빠르게 크게, 평소엔 느리게 작게
-    if (sawT <= 0 && ac && locked && !player.dead){ sawT = on ? .045 : .13; beep(on ? 70 + Math.random() * 40 : 44 + Math.random() * 6, on ? .07 : .15, on ? .05 : .018); }
+    sawAudio(!!(ac && locked && !player.dead), on ? 1 : 0, sawHit > 0);   // 엔진 소리 (공회전 ↔ 풀 가동 ↔ 자르는 중)
     const ch = gunGroup.userData.chain;   // 체인: 위쪽은 앞으로, 아래쪽은 뒤로 돌아요
     if (ch){ sawPh = (sawPh + dt * (on ? 9 : 2.2)) % 1; const L = ch.L, sp = ch.sp; ch.top.forEach((m, i) => { m.position.z = ch.z0 - (((i * sp + sawPh * sp * 2) % L)); }); ch.bot.forEach((m, i) => { m.position.z = ch.z0 - L + (((i * sp + sawPh * sp * 2) % L)); }); }
     return;
@@ -3410,6 +3458,7 @@ function fireRocket(w){
   playShot(cur, .85);
   gunGroup.userData.flash.visible = true;
   setTimeout(() => { if (gunGroup) gunGroup.userData.flash.visible = false; }, 60);
+  muzzleLight(muzzle, 1.6, true);
   player.pitch = clamp(player.pitch + w.recoil * (ads ? .6 : 1), -1.5, 1.5);
   player.yaw += (Math.random() - .5) * w.recoil * .5;
   kick = 1.8; camShake = Math.max(camShake, .35);
@@ -3475,6 +3524,7 @@ function fire(){
   playShot(cur, 0.7 * attMul(cur, 'snd'));
   gunGroup.userData.flash.visible = true;
   setTimeout(() => { if (gunGroup) gunGroup.userData.flash.visible = false; }, 45);
+  muzzleLight(muzzle, clamp(attMul(cur, 'flash'), .15, 1.2) * (WEAPONS[cur].id === 'awm' || WEAPONS[cur].id === 's12k' ? 1.5 : 1), true);
   if (anyHit) hitMarker(anyHead);
   for (const id in agg){
     const pr = {}; for (const k in agg[id].parts) pr[k] = Math.round(agg[id].parts[k]);
@@ -5370,74 +5420,187 @@ function zPart(par, geo, c, sx, sy, sz, x, y, z, rx, ry, rz, glow){
   if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0);
   m.castShadow = !glow; par.add(m); return m;
 }
-/* ---------- 끔찍한 상처 장식 (모든 좀비 공통): 드러난 갈비뼈 · 흘러내린 내장 · 벌어진 턱과 이빨 · 튀어나온 눈알 · 뇌가 드러난 두개골 · 뼈가 튀어나온 팔 · 노출된 척추 · 고름 · 파리 ---------- */
+/* ---------- 좀비 상처 (좀비마다 종류·위치·개수·색이 다르게 — 같은 좀비가 하나도 없어요) ----------
+   상처 부품은 부위(몸통·머리·팔·다리)마다 하나의 메쉬로 합쳐서(zBake) 그려서, 좀비가 많아도 부담이 적어요 */
+const ZSKIN = [0x77795a, 0x8a7a64, 0x6a7a6a, 0x7a5a50, 0x8c8678, 0x66705a, 0x74645a, 0x6a6a76];
+const ZGUT = [0xb86a74, 0x8a3c4a, 0xa9786a, 0x703848, 0xb08a60, 0x9a5a6a];
+function zRotY(a){ const c = Math.cos(a), s = Math.sin(a); return [c, 0, s, 0, 1, 0, -s, 0, c]; }
+function zEul(x, y, z){
+  const a = Math.cos(x), b = Math.sin(x), c = Math.cos(y), d = Math.sin(y), e = Math.cos(z), f = Math.sin(z), ae = a * e, af = a * f, be = b * e, bf = b * f;
+  return [c * e, -c * f, d, af + be * d, ae - bf * d, -b * c, bf - ae * d, be + af * d, a * c];   // three.js 의 XYZ 오일러와 같은 회전행렬 (행 우선)
+}
+function zMul3(A, B){ const R = new Array(9); for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) R[i * 3 + j] = A[i * 3] * B[j] + A[i * 3 + 1] * B[3 + j] + A[i * 3 + 2] * B[6 + j]; return R; }
+const ZID = { R: [1, 0, 0, 0, 1, 0, 0, 0, 1], p: [0, 0, 0] };
+function zQ(Q, W, geo, c, sx, sy, sz, x, y, z, rx, ry, rz){
+  W = W || ZID; const Rl = zEul(rx || 0, ry || 0, rz || 0), R = zMul3(W.R, Rl);
+  const p = [W.R[0] * x + W.R[1] * y + W.R[2] * z + W.p[0], W.R[3] * x + W.R[4] * y + W.R[5] * z + W.p[1], W.R[6] * x + W.R[7] * y + W.R[8] * z + W.p[2]];
+  Q.push({ g: geo, c, R, p, s: [sx, sy, sz] });
+}
+function zBake(par, Q){   // 모아둔 조각들을 정점 색이 있는 메쉬 하나로 합쳐 par 에 붙여요
+  const ok = Q.filter(it => it.g.attributes && it.g.attributes.position); if (!ok.length) return null;
+  let nv = 0, ni = 0; for (const it of ok){ nv += it.g.attributes.position.count; ni += it.g.index ? it.g.index.count : it.g.attributes.position.count; }
+  const P = new Float32Array(nv * 3), N = new Float32Array(nv * 3), C = new Float32Array(nv * 3), I = new Uint16Array(ni); let vo = 0, io = 0;
+  for (const it of ok){
+    const g = it.g, pa = g.attributes.position.array, na = g.attributes.normal.array, cnt = g.attributes.position.count, R = it.R, p = it.p, s = it.s;
+    const cr = (it.c >> 16 & 255) / 255, cg = (it.c >> 8 & 255) / 255, cb = (it.c & 255) / 255;
+    for (let i = 0; i < cnt; i++){
+      const x = pa[i * 3] * s[0], y = pa[i * 3 + 1] * s[1], z = pa[i * 3 + 2] * s[2], o = (vo + i) * 3;
+      P[o] = R[0] * x + R[1] * y + R[2] * z + p[0]; P[o + 1] = R[3] * x + R[4] * y + R[5] * z + p[1]; P[o + 2] = R[6] * x + R[7] * y + R[8] * z + p[2];
+      const nx = na[i * 3] / (s[0] || 1), ny = na[i * 3 + 1] / (s[1] || 1), nz = na[i * 3 + 2] / (s[2] || 1);
+      let ax = R[0] * nx + R[1] * ny + R[2] * nz, ay = R[3] * nx + R[4] * ny + R[5] * nz, az = R[6] * nx + R[7] * ny + R[8] * nz; const l = Math.hypot(ax, ay, az) || 1;
+      N[o] = ax / l; N[o + 1] = ay / l; N[o + 2] = az / l; C[o] = cr; C[o + 1] = cg; C[o + 2] = cb;
+    }
+    if (g.index){ const ia = g.index.array; for (let i = 0; i < ia.length; i++) I[io++] = ia[i] + vo; } else for (let i = 0; i < cnt; i++) I[io++] = vo + i;
+    vo += cnt;
+  }
+  const bg = new THREE.BufferGeometry();
+  bg.setAttribute('position', new THREE.BufferAttribute(P, 3)); bg.setAttribute('normal', new THREE.BufferAttribute(N, 3)); bg.setAttribute('color', new THREE.BufferAttribute(C, 3)); bg.setIndex(new THREE.BufferAttribute(I, 1));
+  const m = new THREE.Mesh(bg, zWetMat()); par.add(m); return m;
+}
+let _zwm = null;
+function zWetMat(){ return _zwm || (_zwm = new THREE.MeshPhongMaterial({ vertexColors: true, specular: 0x4a2a2a, shininess: 38 })); }
+/* 상처 모음: q(geo, 색, 크기xyz, 위치xyz, 회전xyz) — 상처 면의 안쪽 좌표계 (바깥쪽이 -z) */
+const ZW = {
+  ribs(q, s, r){   // 찢어진 살 + 드러난 갈비뼈 + 장기
+    q(ZBOX, 0x5a0d10, .24 * s, .32 * s, .02, 0, 0, -.004, 0, 0, (r() - .5) * .4);
+    q(ZBOX, 0x150203, .19 * s, .26 * s, .02, 0, 0, -.014, 0, 0, (r() - .5) * .4);
+    const n = 3 + (r() * 3 | 0);
+    for (let i = 0; i < n; i++){ const cut = r() < .25 ? .6 : 1; q(ZBOX, r() < .25 ? 0xb5a47a : 0xcfc29a, (.2 + r() * .08) * s * cut, .026 * s, .042, (r() - .5) * .04 - (cut < 1 ? .03 : 0), (.12 - i * (.24 / n)) * s, -.036, (r() - .5) * .5, (r() - .5) * .3, (r() - .5) * .35); }
+    if (r() < .75) q(ZSPH, 0x5a2434, .055 * s, .04 * s, .04 * s, (r() - .5) * .08 * s, -.03 * s, -.034);
+    if (r() < .5) q(ZSPH, 0x3a2a4a, .04 * s, .055 * s, .03 * s, (r() - .5) * .1 * s, .05 * s, -.03);
+    for (let i = 0; i < 4; i++) q(ZBOX, 0x8a8070, .05 * s, .09 * s, .012, (r() < .5 ? -1 : 1) * (.1 + r() * .02) * s, (r() - .5) * .3 * s, -.012, (r() - .5), (r() - .5), r() * 3);   // 뒤집힌 살갗
+  },
+  guts(q, s, r, fr){   // 배가 갈라져 쏟아지는 내장 (흔들리는 별도 메쉬)
+    q(ZBOX, 0x4a0808, .26 * s, .07 * s, .02, 0, 0, -.004, 0, 0, (r() - .5) * .6);
+    q(ZBOX, 0x120202, .21 * s, .035 * s, .02, 0, 0, -.012, 0, 0, 0);
+    fr.gut = { s, seed: r() * 1e5, col: ZGUT[(r() * ZGUT.length) | 0], n: 5 + (r() * 5 | 0), x: (r() - .5) * .1 };
+  },
+  holes(q, s, r){   // 총상
+    const n = 2 + (r() * 4 | 0);
+    for (let i = 0; i < n; i++){ const x = (r() - .5) * .34 * s, y = (r() - .5) * .34 * s; q(ZCYL, 0x4a0a0a, .032 * s, .012, .032 * s, x, y, -.006, Math.PI / 2, 0, 0); q(ZCYL, 0x050000, .017 * s, .014, .017 * s, x, y, -.012, Math.PI / 2, 0, 0); if (r() < .75) q(ZBOX, 0x8a0f0f, .009, (.06 + r() * .22) * s, .006, x + (r() - .5) * .012, y - (.04 + r() * .06) * s, -.01); }
+  },
+  bite(q, s, r){   // 물어뜯긴 자국
+    q(ZSPH, 0x6a1212, .09 * s, .075 * s, .02, 0, 0, -.006);
+    const a0 = r() * 6.28;
+    for (let i = 0; i < 9; i++){ const a = a0 + i * .5; q(ZSPH, 0x3a0808, .018 * s, .018 * s, .012, Math.cos(a) * .105 * s, Math.sin(a) * .09 * s, -.01); if (i % 2 === 0) q(ZCONE, 0xc9bd96, .007, .02 * s, .007, Math.cos(a) * .12 * s, Math.sin(a) * .1 * s, -.012, -Math.PI / 2, 0, 0); }
+  },
+  muscle(q, s, r){   // 가죽이 벗겨져 드러난 근육
+    q(ZBOX, 0x6e1616, .22 * s, .3 * s, .016, 0, 0, -.004, 0, 0, (r() - .5) * .6);
+    for (let i = 0; i < 6; i++) q(ZBOX, i % 2 ? 0x9a2a2a : 0x4a0c0c, .22 * s * (.4 + r() * .6), .02 * s, .016, (r() - .5) * .04, (-.12 + i * .05) * s, -.014, 0, 0, (r() - .5) * .3);
+    for (let i = 0; i < 2; i++) q(ZBOX, 0xe3d4c0, .2 * s * (.3 + r() * .6), .008, .01, (r() - .5) * .05, (r() - .5) * .2 * s, -.02, 0, 0, (r() - .5) * .5);
+    for (let i = 0; i < 3; i++) q(ZBOX, 0x7e7864, .09 * s, .11 * s, .012, (r() < .5 ? -1 : 1) * .12 * s, (r() - .5) * .3 * s, -.016, (r() - .5) * .8, (r() - .5) * .8, r() * 3);
+  },
+  boil(q, s, r){   // 곪아 터진 고름 덩어리
+    const n = 2 + (r() * 4 | 0);
+    for (let i = 0; i < n; i++){ const x = (r() - .5) * .22 * s, y = (r() - .5) * .22 * s, k = (.04 + r() * .05) * s; q(ZSPH, r() < .5 ? 0xa8a24a : 0xb59a52, k, k, k * .8, x, y, -k * .6); if (r() < .4){ q(ZSPH, 0x4a2a0a, k * .45, k * .45, k * .3, x, y, -k * 1.1); q(ZBOX, 0xd8d070, .01, (.05 + r() * .1) * s, .008, x, y - k - .03, -k * .9); } }
+  },
+  tumor(q, s, r){   // 부풀어 오른 혹
+    const k = (.07 + r() * .06) * s; q(ZSPH, 0x7a4a4a, k * 1.2, k, k * .9, 0, 0, -k * .5); q(ZSPH, 0x5a2a30, k * .5, k * .4, k * .3, (r() - .5) * k, (r() - .5) * k, -k * 1.05);
+    for (let i = 0; i < 4; i++){ const a = r() * 6.28; q(ZBOX, 0x2a1030, .008, k * 1.3, .006, Math.cos(a) * k, Math.sin(a) * k, -k * .4, 0, 0, a); }
+  },
+  flap(q, s, r){   // 반쯤 벗겨져 덜렁이는 살가죽
+    q(ZBOX, 0x5a0c0c, .18 * s, .2 * s, .014, 0, 0, -.004, 0, 0, (r() - .5) * .5);
+    q(ZBOX, 0x8a8070, .17 * s, .2 * s, .016, .02 * s, -.02 * s, -.05, .9 + r() * .3, (r() - .5) * .3, (r() - .5) * .5);
+    q(ZBOX, 0x8a0f0f, .009, .15 * s, .006, (r() - .5) * .1 * s, -.14 * s, -.012);
+  },
+  veins(q, s, r){   // 감염으로 검게 번진 핏줄
+    const n = 5 + (r() * 4 | 0);
+    for (let i = 0; i < n; i++){ const a = r() * 6.28, l = (.1 + r() * .2) * s; q(ZBOX, i % 3 ? 0x3a1a3a : 0x2a3a2a, l, .008, .004, Math.cos(a) * l * .5, Math.sin(a) * l * .5, -.003, 0, 0, a + (r() - .5) * .4); }
+  },
+  spine(q, s, r){   // 등뼈가 드러난 등
+    q(ZBOX, 0x4a0808, .32 * s, .5 * s, .02, 0, 0, -.004, 0, 0, (r() - .5) * .3);
+    const n = 4 + (r() * 3 | 0);
+    for (let i = 0; i < n; i++){ q(ZBOX, 0xd2c6a2, .07 * s, .05 * s, .07, (r() - .5) * .02, (.2 - i * (.4 / n)) * s, -.04, (r() - .5) * .2, 0, (r() - .5) * .3); q(ZBOX, 0xc9bd96, .1 * s, .02 * s, .03, 0, (.2 - i * (.4 / n)) * s, -.03); }
+  },
+  bone(q, s, r){   // 부러져 튀어나온 뼈 (팔·다리)
+    q(ZBOX, 0x5a0808, .2 * s, .18 * s, .02, 0, 0, -.004, 0, 0, (r() - .5) * .5);
+    q(ZCONE, 0xe6dcc0, .034, .26 * s, .034, (r() - .5) * .04, 0, -.1 * s, -Math.PI / 2 + (r() - .5) * .8, (r() - .5) * .6, 0);
+    q(ZCONE, 0xd8cdb0, .02, .13 * s, .02, (r() - .5) * .1, (r() - .5) * .1, -.06 * s, -Math.PI / 2 + (r() - .5) * 1.2, (r() - .5), 0);
+    for (let i = 0; i < 3; i++) q(ZBOX, 0x7a1010, .008, (.1 + r() * .1) * s, .008, (r() - .5) * .1 * s, -.05 * s, -.02, 0, 0, (r() - .5) * .5);
+  }
+};
 function zGore(av, t, id){
-  const P = av.parts, L = av.limbs, hd = P.head, tr = P.torso, B = zPart, PI = Math.PI, T = ZT[t];
-  const r = mulberry32((((+id || 1) * 1597334677) ^ 0x5bd1e995) >>> 0);
-  const capHead = t === 6 || t === 9, hooded = t === 1 || t === 11 || t === 5 || t === 10;   // 방패/방독면/후드/안전모/뿔 달린 머리는 위쪽 상처를 생략
-  tr.material.color.multiplyScalar(.66);
-  hd.material.color.multiplyScalar(.74).lerp(new THREE.Color(.30, .26, .22), .22);
-  // 피에 젖은 몸통
-  B(tr, ZBOX, 0x3a0707, .46 + r() * .12, .26 + r() * .2, .02, (r() - .5) * .1, .12 - r() * .2, -.215);
-  B(tr, ZBOX, 0x7a0e0e, .16 + r() * .14, .14 + r() * .08, .02, (r() - .5) * .3, -.1 + r() * .22, -.226);
-  // 찢어진 가슴 + 드러난 갈비뼈
-  if (t === 0 || r() < .7){
-    const s = r() < .5 ? -1 : 1;
-    B(tr, ZBOX, 0x1e0303, .22, .32, .02, s * .14, .08, -.232);
-    for (let i = 0; i < 4; i++) B(tr, ZBOX, 0xd8ceb0, .27, .03, .05, s * .14, .21 - i * .075, -.25, 0, 0, -s * (.1 + i * .02));
-    B(tr, ZBOX, 0xd8ceb0, .035, .3, .05, s * .03, .08, -.248);   // 흉골
+  const P = av.parts, L = av.limbs, hd = P.head, tr = P.torso, PI = Math.PI, T = ZT[t];
+  const r = mulberry32((((+id || 1) * 1597334677) ^ 0x5bd1e995) >>> 0), pick = a => a[(r() * a.length) | 0], rot = r(), lite = isTouch ? .6 : 1;
+  const capHead = t === 6 || t === 9, hooded = t === 1 || t === 11 || t === 5 || t === 10;
+  tr.material.color.lerp(new THREE.Color(0x2a241e), .3 + r() * .2).multiplyScalar(.7);
+  hd.material.color.lerp(new THREE.Color(pick(ZSKIN)), .5 + r() * .3).multiplyScalar(.78);
+  tr.rotation.z = (r() - .5) * .14; if (L.armL) L.armL.position.y += (r() - .5) * .07; if (L.armR) L.armR.position.y += (r() - .5) * .07;
+  const swayers = [], face = (fc, ex, ey, ez, cy, u, v) => fc === 0 ? { R: zRotY(0), p: [u, cy + v, -ez] } : fc === 1 ? { R: zRotY(PI), p: [-u, cy + v, ez] } : fc === 2 ? { R: zRotY(-PI / 2), p: [ex, cy + v, u] } : { R: zRotY(PI / 2), p: [-ex, cy + v, u] };
+  const mags = (Q, W) => { const n = 6 + (r() * 8 | 0); for (let i = 0; i < n; i++){ const x = (r() - .5) * .16, y = (r() - .5) * .16; zQ(Q, W, ZSPH, 0xe6dfb8, .008, .008, .026, x, y, -.014, 0, 0, r() * 3); } };
+  // ── 몸통 ──
+  const QT = [], nT = Math.max(2, Math.round((2 + (r() * 3 | 0) + (rot > .6 ? 1 : 0)) * lite));
+  const typesT = ['ribs', 'guts', 'holes', 'bite', 'muscle', 'boil', 'tumor', 'flap', 'veins', 'spine'];
+  const used = {};
+  for (let i = 0; i < nT; i++){
+    let k, g = 0; do { k = pick(typesT); g++; } while (used[k] && g < 8); used[k] = 1;
+    const fc = k === 'spine' ? 1 : (r() < .5 ? 0 : pick([1, 2, 3])), wide = fc < 2 ? .31 : .18, W = face(fc, .31, .35, .18, 0, (r() - .5) * (wide - .1) * 1.7, (r() - .5) * .34), fr = {};
+    ZW[k]((geo, c, sx, sy, sz, x, y, z, rx, ry, rz) => zQ(QT, W, geo, c, sx, sy, sz, x, y, z, rx, ry, rz), .85 + r() * .4, r, fr);
+    if (rot > .55 && r() < .55) mags(QT, W);
+    if (fr.gut){ const G = fr.gut, gg = new THREE.Group(); gg.position.set(W.p[0], W.p[1], W.p[2]); gg.rotation.y = fc === 1 ? PI : fc === 2 ? -PI / 2 : fc === 3 ? PI / 2 : 0; tr.add(gg);
+      const QG = [], rr = mulberry32(G.seed | 0); let x = G.x, y = -.03, a = (rr() - .5) * .9;
+      for (let j = 0; j < G.n; j++){ const l = .07 * G.s * (.8 + rr() * .5), th = .034 * G.s * (1 + rr() * .5); a += (rr() - .5) * .8; zQ(QG, null, ZCYL, j % 3 ? G.col : 0x8a3c4a, th, l, th * .9, x + Math.sin(a) * l * .5, y - Math.cos(a) * l * .5, -.04 - j * .004, 0, 0, a); zQ(QG, null, ZSPH, G.col, th * 1.15, th * 1.1, th, x + Math.sin(a) * l, y - Math.cos(a) * l, -.04 - j * .004); x += Math.sin(a) * l; y -= Math.cos(a) * l; }
+      zBake(gg, QG); swayers.push({ g: gg, ph: rr() * 6 }); }
   }
-  // 흘러내린 내장
-  let gut = null;
-  if (t === 0 || t === 2 || t === 7 || t === 8 || r() < .55){
-    gut = new THREE.Group(); gut.position.set((r() - .5) * .3, -.3, -.22); tr.add(gut);
-    for (let i = 0; i < 6; i++) B(gut, ZSPH, i % 2 ? 0xa8505a : 0x7a2832, .075 - i * .004, .07, .07, Math.sin(i * 1.7) * .035, -i * .068, -i * .006);
-    B(gut, ZBOX, 0x5a0c10, .02, .22, .02, .06, -.46, 0);   // 덜렁이는 힘줄
+  for (let i = 0; i < 2 + (r() * 3 | 0); i++) zQ(QT, { R: zRotY(0), p: [0, 0, 0] }, ZBOX, pick([0x3a3328, 0x4a3a2a, 0x2a2a2e]), .05 + r() * .05, .16 + r() * .2, .012, (r() - .5) * .55, -.4 - r() * .1, -.2 + (r() < .5 ? 0 : .4), 0, 0, (r() - .5) * .5);   // 찢어진 옷자락
+  zBake(tr, QT);
+  // ── 팔·다리 ──
+  const lim = [['armL', .31, .08, .1, ['bone', 'muscle', 'holes', 'bite', 'veins', 'boil']], ['armR', .31, .08, .1, ['bone', 'muscle', 'holes', 'bite', 'veins', 'boil']], ['legL', .4, .11, .15, ['muscle', 'bone', 'bite', 'holes', 'veins']], ['legR', .4, .11, .15, ['muscle', 'bone', 'bite', 'holes', 'veins']]];
+  for (const [k, cy, ex, ez, lst] of lim){
+    const lb = L[k]; if (!lb || r() > (k[0] === 'a' ? .75 : .55) * lite + .1) continue;
+    const Q = [], fc = pick([0, 1, 2, 3]), W = face(fc, ex, .31, ez, -cy, (r() - .5) * .08, (r() - .5) * .35), s = k[0] === 'a' ? .6 : .75, kind = pick(lst);
+    ZW[kind]((geo, c, sx, sy, sz, x, y, z, rx, ry, rz) => zQ(Q, W, geo, c, sx, sy, sz, x, y, z, rx, ry, rz), s, r, {});
+    if (r() < .35){ mags(Q, W); }
+    if (k[0] === 'a' && r() < .25){ zQ(Q, null, ZBOX, 0x5a0808, .18, .08, .22, 0, -.62, 0); zQ(Q, null, ZCONE, 0xe6dcc0, .028, .12, .028, (r() - .5) * .06, -.7, 0, PI, 0, 0); for (let i = 0; i < 3; i++) zQ(Q, null, ZCONE, 0xd8cdb0, .012, .07 + r() * .05, .012, (i - 1) * .05, -.68, -.02, PI + (r() - .5) * .5, 0, (r() - .5) * .5); }   // 손이 잘려 나간 팔
+    zBake(lb, Q);
   }
-  // 얼굴: 벌어진 입 · 이빨 · 튀어난 눈알 · 드러난 뇌
+  // ── 머리 ──
+  const QH = [], hq = (geo, c, sx, sy, sz, x, y, z, rx, ry, rz) => zQ(QH, null, geo, c, sx, sy, sz, x, y, z, rx, ry, rz);
   if (!capHead){
-    const jaw = T.scream ? 1.7 : 1;
-    B(hd, ZBOX, 0x120202, .17, .07 * jaw, .04, 0, -.12 - .02 * jaw, -.195);
-    B(hd, ZBOX, 0x4a1a1a, .2, .05, .14, 0, -.17 - .09 * (jaw - 1) - .02, -.12, .5 + .35 * (jaw - 1), 0, 0);   // 아래로 처진 턱
-    for (let i = 0; i < 6; i++){
-      B(hd, ZCONE, 0xd9cfa0, .016, .045 + r() * .02, .016, -.075 + i * .03, -.12, -.2, PI, 0, 0);
-      if (r() < .8) B(hd, ZCONE, 0xcdbf90, .016, .04 + r() * .02, .016, -.07 + i * .028, -.2 - .06 * (jaw - 1), -.19 - .03 * jaw, 0, 0, 0);
+    const m = r(), tw = .17 + r() * .06, drop = T.scream ? 1.6 : 1;
+    hq(ZBOX, 0x120202, tw, .08 * drop, .04, 0, -.13 - .02 * drop, -.196);
+    const nt = 5 + (r() * 4 | 0);
+    for (let i = 0; i < nt; i++){ if (r() < .22) continue; const x = -tw / 2 + (i + .5) * tw / nt; hq(ZCONE, pick([0xcdbf8c, 0xb5a470, 0x8a7a50]), .017, .03 + r() * .045, .017, x, -.115, -.2, PI + (r() - .5) * .5, 0, (r() - .5) * .6); }
+    if (m < .35){   // 턱이 빠진 채 처져 있음
+      hq(ZBOX, 0xb8ab88, .2, .035, .13, 0, -.22 - .04 * drop, -.1, .7 + r() * .4, 0, (r() - .5) * .3); hq(ZBOX, 0x6a2a30, .19, .03, .12, 0, -.2 - .04 * drop, -.11, .7 + r() * .4, 0, 0);
+      for (let i = 0; i < 4; i++) if (r() < .7) hq(ZCONE, 0xb5a470, .015, .035, .015, (i - 1.5) * .045, -.19 - .05 * drop, -.17, -.2, 0, 0);
+    } else if (m < .65){   // 턱이 없고 혀가 늘어짐
+      hq(ZBOX, 0xa24a58, .055, .2 + r() * .12, .03, (r() - .5) * .05, -.27, -.18, -.15, 0, (r() - .5) * .2); hq(ZBOX, 0x7a1010, .1, .22, .02, 0, -.24, -.19);
+    } else {   // 입이 귀까지 찢어짐
+      hq(ZBOX, 0x120202, .09, .05, .04, (r() < .5 ? -1 : 1) * .16, -.1, -.17, 0, .5, 0); hq(ZBOX, 0x5a0d10, .1, .02, .03, (r() < .5 ? -1 : 1) * .17, -.11, -.16, 0, .6, 0);
     }
-    if (t === 0 || t === 2 || t === 7 || t === 8){
-      const s = r() < .5 ? -1 : 1;
-      B(hd, ZBOX, 0x050000, .08, .07, .03, s * .075, .05, -.2);
-      B(hd, ZBOX, 0x7a1a1a, .01, .1, .01, s * .1, -.03, -.2);
-      B(hd, ZSPH, 0xe6dcc4, .046, .046, .046, s * .1, -.1, -.2);
-      B(hd, ZSPH, 0x8a1010, .016, .016, .01, s * .1, -.1, -.245);
+    for (let i = 0; i < 2 + (r() * 3 | 0); i++) hq(ZBOX, 0x8a0f0f, .01, .06 + r() * .2, .008, (r() - .5) * .16, -.2 - r() * .04, -.19);   // 흘러내리는 피·침
+    // 눈
+    const eyeM = hd.children.filter(c => c.position && Math.abs(Math.abs(c.position.x) - .075) < .012 && Math.abs(c.position.z + .2) < .012 && c.position.y > -.02 && c.visible);
+    for (const sd of [-1, 1]){
+      const roll = r(), glow = eyeM.find(c => Math.sign(c.position.x) === sd), x = sd * .075;
+      if (glow && roll > .3) continue;
+      if (roll < .3){ if (glow) glow.visible = false;
+        hq(ZBOX, 0x5a0d10, .095, .085, .02, x, .05, -.192); hq(ZBOX, 0x050000, .075, .065, .03, x, .05, -.2);
+        if (r() < .75){ hq(ZBOX, 0x7a1a1a, .01, .08 + r() * .08, .01, sd * .085, -.0, -.205); hq(ZSPH, 0xd8d2b8, .047, .047, .047, sd * (.085 + r() * .02), -.07 - r() * .08, -.205); hq(ZSPH, 0x7a1010, .014, .014, .01, sd * .09, -.08, -.248); }
+        hq(ZBOX, 0x7a0e0e, .014, .1 + r() * .1, .008, x, -.08, -.19);
+      } else if (roll < .6){ hq(ZSPH, 0xdcd9c6, .04, .04, .03, x, .05, -.19); hq(ZBOX, 0xa83030, .005, .035, .004, x, .05, -.222, 0, 0, r()); }
+      else { hq(ZSPH, 0xe0d4b8, .06, .06, .05, x, .05, -.18); for (let i = 0; i < 3; i++) hq(ZBOX, 0xa83030, .005, .05, .004, x + (r() - .5) * .03, .05 + (r() - .5) * .03, -.23, 0, 0, r() * 3); }
     }
-    if (!hooded && r() < .6){
-      B(hd, ZBOX, 0x5a0a0a, .15, .03, .13, (r() - .5) * .1, .19, -.03, .1, 0, 0);
-      B(hd, ZSPH, 0xa86a78, .06, .035, .05, -.03, .205, -.02); B(hd, ZSPH, 0x9a5a68, .05, .03, .05, .04, .205, -.05);
+    if (r() < .6){ hq(ZBOX, 0x150202, .045, .05, .03, 0, -.02, -.2); hq(ZBOX, 0xcfc29a, .012, .04, .012, (r() - .5) * .03, -.03, -.215); }   // 뭉개진 코
+    if (!hooded){
+      const p = r();
+      if (p < .3){   // 두개골이 갈라져 뇌가 드러남
+        hq(ZBOX, 0x5a0a0a, .16, .03, .14, (r() - .5) * .08, .19, -.03, .1, 0, (r() - .5) * .3);
+        for (let i = 0; i < 3; i++) hq(ZSPH, i % 2 ? 0x9a5a68 : 0xa87880, .055, .035 + r() * .02, .05, (i - 1) * .05, .205, -.03 + (r() - .5) * .06);
+        for (let i = 0; i < 5; i++) hq(ZBOX, 0xc9bd96, .04, .015, .03, Math.cos(i * 1.3) * .11, .195, Math.sin(i * 1.3) * .1 - .03, 0, i, 0);
+      } else if (p < .55){   // 두피가 반쯤 벗겨짐
+        const sd = r() < .5 ? -1 : 1; hq(ZBOX, 0x7a1212, .1, .13, .016, sd * .17, .06, -.02, 0, sd * 1.35, 0); hq(ZBOX, 0x8a8070, .1, .17, .016, sd * .22, -.04, -.02, 0, sd * 1.35, sd * .4);
+      } else if (p < .72) hq(ZCYL, 0x050000, .02, .014, .02, (r() - .5) * .1, .14, -.19, PI / 2, 0, 0);   // 이마 총상
+      if (r() < .6) for (let i = 0; i < 3 + (r() * 3 | 0); i++) hq(ZBOX, 0x1a1410, .015, .06 + r() * .07, .015, (r() - .5) * .28, .19, (r() - .5) * .22, (r() - .5), 0, (r() - .5));
     }
+    hd.rotation.z += (r() - .5) * .25; hd.rotation.x += (r() - .5) * .2;
   }
-  // 팔: 부러져 튀어나온 뼈와 찢어진 살점
-  for (const k of ['armL', 'armR']){
-    if (r() < .55){
-      const a = L[k]; if (!a) continue;
-      B(a, ZBOX, 0x5a0808, .175, .15, .215, 0, -.28 - r() * .12, 0);
-      B(a, ZCONE, 0xe6dcc0, .035, .24, .035, (r() - .5) * .08, -.36, -.12, -1.1, 0, 0);
-      B(a, ZBOX, 0x6a1010, .04, .26, .015, .06, -.55, -.1, 0, 0, .2);
-    }
-  }
-  // 다리 상처
-  for (const k of ['legL', 'legR']) if (r() < .45 && L[k]) B(L[k], ZBOX, 0x6a0c0c, .235, .2, .315, 0, -.5, 0);
-  // 노출된 척추와 등의 상처 (러너는 이미 있음)
-  if (t !== 1 && t !== 4 && t !== 9){
-    B(tr, ZBOX, 0x4a0808, .3, .45, .02, 0, 0, .205);
-    for (let i = 0; i < 4; i++) B(tr, ZBOX, 0xd8ceb0, .07, .05, .06, 0, .22 - i * .13, .22);
-  }
-  // 곪은 고름 덩어리
-  for (let i = 0; i < 3; i++) B(tr, ZSPH, 0xb9a85a, .05 + r() * .03, .05 + r() * .02, .05, (r() - .5) * .62, .2 + r() * .1, (r() < .5 ? -1 : 1) * .17);
-  if (t === 2) B(tr, ZCYL, 0x6a3a22, .025, .9, .025, .25, .05, -.08, .25, 0, .7);   // 몸을 관통한 철근
-  // 파리 두 마리가 머리 주위를 맴돎
-  const fl = [0, 1].map(() => B(hd, ZBOX, 0x0a0a0a, .018, .012, .018, 0, .1, 0));
+  zBake(hd, QH);
+  // 파리
+  const fl = [0, 1].map(() => zPart(hd, ZBOX, 0x0a0a0a, .018, .012, .018, 0, .1, 0, 0, 0, 0, true));
   return (z, tn) => {
-    if (gut){ gut.rotation.x = Math.sin(tn * 2.3 + z.ph) * .2; gut.rotation.z = Math.cos(tn * 1.9 + z.ph) * .12; }
+    for (const s of swayers){ s.g.rotation.x = Math.sin(tn * 2.3 + s.ph + z.ph) * .2; s.g.rotation.z = Math.cos(tn * 1.9 + s.ph) * .12; }
     for (let i = 0; i < 2; i++){ const a = tn * (7 + i * 3) + i * 3 + z.ph; fl[i].position.set(Math.cos(a) * .3, .1 + Math.sin(a * 1.7) * .12, Math.sin(a) * .3); }
   };
 }
@@ -6242,7 +6405,7 @@ function loop(){
       meleePose(dt, w);
       mox = MP[0]; moy = MP[1]; moz = MP[2]; gp.x += mox; gp.y += moy; gp.z += moz;
       gunGroup.rotation.x += MP[3]; gunGroup.rotation.y += MP[4]; gunGroup.rotation.z += MP[5];
-    } else { mox = moy = moz = 0; }
+    } else { mox = moy = moz = 0; if (sawA.n) sawAudio(false); }
     if (gunGroup.userData.belt) updateBelt(gunGroup.userData.belt, dt, a.mag, reloading);
     if (gunGroup.userData.bolt){ updateBolt(gunGroup.userData.bolt, w, a, t, reloading, pr); updateHands(gunGroup, w, a, t, reloading, pr); }
     const rk = gunGroup.userData.rocket;   // RPG 로켓탄: 쏘면 사라지고, 재장전 때 앞에서 밀어 넣어요
