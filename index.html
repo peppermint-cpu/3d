@@ -671,12 +671,15 @@ gunSun.position.copy(SUN_DIR); gunScene.add(gunSun, gunSun.target);
 const gunFill = new THREE.DirectionalLight(0xc4b090, 0.12);
 gunFill.position.set(-0.62, 0.35, -0.38); gunScene.add(gunFill);
 /* 총구 화염 조명: 쏠 때마다 총구 앞이 순간적으로 환해져요 (어두운 곳일수록 확 티나요). 광원 개수는 늘 같게 유지해서 셰이더가 다시 컴파일되지 않아요 */
-const mzLight = new THREE.PointLight(0xffa955, 0, 20, 1.6), mzGun = new THREE.PointLight(0xffb066, 0, 3.2, 1.4);
-scene.add(mzLight); gunScene.add(mzGun);
+const mzLight = new THREE.SpotLight(0xffa955, 0, 26, .52, .85, 1.5), mzGun = new THREE.PointLight(0xffb066, 0, 1.6, 1.6);   // 총구에서 앞쪽으로만 퍼지는 원뿔 빛 (주변 전체가 아니라 총 쏘는 방향만 밝아져요)
+scene.add(mzLight, mzLight.target); gunScene.add(mzGun);
 let mzI = 0, mzGI = 0, mzT = 0;
-function muzzleLight(pos, k, mine){
-  mzLight.position.copy(pos); mzI = Math.max(mzI, 4.2 * k);
-  if (mine){ mzGun.position.copy(pos); mzGun.position.addScaledVector(new THREE.Vector3(0, .02, -1).applyQuaternion(camera.quaternion), .12); mzGI = Math.max(mzGI, 2.6 * k); }
+const _mzD = new THREE.Vector3();
+function muzzleLight(pos, k, mine, dir){
+  if (dir) _mzD.copy(dir); else _mzD.set(0, 0, -1).applyQuaternion(camera.quaternion);
+  _mzD.normalize(); mzLight.position.copy(pos).addScaledVector(_mzD, .35); mzLight.target.position.copy(pos).addScaledVector(_mzD, 8); mzLight.target.updateMatrixWorld();
+  mzI = Math.max(mzI, 7 * k);
+  if (mine){ mzGun.position.copy(pos).addScaledVector(_mzD, .1); mzGI = Math.max(mzGI, 2.2 * k); }
 }
 function muzzleLightUpd(){
   const t = performance.now() / 1000, dt = Math.min(.1, t - mzT); mzT = t;
@@ -1904,15 +1907,16 @@ GUNS.hammer = { tip:-0.9, parts:[
   [.012,.15,.012,-.05,0,-.874,0x2c3036,'m'], [.012,.15,.012,.06,0,-.874,0x2c3036,'m'],   // 머리 홈
   [.06,.05,.10,0,-.012,.0,SKIN], [.06,.05,.10,0,-.012,-.27,SKIN]                       // 두 손
 ] };
-GUNS.chainsaw = { tip:-0.82, parts:[
+GUNS.chainsaw = { tip:-0.8, parts:[
   [.095,.125,.32,0,0,.02,0xd1561b],                        // 몸체 (주황)
   [.075,.05,.20,0,.088,.04,0x2b2b2b],                      // 엔진 덮개
-  [.03,.03,.24,0,.145,.08,0x1d1d1d],                       // 위 손잡이
-  [.03,.09,.03,0,.098,-.03,0x1d1d1d], [.03,.09,.03,0,.098,.19,0x1d1d1d],
+  [.03,.03,.34,0,.145,.03,0x1d1d1d],                       // 위 손잡이 (앞쪽 보호대까지 이어짐)
+  [.03,.09,.03,0,.098,-.03,0x1d1d1d], [.03,.09,.03,0,.098,.19,0x1d1d1d], [.03,.09,.03,0,.098,-.12,0x1d1d1d],
   [.11,.03,.03,0,.105,-.15,0xd1561b],                      // 앞 손 보호대
   [.032,.04,.05,.06,.0,.17,0x222222,'m'],                  // 배기구
-  [.026,.10,.60,0,0,-.58,0xaeb4bd,'m'],                    // 가이드 바
-  [.03,.11,.03,0,0,-.88,0x8a9099,'m'],                     // 바 끝
+  [.034,.10,.04,0,0,-.13,0x8a9099,'m'],                    // 바 고정부 (몸체와 바를 잇는 부분)
+  [.026,.10,.66,0,0,-.43,0xaeb4bd,'m'],                    // 가이드 바 (몸체 앞면에 딱 붙어서 시작)
+  [.03,.11,.03,0,0,-.775,0x8a9099,'m'],                    // 바 끝
   [.06,.05,.10,0,.17,.08,SKIN], [.06,.05,.10,0,.125,-.15,SKIN]
 ] };
 GUNS.rpg = { tip:-0.74, parts:[[.05,0,.74,0,0,-.05,0x4a5a35,'cm'],[.062,0,.20,0,0,-.19,0x7a4a21,'cw'],[.04,.11,.05,0,-.078,.04,0x222222],[.06,.05,.10,0,-.052,-.19,SKIN]] };
@@ -2075,7 +2079,7 @@ function buildGun(i){
   g.add(mf); g.userData.flash = mf;
   const tipObj = new THREE.Object3D(); tipObj.position.set(0,.015,spec.tip); g.add(tipObj); g.userData.tip = tipObj;
   if (WEAPONS[i].id === 'chainsaw'){   // 돌아가는 체인: 바 위·아래 가장자리를 따라 톱니가 움직여요
-    const ch = { top: [], bot: [], z0: -.3, L: .6, sp: .6 / 16 }, tg = new THREE.BoxGeometry(.034, .016, .02), tm = new THREE.MeshPhongMaterial({ color: 0x3a3f46, specular: 0x777777, shininess: 60 });
+    const ch = { top: [], bot: [], z0: -.12, L: .65, sp: .65 / 16 }, tg = new THREE.BoxGeometry(.034, .016, .02), tm = new THREE.MeshPhongMaterial({ color: 0x3a3f46, specular: 0x777777, shininess: 60 });
     for (let k = 0; k < 16; k++){
       const a = new THREE.Mesh(tg, tm), b = new THREE.Mesh(tg, tm); a.position.set(0, .062, ch.z0 - k * ch.sp); b.position.set(0, -.062, ch.z0 - ch.L + k * ch.sp);
       g.add(a, b); ch.top.push(a); ch.bot.push(b);
@@ -2441,7 +2445,7 @@ function updateGore(dt){
     const g = gibs[i];
     g.v.y -= 20 * dt; g.m.position.addScaledVector(g.v, dt);
     g.m.rotation.x += g.w.x * dt; g.m.rotation.y += g.w.y * dt; g.m.rotation.z += g.w.z * dt;
-    const gh = .12 + hillH(g.m.position.x, g.m.position.z);
+    const gh = (g.fl || .12) + hillH(g.m.position.x, g.m.position.z);
     if (g.m.position.y < gh){
       g.m.position.y = gh; g.v.y = Math.abs(g.v.y) > 1.2 ? -g.v.y * .35 : 0;
       g.v.x *= .6; g.v.z *= .6; g.w.multiplyScalar(.6);
@@ -2683,7 +2687,7 @@ function onShot(p){
   const rr = remotes[p.id];
   if (rr && rr.avatar.gunTip && rr.avatar.group.visible){ rr.avatar.group.updateMatrixWorld(true); rr.avatar.gunTip.getWorldPosition(a); }
   tracer(a, b, 0xffb86b);
-  if (!p.q) muzzleLight(a, .55, false);
+  if (!p.q) muzzleLight(a, .55, false, b.clone().sub(a));
   if (remotes[p.id]) remotes[p.id].avatar.kick = 1;
   if (p.h) spawnBlood(b, bloodCount(p.hp), 3.2, b.clone().sub(a).normalize());
   const dist = a.distanceTo(player.pos);
@@ -2760,6 +2764,7 @@ async function openChannel(){
     .on('broadcast', { event: 'chat' }, ({ payload }) => onChat(payload))
     .on('broadcast', { event: 'zs' },   ({ payload }) => onZs(payload))
     .on('broadcast', { event: 'zk' },   ({ payload }) => onZe('zk', payload))
+    .on('broadcast', { event: 'zdm' },  ({ payload }) => onZe('zdm', payload))
     .on('broadcast', { event: 'zhit' }, ({ payload }) => onZe('zhit', payload))
     .on('broadcast', { event: 'zc' },   ({ payload }) => onZe('zc', payload))
     .on('broadcast', { event: 'zo' },   ({ payload }) => onZe('zo', payload))
@@ -3188,7 +3193,7 @@ function meleeCast(w, offs, max, bc){
     hit = true; head = head || part === 'head';
     spawnBlood(h.point, bc || bloodCount(part), 3.2, dir);
     if (ud.kind === 'player'){ agg[ud.id] = { dmg: d, head: part === 'head', parts: { [part]: d } }; }
-    else if (ud.kind === 'zombie') zShoot(ud.zid, d, part === 'head'); else if (!ud.bot.dead) damageBot(ud.bot, d, part);
+    else if (ud.kind === 'zombie') zShoot(ud.zid, d, part === 'head', part); else if (!ud.bot.dead) damageBot(ud.bot, d, part);
   }
   if (hit) hitMarker(head);
   for (const id in agg){ const e = agg[id], pr = {}; for (const k in e.parts) pr[k] = Math.round(e.parts[k]); send('hit', { to: id, dmg: Math.round(e.dmg), parts: pr, from: myId, fromName: myName, w: cur, head: e.head }); }
@@ -3513,7 +3518,7 @@ function fire(){
         if (ud.kind === 'player'){
           const e = agg[ud.id] || (agg[ud.id] = { dmg: 0, head: false, parts: {} });
           e.dmg += d; e.head = e.head || head; e.parts[part] = (e.parts[part] || 0) + d;
-        } else if (ud.kind === 'zombie'){ zShoot(ud.zid, d, head); } else if (!ud.bot.dead){
+        } else if (ud.kind === 'zombie'){ zShoot(ud.zid, d, head, part); } else if (!ud.bot.dead){
           damageBot(ud.bot, d, part);
         }
       } else if (i < 3) impact(end);
@@ -5804,7 +5809,7 @@ function zAdd(id, t, x, z, hp, mhp){
   av.group.scale.setScalar(T.sc);
   av.group.position.set(x, zy(x, z), z);
   const tn = now();
-  const o = (zomb[id] = { id, t, x, z, yaw: 0, hp, mhp, av, ph: Math.random() * 6, atk: 0, batk: 0, ar: 0, ax: x, az: z, sc: tn + .6, sx: x, sz: z, esc: 0, ed: 1, want: false,
+  const o = (zomb[id] = { id, t, x, z, yaw: 0, hp, mhp, av, ph: Math.random() * 6, atk: 0, batk: 0, sm: 0, ar: 0, ax: x, az: z, sc: tn + .6, sx: x, sz: z, esc: 0, ed: 1, want: false,
     cdn: tn + 1.5 + Math.random() * 2.5, cdn2: tn + 6, ratk: tn + 1, dsh: 0, st: 0, stT: 0, stun: 0, rg: 0, warn: 0, scr: 0, chase: false, dx: 0, dz: 0, wp: 0, ign: 0, fxu: null });
   const u1 = zDecor(av, t, id), u2 = zGore(av, t, id);
   o.fxu = u1 ? (z, tn, dt) => { u1(z, tn, dt); u2(z, tn, dt); } : u2;
@@ -5950,7 +5955,7 @@ function zStep(z, T, tn, dt){
   if (td < 1e-6){ td = 1e-6; bx = 1e-6; }
   z.yaw = Math.atan2(-bx, -bz);
   if (s.boom && td < 2.2){ zBoomHost(z); return; }
-  let spd = s.sp * (1 + Math.min(zw.n, 12) * .03) * (inLake(z.x, z.z) ? .55 : 1) * (rg ? 1.45 : 1);
+  let spd = s.sp * (1 + Math.min(zw.n, 12) * .03) * (inLake(z.x, z.z) ? .55 : 1) * (rg ? 1.45 : 1) * ([1, .6, .28][((z.sm >> 3) & 1) + ((z.sm >> 4) & 1)]);   // 다리가 잘리면 느려져요
   // ─ 특수 능력 ─
   if (s.lunge){   // 러너: 가까워지면 번쩍 달려들어요
     if (z.dsh > tn) spd *= 2.3;
@@ -6091,6 +6096,9 @@ function animZ(z, dt, sp){
   L.armL.rotation.set(ar + w, 0, .1 + (s.spr || 0)); L.armR.rotation.set(ar - w, 0, -.1 - (s.spr || 0));
   z.av.pivot.rotation.z = Math.sin(z.ph) * .06;
   z.av.pivot.rotation.x = s.lean || 0;
+  const lgm = z.sm & 24;
+  if (lgm === 24){ z.av.pivot.rotation.x = -1.35; z.av.pivot.position.set(0, .22, .95); }   // 두 다리가 없으면 엎드려 기어요
+  else if (lgm){ z.av.pivot.rotation.z += lgm === 8 ? .3 : -.3; z.av.pivot.position.y = -.18; }   // 한 다리면 절뚝
 }
 function zRender(dt){
   const k = 1 - Math.exp(-10 * dt), tn = now();
@@ -6114,29 +6122,86 @@ function zAttackMe(){
     const d = Math.hypot(p.x - player.pos.x, p.z - player.pos.z);
     if (d < s.reach && Math.abs(p.y - player.pos.y) < 1.8){
       z.atk = t; beep(120 + Math.random() * 40, .2, .05);
-      takeDamage(Math.round(s.dmg * (1 + Math.min(zw.n, 15) * .04)), 'zombie', s.nm, 0, false, null);
+      takeDamage(Math.round(s.dmg * (1 + Math.min(zw.n, 15) * .04) * ((z.sm & 2) ? .75 : 1) * ((z.sm & 4) ? .75 : 1)), 'zombie', s.nm, 0, false, null);
       if (player.dead) return;
     }
   }
 }
-function zDamage(id, d, by, w, head){
+function zDamage(id, d, by, w, head, part){
   const z = zomb[id]; if (!z) return;
   const T0 = ZT[z.t];
   z.hp -= d;
+  if (z.hp > 0 && !T0.boss && goreFx && part && LIMB_BITS[part] && part !== 'head' && !(z.sm & LIMB_BITS[part])){   // 팔·다리에 피해가 쌓이면 절단
+    const wd = WEAPONS[w], bl = wd && (wd.id === 'katana' || wd.id === 'axe' || wd.id === 'chainsaw'), thr = part[0] === 'a' ? Math.max(45, z.mhp * .3) : Math.max(60, z.mhp * .38);
+    z.ld = z.ld || {}; z.ld[part] = (z.ld[part] || 0) + d * (bl ? 2.5 : 1);
+    if (z.ld[part] >= thr){ const bit = LIMB_BITS[part]; z.sm |= bit; zSever(z, part, true); send('zdm', { id, b: bit }); }
+  }
   if (z.hp <= 0){
     if (T0.split) for (let i = 0; i < 2; i++){ const sx = clamp(z.x + (i ? 1 : -1), -57, 57); zAdd(zw.id++, 1, sx, z.z, 45, 45); }   // 분열
     send('zk', { id, by, w, h: head ? 1 : 0 }); zKill(id, by, w, head);
   }
 }
-function zShoot(id, d, head){
+/* ---------- 좀비 신체 절단 ----------
+   · 팔·다리: 한 부위에 피해가 쌓이면 잘려 나가요 (칼·도끼·전기톱은 훨씬 잘 잘려요). 팔이 없으면 공격이 약해지고, 다리가 없으면 느려지고, 두 다리가 모두 없으면 기어 와요
+   · 처치 순간: 헤드샷 → 머리가 날아감 / 칼·도끼·전기톱 → 몸통이 두 동강 / 샷건·AWM → 팔이 날아감 / 로켓 → 팔다리가 날아감 (좀비 번호로 정해서 모든 사람 화면에서 똑같이 보여요) */
+const ZLIMB = { 2: 'armL', 4: 'armR', 8: 'legL', 16: 'legR' };
+function zNodeW(node){ const wp = new THREE.Vector3(), wq = new THREE.Quaternion(), ws = new THREE.Vector3(); node.updateWorldMatrix(true, false); node.matrixWorld.decompose(wp, wq, ws); return { wp, wq, ws }; }
+function zGibAdd(m, v, fl){
+  scene.add(m); gibs.push({ m, v, w: new THREE.Vector3((Math.random() - .5) * 11, (Math.random() - .5) * 11, (Math.random() - .5) * 11), until: now() + 12, fl });
+  if (gibs.length > 40) scene.remove(gibs.shift().m);
+}
+function zSever(z, name, fx){
+  const av = z.av, node = name === 'head' ? av.parts.head : av.limbs[name];
+  if (!node || (z.sev && z.sev[name])) return;
+  (z.sev || (z.sev = {}))[name] = 1;
+  const isHead = name === 'head', isLeg = name[0] === 'l', T = zNodeW(node), lp = node.position;
+  node.visible = false; av.hit = av.hit.filter(m => m !== av.parts[name]);
+  // 몸에 남는 붉은 절단면 + 뼈
+  const cy = isHead ? lp.y - .17 : lp.y - .02;
+  zPart(av.pivot, ZBOX, 0x6a0c0c, isHead ? .22 : isLeg ? .24 : .19, .1, isHead ? .22 : isLeg ? .32 : .23, lp.x, cy, lp.z);
+  zPart(av.pivot, ZCYL, 0xd8cdb0, .05, .12, .05, lp.x, cy + .02, lp.z);
+  if (!fx || !goreFx) return;
+  const m = node.clone(true); m.visible = true; m.position.copy(T.wp); m.quaternion.copy(T.wq); m.scale.copy(T.ws);
+  zGibAdd(m, new THREE.Vector3((Math.random() - .5) * 5, 3 + Math.random() * 3, (Math.random() - .5) * 5), isHead ? .22 : isLeg ? .4 : .34);
+  spawnBlood(T.wp, 34, 4.5); splat(T.wp.x + (Math.random() - .5), T.wp.z + (Math.random() - .5)); splat(T.wp.x, T.wp.z);
+  const v = new THREE.Vector3(lp.x, cy, lp.z); spurts.push({ get: () => av.pivot.localToWorld(v.clone()), until: now() + 1.8, next: 0 });
+  beep(150, .12, .08);
+}
+function zBisect(z){   // 몸통 절단: 허리 위는 시체로 쓰러지고, 하체는 따로 날아가요
+  const av = z.av, pv = av.pivot; if (z.sev && z.sev.bis) return; (z.sev || (z.sev = {})).bis = 1;
+  const T = zNodeW(pv), lg = new THREE.Group(), inner = new THREE.Group(); inner.position.y = -.4; lg.add(inner);
+  for (const k of ['legL', 'legR']){ const l = av.limbs[k]; if (!l || z.sev[k]) continue; const c = l.clone(true); inner.add(c); l.visible = false; }
+  zPart(inner, ZBOX, 0x6a0c0c, .56, .1, .34, 0, .84, 0);
+  for (let i = 0; i < 3; i++) zPart(inner, ZSPH, ZGUT[i], .07, .07, .07, (i - 1) * .12, .8 - i % 2 * .06, 0);
+  lg.position.copy(T.wp); lg.position.y += .4 * T.ws.y; lg.quaternion.copy(T.wq); lg.scale.copy(T.ws);
+  // 상체 쪽 절단면 + 쏟아지는 내장
+  zPart(pv, ZBOX, 0x6a0c0c, .6, .1, .34, 0, .8, 0);
+  for (let i = 0; i < 4; i++) zPart(pv, ZSPH, ZGUT[(i + 2) % ZGUT.length], .09, .09, .09, (i - 1.5) * .14, .7 - (i % 2) * .08, -.02 + (i % 2) * .05);
+  if (goreFx){
+    zGibAdd(lg, new THREE.Vector3((Math.random() - .5) * 4, 2.5 + Math.random() * 2, (Math.random() - .5) * 4), .42);
+    const c = T.wp.clone(); c.y += .8 * T.ws.y; spawnBlood(c, 50, 5); splat(c.x, c.z); splat(c.x + .8, c.z - .5); splat(c.x - .6, c.z + .7);
+    spurts.push({ get: () => c.clone(), until: now() + 1.8, next: 0 }); beep(90, .2, .1);
+  }
+}
+function zApplySm(z, mask, fx){ for (const b in ZLIMB) if ((mask & b) && !(z.sm & b)){ z.sm |= +b; zSever(z, ZLIMB[b], fx); } }
+function zKillFx(z, id, w, head){
+  const wd = WEAPONS[w], wid = wd ? wd.id : '', hr = ((id * 2654435761) >>> 0) / 4294967296, hr2 = ((id * 40503 + 977) % 1000) / 1000;
+  const blade = wid === 'katana' || wid === 'axe' || wid === 'chainsaw', heavy = wid === 's12k' || wid === 'awm' || wid === 'm870' || wid === 'kar98k', expl = !!(wd && wd.rocket);
+  if (head && (hr < .5 || (wd && wd.melee) || heavy)) zSever(z, 'head', true);
+  else if (blade && hr < (wid === 'chainsaw' ? .85 : .55)) zBisect(z);
+  else if (blade || (heavy && hr < .55)) zSever(z, hr2 < .5 ? 'armL' : 'armR', true);
+  else if (expl){ zSever(z, 'armL', true); zSever(z, 'legR', true); if (hr < .5) zSever(z, 'head', true); }
+}
+function zShoot(id, d, head, part){
   if (zBuf.dmg > now()) d *= 2;
-  if (isHost()) zDamage(id, d, myId, cur, head);
-  else send('zhit', { id, d, by: myId, w: cur, h: head ? 1 : 0 });
+  if (isHost()) zDamage(id, d, myId, cur, head, part);
+  else send('zhit', { id, d, by: myId, w: cur, h: head ? 1 : 0, pt: part || '' });
 }
 function zKill(id, by, w, head){
   const z = zomb[id]; if (!z) return;
   const g = z.av.group, p = g.position, T0 = ZT[z.t];
   spawnBlood(new THREE.Vector3(p.x, p.y + 1.1, p.z), 30, 4);
+  if (goreFx && !T0.boss) zKillFx(z, id, w, head);
   if (goreFx){ const ns = T0.boss ? 8 : 3; for (let i = 0; i < ns; i++) splat(p.x + (Math.random() - .5) * (T0.boss ? 5 : 2.4), p.z + (Math.random() - .5) * (T0.boss ? 5 : 2.4)); }
   spawnCorpse(z.av, p.x, p.y, p.z, g.rotation.y, p.x - player.pos.x, p.z - player.pos.z);
   scene.remove(g); delete zomb[id];
@@ -6155,6 +6220,7 @@ function onZs(p){
     seen[a[0]] = 1;
     const tt = ZT[a[5]] ? a[5] : 0, z = zomb[a[0]] || zAdd(a[0], tt, a[1], a[2], a[4], a[6] || Math.round(ZT[tt].hp * zHm(p.w)));
     z.x = a[1]; z.z = a[2]; z.yaw = a[3]; z.hp = a[4]; if (a[6]) z.mhp = a[6];
+    if (a[7] && (a[7] & ~z.sm)) zApplySm(z, a[7], false);
   }
   for (const id in zomb) if (!seen[id]){ scene.remove(zomb[id].av.group); delete zomb[id]; }
   zbSync(p);
@@ -6163,7 +6229,7 @@ function onZs(p){
 }
 function onZe(ev, p){
   if (!p) return;
-  if (ev === 'zhit'){ if (isHost()) zDamage(p.id, p.d, p.by, p.w, !!p.h); return; }
+  if (ev === 'zhit'){ if (isHost()) zDamage(p.id, p.d, p.by, p.w, !!p.h, typeof p.pt === 'string' ? p.pt : ''); return; }
   if (ev === 'bld'){
     if (isHost() && isFinite(+p.x + +p.z)){
       if (p.t === 'fix') zFix(+p.x, +p.z);
@@ -6176,6 +6242,7 @@ function onZe(ev, p){
   if (ev === 'zpk'){ if (isHost() && zw.cr && Math.abs(zw.cr[0] - +p.x) < .2){ zw.cr = null; zCrSet(null); } return; }
   if (isHost()) return;
   if (ev === 'zk') zKill(p.id, p.by, p.w, !!p.h);
+  else if (ev === 'zdm'){ const z = zomb[p.id]; if (z && isFinite(+p.b)) zApplySm(z, (+p.b) & 30, true); }
   else if (ev === 'zc') zClear(p.w);
   else if (ev === 'zo') showMsg('💀 기지 함락 · 웨이브 ' + p.w, 3000);
   else if (ev === 'zfx') zfxDo(p);
@@ -6224,7 +6291,7 @@ function zTick(dt){
       zSendT = 0;
       zSN = (zSN + 1) % 5;
       send('zs', { b: zSN ? undefined : bars.map(b => [b.id, b.t, +b.x.toFixed(1), +b.z.toFixed(1), +b.w.toFixed(1), +b.d.toFixed(1), Math.round(b.hp), b.gun ? +b.gun.rotation.y.toFixed(2) : 0]), bi: zw.bi, ev: zw.ev | 0, dm: zw.dm | 0, h: hqb ? Math.round(hqb.hp) : 0, cr: zw.cr || 0, w: zw.n, l: zw.left, c: Math.ceil(zw.cd), o: zw.over ? 1 : 0, i: zw.id,
-        z: Object.values(zomb).map(z => [z.id, +z.x.toFixed(1), +z.z.toFixed(1), +z.yaw.toFixed(2), Math.round(z.hp), z.t, Math.round(z.mhp)]) });
+        z: Object.values(zomb).map(z => [z.id, +z.x.toFixed(1), +z.z.toFixed(1), +z.yaw.toFixed(2), Math.round(z.hp), z.t, Math.round(z.mhp), z.sm | 0]) });
     }
   }
 }
