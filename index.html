@@ -334,7 +334,7 @@ background:radial-gradient(circle,rgba(255,244,220,.78) 0,rgba(255,228,188,.34) 
     <div class="set"><label><span>화면 흔들림 (0%면 안 흔들려요)</span><b id="shakeVal">100%</b></label><input type="range" id="shake" min="0" max="1" step="0.05" value="1"></div>
     <div class="set"><label><span>피 효과 (끄면 더 가벼워요)</span><input type="checkbox" id="gorefx" checked style="width:auto;margin:0;padding:0"></label></div>
     <div class="set"><label><span>그림자 (끄면 더 가벼워요)</span><input type="checkbox" id="shadowfx" checked style="width:auto;margin:0;padding:0"></label></div>
-    <div class="set"><label><span>그래픽 품질 (바꾸면 새로고침)</span><select id="qmode"><option value="auto">자동</option><option value="low">가볍게</option><option value="opt">고화질 최적화 (폰 추천)</option><option value="high">고화질 (PC와 동일)</option></select></label></div>
+    <div class="set"><label><span>그래픽 품질 (바꾸면 새로고침)</span><select id="qmode"><option value="auto">자동</option><option value="low">가볍게</option><option value="opt">고화질 최적화 (폰 추천)</option><option value="high">고화질 (PC와 동일)</option><option value="ultra">초고퀄리티 (PC 추천 · 가지·잎 하나하나)</option></select></label></div>
     <div class="set"><label><span>텍스처·모델링 (바꾸면 새로고침)</span><select id="detmode"><option value="0">표준</option><option value="1">고퀄리티 (PC·최신 폰, 로딩 조금 느려요)</option></select></label></div>
     <div class="set"><label><span>시네마틱 효과 (비네트·필름 그레인)</span><input type="checkbox" id="cinefx" checked style="width:auto;margin:0;padding:0"></label></div>
     <div class="set"><label><span>빛내림·먼지 (나무 사이 햇빛 기둥)</span><input type="checkbox" id="rayfx" checked style="width:auto;margin:0;padding:0"></label></div>
@@ -390,10 +390,11 @@ document.body.classList.toggle('touch', isTouch);
 
 /* [그래픽 품질] 자동(PC는 고화질·폰은 가볍게) / 가볍게 / 고화질(폰에서도 PC와 같은 설정). 시작 화면에서 바꾸면 새로고침돼요 */
 let QMODE = 'auto';
-try { const q = localStorage.getItem('is_q'); if (q === 'low' || q === 'high' || q === 'opt') QMODE = q; } catch(e){}
-const hiQ = QMODE === 'high' || QMODE === 'opt' || (QMODE === 'auto' && !isTouch);
+try { const q = localStorage.getItem('is_q'); if (q === 'low' || q === 'high' || q === 'opt' || q === 'ultra') QMODE = q; } catch(e){}
+const hiQ = QMODE === 'high' || QMODE === 'opt' || QMODE === 'ultra' || (QMODE === 'auto' && !isTouch);
 const optQ = QMODE === 'opt';
-let detQ = false; try { detQ = localStorage.getItem('is_det') === '1'; } catch(e){}   // 텍스처·모델링 고퀄리티 (표준/고퀄리티, 새로고침 필요)   // 고화질 최적화: 고화질 효과는 그대로 두고 잔디 수·그림자 갱신·반사 갱신 같은 비싼 부분만 줄여서 폰에서도 부드럽게
+const ultraQ = QMODE === 'ultra';   // 초고퀄리티: 고화질 + 고퀄리티 모델링 + 나무 가지·잎 하나하나 + 더 큰 그림자·해상도
+let detQ = ultraQ; try { if (localStorage.getItem('is_det') === '1') detQ = true; } catch(e){}   // 텍스처·모델링 고퀄리티 (표준/고퀄리티, 새로고침 필요)   // 고화질 최적화: 고화질 효과는 그대로 두고 잔디 수·그림자 갱신·반사 갱신 같은 비싼 부분만 줄여서 폰에서도 부드럽게
 
 /* =====================================================================
    설정 : Supabase 프로젝트 정보
@@ -417,7 +418,7 @@ let kills = 0, deaths = 0;
 
 /* ---------- Three.js 기본 ---------- */
 const renderer = new THREE.WebGLRenderer({ antialias: hiQ, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, hiQ && !optQ ? 2 : 1.5));   // 최적화: 해상도 배율 상한 1.5 (폰은 보통 3배라 픽셀 수가 1/4로 줄어요)
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, ultraQ ? 2.5 : hiQ && !optQ ? 2 : 1.5));   // 최적화: 해상도 배율 상한 1.5 (폰은 보통 3배라 픽셀 수가 1/4로 줄어요)
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = hiQ && !optQ ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
@@ -452,7 +453,7 @@ camera.rotation.order = 'YXZ';
 scene.add(camera);
 scene.add(new THREE.HemisphereLight(0xb7c6dc, 0x7a6a4a, 0.66)); // [광원] 하늘 전체에서 오는 푸른 빛(그림자 안쪽) + 풀밭에서 올라오는 따뜻한 반사광
 const sun = new THREE.DirectionalLight(0xffe3b8, 1.75);        // [광원] 낮은 해(33°)에 맞춘 약간 따뜻한 햇빛
-const SHADOW_RES = hiQ ? (optQ ? 2048 : 3072) : 1024, SHADOW_R = hiQ ? (optQ ? 42 : 50) : 30;   // [그림자] 모바일은 범위를 줄여 더 또렷하고 가볍게
+const SHADOW_RES = hiQ ? (optQ ? 2048 : ultraQ ? 4096 : 3072) : 1024, SHADOW_R = hiQ ? (optQ ? 42 : 50) : 30;   // [그림자] 모바일은 범위를 줄여 더 또렷하고 가볍게
 const SUN_DIR = new THREE.Vector3(0.760, 0.454, 0.466).normalize(); // 해 높이 약 27° (오후의 따뜻한 빛) (y를 줄이면 그림자가 길어지고 노을빛에 가까워져요)
 
 /* ---------- [대기] 대기 산란 모델: 하늘·안개·물이 같은 식을 써서 지평선에서 자연스럽게 이어져요 ----------
@@ -1033,22 +1034,168 @@ float gN(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
   const blobs = mkInst(detQ ? detBlobGeo() : new THREE.IcosahedronGeometry(1, 1), oaks, leafMat);
   const dm = new THREE.Object3D(), lc = new THREE.Color();
   const put = (mesh, i, x, y, z, sx, sy, sz) => { dm.position.set(x, y, z); dm.rotation.set(0, 0, 0); dm.scale.set(sx, sy, sz); dm.updateMatrix(); mesh.setMatrixAt(i, dm.matrix); };   // 회전을 매번 0으로 (앞에서 쓴 회전이 남아 나무가 기울던 버그 방지)
+
+  /* ===== [초고퀄리티] 나무: 진짜 가지 + 잎 하나하나 + 솔가지 =====
+     덩어리(잎 뭉치)는 안쪽에 어둡고 작게 남겨 '속'을 채우고, 바깥은 가지·낱장 잎·솔잎 가지로 덮어요.
+     가지·잎은 모두 인스턴싱(한 번에 그리기)이고 충돌/총알 판정에는 안 들어가요 (총알은 잎을 통과, 기둥·속 덩어리는 그대로 막음) */
+  const ultra = () => {
+    const rr = mulberry32(20260), UP = new THREE.Vector3(0, 1, 0);
+    const vX = new THREE.Vector3(), vY = new THREE.Vector3(), vZ = new THREE.Vector3(), vR = new THREE.Vector3(), vS = new THREE.Vector3(), M4 = new THREE.Matrix4();
+    // 방향 d 를 길이축(Y)으로, ref 쪽을 옆(X)으로 잡아서 위치·크기가 들어간 행렬 만들기 (면의 앞쪽 = Z)
+    const mat4 = (px, py, pz, dx, dy, dz, sx, sy, sz, ref) => {
+      vY.set(dx, dy, dz).normalize(); vX.crossVectors(vY, ref);
+      if (vX.lengthSq() < 1e-6) vX.crossVectors(vY, vR.set(1, 0, 0));
+      vX.normalize(); vZ.crossVectors(vX, vY);
+      M4.makeBasis(vX, vY, vZ); M4.scale(vS.set(sx, sy, sz)); M4.setPosition(px, py, pz);
+      return M4.clone();
+    };
+    // 가지: 아래가 굵고 끝이 가는 5각 기둥
+    const brG = new THREE.CylinderGeometry(.012, .035, 1, 5, 1, false); brG.translate(0, .5, 0);
+    // 솔가지 한 줄: 가운데 줄기에서 양옆으로 뻗은 솔잎 (4마디 × 3열, 가장자리·끝이 아래로 처짐)
+    const frG = (() => {
+      const g = new THREE.BufferGeometry(), pos = [], uv = [], col = [], idx = [], rows = 4;
+      for (let j = 0; j <= rows; j++){ const t = j / rows; for (let i = 0; i < 3; i++){
+        const u = i / 2, x = u - .5, ed = Math.abs(x) * 2, ao = .72 + .28 * t;
+        pos.push(x, t, -.15 * ed - .22 * t * t); uv.push(u, t); col.push(ao, ao, ao);
+      } }
+      for (let j = 0; j < rows; j++) for (let i = 0; i < 2; i++){ const a = j * 3 + i; idx.push(a, a + 1, a + 4, a, a + 4, a + 3); }
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setIndex(idx); g.computeVertexNormals();
+      return g;
+    })();
+    // 잎 한 장: 뾰족한 잎 모양 (가운데 잎맥이 살짝 솟고 끝이 아래로 휨, 8면)
+    const lfG = (() => {
+      const P = [[0, 0, 0], [-.24, .30, -.04], [0, .30, .03], [.24, .30, -.04], [-.20, .64, -.07], [0, .64, .04], [.20, .64, -.07], [0, 1, -.10]];
+      const C = [.60, .78, .72, .78, .92, .86, .92, 1];
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(P.flat(), 3));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(C.flatMap(v => [v, v, v]), 3));
+      g.setIndex([0, 3, 2, 0, 2, 1, 1, 2, 5, 1, 5, 4, 2, 3, 6, 2, 6, 5, 4, 5, 7, 5, 6, 7]); g.computeVertexNormals();
+      return g;
+    })();
+    // 솔잎 무늬: 몸통 실루엣(멀리서도 속이 차 보이게) + 가운데 줄기 + 삐죽삐죽 솔잎. 회색조라 나무마다 색이 곱해져요
+    const frTex = (() => {
+      const W = 128, H = 256, c = detCanvas(W, H), g = c.getContext('2d'), r = mulberry32(321);
+      g.fillStyle = '#707070'; g.beginPath(); g.moveTo(W * .5 - 5, H);
+      g.bezierCurveTo(W * .06, H * .72, W * .10, H * .28, W * .5, 3); g.bezierCurveTo(W * .90, H * .28, W * .94, H * .72, W * .5 + 5, H); g.closePath(); g.fill();
+      g.lineCap = 'round';
+      for (let i = 0; i < 170; i++){
+        const t = r() * .97, y = H * (1 - t), hw = W * .5 * (1 - t * .72), sd = r() < .5 ? -1 : 1, ln = hw * (.62 + .5 * r()), v = 150 + (r() * 105 | 0);
+        g.strokeStyle = 'rgb(' + v + ',' + v + ',' + v + ')'; g.lineWidth = 1.7 + r() * 1.3;
+        g.beginPath(); g.moveTo(W * .5 + sd * 3, y); g.lineTo(W * .5 + sd * ln, y - ln * (.22 + .5 * r())); g.stroke();
+      }
+      g.strokeStyle = '#303030'; g.lineWidth = 3; g.beginPath(); g.moveTo(W * .5, H); g.lineTo(W * .5, 3); g.stroke();
+      const t = new THREE.CanvasTexture(c); t.anisotropy = ANISO; return t;
+    })();
+    // 바람: 잎·솔가지 끝이 살랑 (본체와 그림자가 같은 식)
+    const sway = amp => sh => {
+      sh.uniforms.uT = wu.uT;
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uT;')
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+#ifdef USE_INSTANCING
+float swP = instanceMatrix[3].x * .7 + instanceMatrix[3].z * .9 + instanceMatrix[3].y * .5;
+transformed.x += sin(uT * 1.9 + swP) * ${amp} * position.y;
+transformed.z += cos(uT * 1.5 + swP * 1.3) * ${amp * .8} * position.y;
+#endif`);
+    };
+    const frMat = new THREE.MeshLambertMaterial({ map: frTex, vertexColors: true, alphaTest: .45, side: THREE.DoubleSide, color: new THREE.Color(1.5, 1.5, 1.5) });
+    frMat.onBeforeCompile = sh => { sway(.06)(sh); glowPatch(sh, .5, 'vec3(.85,1.,.42)'); }; frMat.customProgramCacheKey = () => 'ultraFrond';
+    const lfMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, color: new THREE.Color(1.35, 1.35, 1.35) });
+    lfMat.onBeforeCompile = sh => { sway(.16)(sh); glowPatch(sh, .6, 'vec3(.85,1.,.4)'); }; lfMat.customProgramCacheKey = () => 'ultraLeaf';
+    const frDepth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: frTex, alphaTest: .45, side: THREE.DoubleSide });
+    frDepth.onBeforeCompile = sway(.06); frDepth.customProgramCacheKey = () => 'ultraFrondD';
+    const lfDepth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide });
+    lfDepth.onBeforeCompile = sway(.16); lfDepth.customProgramCacheKey = () => 'ultraLeafD';
+    const brM = [], frM = [], frC = [], lfM = [], lfC = [], col = () => new THREE.Color();
+    return {
+      // 소나무: 3단 × 둘레 가지 고리(아래 단일수록 길게 처짐) + 가지 위 솔잎 가지 + 맨 위 줄기
+      addPine(x, y0, z, s, c){
+        const hue = .33 + .03 * c, lit = .17 + .08 * c, CNT = [[12, 9], [10, 8], [8, 6]];
+        for (let k = 0; k < 3; k++){
+          const yb = (1.2 + k * 1.2) * s, h = (2.6 - k * .3) * s, R = (1.9 - k * .5) * s;
+          for (let q = 0; q < (k === 2 ? 3 : 2); q++){
+            const n = q === 2 ? 5 : CNT[k][q], yy = y0 + yb + h * [.10, .50, .86][q], rf = [1, .66, .30][q], off = rr() * 6.2832;
+            for (let i = 0; i < n; i++){
+              const a = off + (i + (rr() - .5) * .5) / n * 6.2832, el = [-.26, -.10, .16][q] + (rr() - .5) * .14, ce = Math.cos(el);
+              const dx = Math.cos(a) * ce, dy = Math.sin(el), dz = Math.sin(a) * ce, L = R * rf * (.92 + rr() * .14), st = .2 * s;
+              brM.push(mat4(x, yy, z, dx, dy, dz, 1.3 * s, L * .8, 1.3 * s, UP));
+              const fl = L - st + .15 * s, fw = fl * (.62 + rr() * .18);
+              frM.push(mat4(x + dx * st, yy + dy * st, z + dz * st, dx, dy, dz, fw, fl, fl, UP));
+              frC.push(col().setHSL(hue + (rr() - .5) * .02, .5, lit * (.98 + .2 * rr()) + .02 * q));
+            }
+          }
+        }
+        brM.push(mat4(x, y0 + 2.2 * s, z, 0, 1, 0, 3.2 * s, 3.7 * s, 3.2 * s, UP));
+      },
+      // 활엽수: 굵은 가지 6~8개 + 가지마다 곁가지 3개 + 가지 끝에 낱장 잎이 뭉쳐서 달림 (+ 나머지는 겉면에 흩어짐)
+      addOak(x, z, s, c){
+        const cx = x, cy = 3.3 * s, cz = z, RX = 2.0 * s, RY = 1.62 * s, tips = [];
+        const clampIn = v => { const ex = (v.x - cx) / RX, ey = (v.y - cy) / RY, ez = (v.z - cz) / RX, e = Math.hypot(ex, ey, ez); if (e > 1) v.set(cx + (v.x - cx) / e, cy + (v.y - cy) / e, cz + (v.z - cz) / e); return v; };
+        const N = 6 + ((rr() * 3) | 0);
+        for (let j = 0; j < N + 2; j++){
+          const lead = j >= N;   // 마지막 2개는 위로 곧게 뻗는 중심 가지
+          const a = (j + rr() * .6) / N * 6.2832, e = lead ? 1.15 + rr() * .25 : .45 + rr() * .5, ys = (lead ? 2.4 : 1.7 + rr() * .9) * s, ce = Math.cos(e);
+          const dx = Math.cos(a) * ce, dy = Math.sin(e), dz = Math.sin(a) * ce, Lb = (lead ? 1.7 : 1.5 + rr() * .7) * s;
+          brM.push(mat4(x, ys, z, dx, dy, dz, (lead ? 2.4 : 2.5) * s, Lb, (lead ? 2.4 : 2.5) * s, UP));
+          tips.push(clampIn(new THREE.Vector3(x + dx * Lb, ys + dy * Lb, z + dz * Lb)));
+          if (lead) continue;
+          for (let m = 0; m < 3; m++){
+            const t = .42 + m * .22 + rr() * .06, sx = x + dx * Lb * t, sy = ys + dy * Lb * t, sz = z + dz * Lb * t;
+            const sd = rr() < .5 ? -1 : 1, sp = .55 + rr() * .7;
+            let ex = dx - dz * sd * sp, ey = dy + .25 + rr() * .45, ez = dz + dx * sd * sp; const el = Math.hypot(ex, ey, ez); ex /= el; ey /= el; ez /= el;
+            const Ls = (.55 + rr() * .55) * s * (1.1 - t * .5);
+            brM.push(mat4(sx, sy, sz, ex, ey, ez, 1.1 * s, Ls, 1.1 * s, UP));
+            tips.push(clampIn(new THREE.Vector3(sx + ex * Ls, sy + ey * Ls, sz + ez * Ls)));
+          }
+        }
+        const LN = 820, sp = .62 * s, V = new THREE.Vector3(), rv = new THREE.Vector3();
+        for (let i = 0; i < LN; i++){
+          if (rr() < .8){ const T = tips[(rr() * tips.length) | 0]; V.set(T.x + (rr() + rr() + rr() - 1.5) * sp, T.y + (rr() + rr() + rr() - 1.5) * sp * .8, T.z + (rr() + rr() + rr() - 1.5) * sp); }
+          else {
+            let ux, uy, uz; do { ux = rr() * 2 - 1; uy = rr() * 2 - 1; uz = rr() * 2 - 1; } while (ux * ux + uy * uy + uz * uz > 1 || ux * ux + uy * uy + uz * uz < .05);
+            const ul = Math.hypot(ux, uy, uz), rad = .55 + .45 * rr(); V.set(cx + ux / ul * RX * rad, cy + uy / ul * RY * rad, cz + uz / ul * RX * rad);
+          }
+          clampIn(V);
+          let ox = (V.x - cx) / RX, oy = (V.y - cy) / RY, oz = (V.z - cz) / RX; const ol = Math.hypot(ox, oy, oz) || 1; ox /= ol; oy /= ol; oz /= ol;
+          const dx = ox * .7 + (rr() - .5) * 1.8, dy = oy * .7 + (rr() - .5) * 1.8 - .15, dz = oz * .7 + (rr() - .5) * 1.8, len = (.30 + .14 * rr()) * s;
+          lfM.push(mat4(V.x, V.y, V.z, dx, dy, dz, len * .95, len, len, rv.set(rr() - .5, rr() - .5, rr() - .5)));
+          lfC.push(col().setHSL(.20 + .07 * rr() + .02 * c, .55, .22 + .16 * rr() + (V.y > cy ? .04 : 0)));
+        }
+      },
+      finish(){
+        const mk = (geo, mat, arr, cols, dmat) => {
+          if (!arr.length) return;
+          const m = new THREE.InstancedMesh(geo, mat, arr.length);
+          for (let i = 0; i < arr.length; i++){ m.setMatrixAt(i, arr[i]); if (cols) m.setColorAt(i, cols[i]); }
+          m.castShadow = m.receiveShadow = true; m.frustumCulled = false; if (dmat) m.customDepthMaterial = dmat;
+          scene.add(m);   // 총알 충돌 목록(worldMeshes)에는 넣지 않아요: 잎·가지는 총알이 통과, 기둥과 속 덩어리는 그대로 막음
+        };
+        mk(brG, trunkMat(), brM); mk(frG, frMat, frM, frC, frDepth); mk(lfG, lfMat, lfM, lfC, lfDepth);
+      }
+    };
+  };
+  const U1 = ultraQ ? ultra() : null;
   let pi = 0, oi = 0;
   spots.forEach((p, i) => {
     const s = p.s;
     put(trunks, i, p.x, 0, p.z, s, (p.t ? 2.4 : 2.6) * s, s); aoList.push([p.x, p.z, 1.5 * s]);
     if (!p.t){
       for (let k = 0; k < 3; k++){
-        put(cones[k], pi, p.x, (1.2 + k*1.2) * s, p.z, (1.9 - k*.5) * s, (2.6 - k*.3) * s, (1.9 - k*.5) * s);
-        cones[k].setColorAt(pi, lc.setHSL(.33 + .03*p.c, .5, .17 + .08*p.c));
+        const cs = U1 ? .58 : 1;   // 초고퀄리티: 원뿔은 안쪽 어두운 '속'으로만 남기고 겉은 솔가지가 덮어요
+        put(cones[k], pi, p.x, (1.2 + k*1.2) * s, p.z, (1.9 - k*.5) * s * cs, (2.6 - k*.3) * s * (U1 ? .92 : 1), (1.9 - k*.5) * s * cs);
+        cones[k].setColorAt(pi, lc.setHSL(.33 + .03*p.c, .5, (.17 + .08*p.c) * (U1 ? .62 : 1)));
       }
+      if (U1) U1.addPine(p.x, 0, p.z, s, p.c);
       pi++;
     } else {
-      put(blobs, oi, p.x, 3.3 * s, p.z, 2.1 * s, 1.7 * s, 2.1 * s);
-      blobs.setColorAt(oi, lc.setHSL(.24 + .05*p.c, .5, .26 + .08*p.c)); oi++;
+      const bs = U1 ? .64 : 1;   // 초고퀄리티: 잎 덩어리는 작고 어둡게 (가지 사이로 보이는 속)
+      put(blobs, oi, p.x, 3.3 * s, p.z, 2.1 * s * bs, 1.7 * s * bs, 2.1 * s * bs);
+      blobs.setColorAt(oi, lc.setHSL(.24 + .05*p.c, .5, (.26 + .08*p.c) * (U1 ? .55 : 1))); oi++;
+      if (U1) U1.addOak(p.x, p.z, s, p.c);
     }
     boxes.push({ minX: p.x - .35*s, maxX: p.x + .35*s, minZ: p.z - .35*s, maxZ: p.z + .35*s, top: 4 });   // 나무 기둥 충돌
   });
+  if (U1) U1.finish();
   // [빛내림] 해를 바라볼 때 나무·바위 가장자리에서 우리 쪽으로 번져 나오는 햇빛 기둥 + 그 안에서 반짝이는 먼지
   //  - 빛줄기는 잎 덩어리 '바깥'에서 시작해요 (잎을 뚫고 나오는 것처럼 보이지 않게). 가는 길에 다른 나무·바위·벽·언덕을 만나면 그 앞에서 끊어요
   //  - 해를 마주 볼 때만 보여요: 해를 등지거나 옆을 보면 완전히 사라지고, 해 쪽으로 시선이 갈수록 서서히 진해져요 (앞으로 퍼지는 산란)
@@ -1223,7 +1370,7 @@ ${optQ ? 'transformed *= 1. - smoothstep(38., 58., length(instanceMatrix[3].xz -
     // [그림자] 풀잎 모양 그대로 그림자가 생기도록 알파 테스트하는 전용 깊이 재질
     const tdepth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: ttex, alphaTest: .45, side: THREE.DoubleSide });
     tdepth.onBeforeCompile = windPatch;
-    const TN = hiQ ? (optQ ? 2300 : 5200) : 1100,   // 최적화: 풀 뭉치를 절반 이하로 (대신 뭉치를 크고 풍성하게, 먼 풀은 서서히 사라짐, 풀 그림자 생성 끔)
+    const TN = hiQ ? (optQ ? 2300 : ultraQ ? 7500 : 5200) : 1100,   // 최적화: 풀 뭉치를 절반 이하로 (대신 뭉치를 크고 풍성하게, 먼 풀은 서서히 사라짐, 풀 그림자 생성 끔)
        tuft = new THREE.InstancedMesh(tgeo, tmat, TN), pr = mulberry32(4242);
     tuft.frustumCulled = false; tuft.receiveShadow = true;   // 저사양도 나무 그늘에 들어가면 풀도 같이 어두워져요
     tuft.castShadow = !optQ; tuft.customDepthMaterial = tdepth;   // 풀 그림자(알파 깊이 패스)가 가장 비싸서 최적화 모드에선 끔 (풀이 그림자를 '받는' 건 그대로)
@@ -1289,14 +1436,18 @@ ${optQ ? 'transformed *= 1. - smoothstep(38., 58., length(instanceMatrix[3].xz -
     });
     const tr = mkInst(trunkG, sp.length, trunkMat());
     const cn = [0, 1, 2].map(() => mkInst(coneG, sp.length, leafMat));
+    const U2 = ultraQ ? ultra() : null;
     sp.forEach((p, i) => {
       put(tr, i, p.x, p.y - .15, p.z, p.s, 2.4 * p.s, p.s);
       for (let k = 0; k < 3; k++){
-        put(cn[k], i, p.x, p.y + (1.2 + k * 1.2) * p.s, p.z, (1.9 - k * .5) * p.s, (2.6 - k * .3) * p.s, (1.9 - k * .5) * p.s);
-        cn[k].setColorAt(i, lc.setHSL(.33 + .03 * p.c, .5, .17 + .08 * p.c));
+        const cs = U2 ? .58 : 1;
+        put(cn[k], i, p.x, p.y + (1.2 + k * 1.2) * p.s, p.z, (1.9 - k * .5) * p.s * cs, (2.6 - k * .3) * p.s * (U2 ? .92 : 1), (1.9 - k * .5) * p.s * cs);
+        cn[k].setColorAt(i, lc.setHSL(.33 + .03 * p.c, .5, (.17 + .08 * p.c) * (U2 ? .62 : 1)));
       }
+      if (U2) U2.addPine(p.x, p.y, p.z, p.s, p.c);
       boxes.push({ minX: p.x - .35 * p.s, maxX: p.x + .35 * p.s, minZ: p.z - .35 * p.s, maxZ: p.z + .35 * p.s, top: p.y + 4 });
     });
+    if (U2) U2.finish();
   }
   }
 })();
@@ -3682,6 +3833,7 @@ function applyCine(){ $('cine').style.display = cineFx ? 'block' : 'none'; $('gr
 $('cinefx').checked = cineFx; applyCine();
 $('cinefx').addEventListener('change', () => { cineFx = $('cinefx').checked; applyCine(); try { localStorage.setItem('is_cine', cineFx ? '1' : '0'); } catch(e){} });
 $('detmode').value = detQ ? '1' : '0';
+if (ultraQ){ $('detmode').disabled = true; $('detmode').title = '초고퀄리티는 고퀄리티 텍스처·모델링이 자동으로 켜져요'; }
 $('detmode').addEventListener('change', () => {
   try { localStorage.setItem('is_det', $('detmode').value); } catch(e){}
   if (joined && !confirm('텍스처·모델링 품질을 바꾸려면 새로고침해야 해요. 지금 새로고침할까요? (진행 중인 판은 사라져요)')) return;   // 취소하면 다음 접속부터 적용
