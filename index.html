@@ -565,6 +565,17 @@ float atmAmt(float dist, float h){   // 거리 안개량: 가까이는 거의 �
 }
 `;
 })();
+/* 총구 불빛: 정점 단위로 계산되는 기본 조명은 땅·벽처럼 큰 면에서는 거의 안 보여서, 안개 계산 단계(모든 재질이 거치는 곳)에 픽셀 단위로 직접 넣어요. 총구에서 쏜 방향의 원뿔 안에 있는 땅·벽·구조물·좀비가 모두 환해져요 */
+const MZU = { p: { value: new THREE.Vector3() }, d: { value: new THREE.Vector3(0, 0, -1) }, i: { value: 0 } };
+{
+  const MP = THREE.Material.prototype;   // 재질마다 따로 쓰는 onBeforeCompile 을 유지하면서, 공용 총구 불빛 값을 모든 재질에 끼워 넣어요
+  Object.defineProperty(MP, 'onBeforeCompile', {
+    configurable: true,
+    get(){ const self = this, f = function(pa, r){ if (pa && pa.uniforms){ pa.uniforms.uMzP = MZU.p; pa.uniforms.uMzD = MZU.d; pa.uniforms.uMzI = MZU.i; } if (self._obc) self._obc.call(self, pa, r); }; f.__orig = self._obc; return f; },
+    set(v){ this._obc = v && v.__orig !== undefined ? v.__orig : v; }
+  });
+  MP.customProgramCacheKey = function(){ return this._obc ? this._obc.toString() : ''; };
+}
 {
   const SC = THREE.ShaderChunk;
   SC.fog_pars_vertex = `#ifdef USE_FOG
@@ -577,6 +588,7 @@ vFogV = mvPosition.xyz;
 #endif`;
   SC.fog_pars_fragment = `#ifdef USE_FOG
 uniform vec3 fogColor;
+uniform vec3 uMzP; uniform vec3 uMzD; uniform float uMzI;
 varying float vFogDepth;
 varying vec3 vFogV;
 #ifdef FOG_EXP2
@@ -591,6 +603,12 @@ ${ATM_GLSL}
 {
   vec3 fgR = vec3(dot(viewMatrix[0].xyz, vFogV), dot(viewMatrix[1].xyz, vFogV), dot(viewMatrix[2].xyz, vFogV)); // 카메라→픽셀 (월드 방향)
   float fgL = max(length(vFogV), .001);
+  if (uMzI > .002){   // 총구 불빛 (총구 앞 원뿔 + 거리 감쇠)
+    vec3 mzV = cameraPosition + fgR - uMzP; float mzL = length(mzV) + .001;
+    float mzC = smoothstep(.62, .92, dot(mzV / mzL, uMzD));
+    float mzA = min(uMzI * mzC / (1. + mzL * mzL * .018), 1.7);
+    gl_FragColor.rgb += (gl_FragColor.rgb * 1.7 + vec3(.08, .045, .02)) * vec3(1., .68, .36) * mzA;
+  }
   float fgA = atmAmt(fgL, cameraPosition.y + fgR.y * .5);
   gl_FragColor.rgb = mix(gl_FragColor.rgb, atmHaze(dot(fgR / fgL, aSUN)), fgA);
 }
@@ -671,21 +689,22 @@ gunSun.position.copy(SUN_DIR); gunScene.add(gunSun, gunSun.target);
 const gunFill = new THREE.DirectionalLight(0xc4b090, 0.12);
 gunFill.position.set(-0.62, 0.35, -0.38); gunScene.add(gunFill);
 /* 총구 화염 조명: 쏠 때마다 총구 앞이 순간적으로 환해져요 (어두운 곳일수록 확 티나요). 광원 개수는 늘 같게 유지해서 셰이더가 다시 컴파일되지 않아요 */
-const mzLight = new THREE.SpotLight(0xffa955, 0, 26, .52, .85, 1.5), mzGun = new THREE.PointLight(0xffb066, 0, 1.6, 1.6);   // 총구에서 앞쪽으로만 퍼지는 원뿔 빛 (주변 전체가 아니라 총 쏘는 방향만 밝아져요)
-scene.add(mzLight, mzLight.target); gunScene.add(mzGun);
+const mzGun = new THREE.PointLight(0xffb066, 0, 1.6, 1.6);   // 내 총 앞부분만 비추는 작은 불빛 (월드 쪽 불빛은 위의 MZU 가 안개 단계에서 처리해요)
+gunScene.add(mzGun);
 let mzI = 0, mzGI = 0, mzT = 0;
 const _mzD = new THREE.Vector3();
 function muzzleLight(pos, k, mine, dir){
   if (dir) _mzD.copy(dir); else _mzD.set(0, 0, -1).applyQuaternion(camera.quaternion);
-  _mzD.normalize(); mzLight.position.copy(pos).addScaledVector(_mzD, .35); mzLight.target.position.copy(pos).addScaledVector(_mzD, 8); mzLight.target.updateMatrixWorld();
-  mzI = Math.max(mzI, 7 * k);
+  _mzD.normalize(); const nI = 6 * k * (ZLOOK ? 1 : .4);
+  if (nI >= mzI * .9){ MZU.p.value.copy(pos).addScaledVector(_mzD, .3); MZU.d.value.copy(_mzD); }   // 더 센 불빛이 우선
+  mzI = Math.max(mzI, nI);
   if (mine){ mzGun.position.copy(pos).addScaledVector(_mzD, .1); mzGI = Math.max(mzGI, 2.2 * k); }
 }
 function muzzleLightUpd(){
   const t = performance.now() / 1000, dt = Math.min(.1, t - mzT); mzT = t;
-  const d = Math.exp(-dt * 26); mzI *= d; mzGI *= d;
+  const d = Math.exp(-dt * 20); mzI *= d; mzGI *= d;
   if (mzI < .03) mzI = 0; if (mzGI < .03) mzGI = 0;
-  mzLight.intensity = mzI; mzGun.intensity = mzGI;
+  MZU.i.value = mzI; mzGun.intensity = mzGI;
 }
 const _sr = new THREE.Vector3(0,1,0).cross(SUN_DIR).normalize();
 const _su = new THREE.Vector3().crossVectors(SUN_DIR, _sr), _st = new THREE.Vector3();
@@ -5937,6 +5956,10 @@ function zStep(z, T, tn, dt){
       pd = d; px = p.x; pz = p.z;
     }
   }
+  if (z.sm & 1){   // 머리가 없는 좀비: 플레이어를 못 알아보고 기지로 비틀대며 가다가, 피를 흘리며 쓰러져요
+    pd = 1e9;
+    if (!s.boss){ z.hp -= z.mhp * .06 * dt; if (z.hp <= 0){ zDamage(z.id, 1e6, z.lb || '', z.lw || 0, false); return; } }
+  }
   const rg = z.rg > tn;
   z.chase = pd < 1e8 && pd < s.aggro * (rg ? 1.4 : 1) * (z.chase ? 1.7 : 1);
   let tx, tz, td, F = ZG.dist;
@@ -5953,7 +5976,7 @@ function zStep(z, T, tn, dt){
   }
   let bx = tx - z.x, bz = tz - z.z;
   if (td < 1e-6){ td = 1e-6; bx = 1e-6; }
-  z.yaw = Math.atan2(-bx, -bz);
+  z.yaw = Math.atan2(-bx, -bz); if (z.sm & 1) z.yaw += Math.sin(tn * 3 + z.ph) * .7;
   if (s.boom && td < 2.2){ zBoomHost(z); return; }
   let spd = s.sp * (1 + Math.min(zw.n, 12) * .03) * (inLake(z.x, z.z) ? .55 : 1) * (rg ? 1.45 : 1) * ([1, .6, .28][((z.sm >> 3) & 1) + ((z.sm >> 4) & 1)]);   // 다리가 잘리면 느려져요
   // ─ 특수 능력 ─
@@ -6108,6 +6131,7 @@ function zRender(dt){
     g.position.y = zy(g.position.x, g.position.z);
     let dr = z.yaw - g.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); g.rotation.y += dr * k;
     animZ(z, dt, Math.hypot(g.position.x - ox, g.position.z - oz) / Math.max(dt, .001));
+    if ((z.sm & 33) && tn > (z.bt || 0)){ z.bt = tn + (z.sm & 1 ? .12 : .35); if (z.sm & 1) spawnBlood(new THREE.Vector3(g.position.x, g.position.y + 1.5 * ZT[z.t].sc, g.position.z), 2, 2.5); else if (goreFx) splat(g.position.x, g.position.z); }
     if (z.warn > tn){ g.scale.setScalar(ZT[z.t].sc * (1 + .06 * Math.sin(tn * 45))); z.wp = 1; }
     else if (z.wp){ g.scale.setScalar(ZT[z.t].sc); z.wp = 0; }
     if (z.fxu) z.fxu(z, tn, dt);
@@ -6131,10 +6155,17 @@ function zDamage(id, d, by, w, head, part){
   const z = zomb[id]; if (!z) return;
   const T0 = ZT[z.t];
   z.hp -= d;
-  if (z.hp > 0 && !T0.boss && goreFx && part && LIMB_BITS[part] && part !== 'head' && !(z.sm & LIMB_BITS[part])){   // 팔·다리에 피해가 쌓이면 절단
-    const wd = WEAPONS[w], bl = wd && (wd.id === 'katana' || wd.id === 'axe' || wd.id === 'chainsaw'), thr = part[0] === 'a' ? Math.max(45, z.mhp * .3) : Math.max(60, z.mhp * .38);
-    z.ld = z.ld || {}; z.ld[part] = (z.ld[part] || 0) + d * (bl ? 2.5 : 1);
-    if (z.ld[part] >= thr){ const bit = LIMB_BITS[part]; z.sm |= bit; zSever(z, part, true); send('zdm', { id, b: bit }); }
+  z.lb = by; z.lw = w;
+  if (z.hp > 0 && !T0.boss && goreFx && part){   // 살아 있는 채로 잘려요: 팔·다리·머리·몸통이 잘려도 좀비는 계속 움직여요
+    const wd = WEAPONS[w], wid = wd ? wd.id : '', bl = wid === 'katana' || wid === 'axe' || wid === 'chainsaw', hv = wid === 's12k' || wid === 'awm' || wid === 'm870' || wid === 'kar98k';
+    z.ld = z.ld || {}; let cut = 0;
+    if (LIMB_BITS[part] && part !== 'head' && !(z.sm & LIMB_BITS[part])){
+      const thr = part[0] === 'a' ? Math.max(30, z.mhp * .18) : Math.max(40, z.mhp * .22);
+      z.ld[part] = (z.ld[part] || 0) + d * (bl ? 4 : hv ? 2.2 : 1);
+      if (z.ld[part] >= thr) cut = LIMB_BITS[part];
+    } else if (part === 'head' && !(z.sm & 1) && (bl || hv)){ z.ld.head = (z.ld.head || 0) + d; if (z.ld.head >= z.mhp * .4) cut = 1; }
+    else if (part === 'torso' && bl && !(z.sm & 32)){ z.ld.torso = (z.ld.torso || 0) + d; if (z.ld.torso >= z.mhp * .45) cut = 56; }
+    if (cut){ zApplySm(z, cut, true); send('zdm', { id, b: cut }); }
   }
   if (z.hp <= 0){
     if (T0.split) for (let i = 0; i < 2; i++){ const sx = clamp(z.x + (i ? 1 : -1), -57, 57); zAdd(zw.id++, 1, sx, z.z, 45, 45); }   // 분열
@@ -6167,23 +6198,28 @@ function zSever(z, name, fx){
   const v = new THREE.Vector3(lp.x, cy, lp.z); spurts.push({ get: () => av.pivot.localToWorld(v.clone()), until: now() + 1.8, next: 0 });
   beep(150, .12, .08);
 }
-function zBisect(z){   // 몸통 절단: 허리 위는 시체로 쓰러지고, 하체는 따로 날아가요
-  const av = z.av, pv = av.pivot; if (z.sev && z.sev.bis) return; (z.sev || (z.sev = {})).bis = 1;
+function zBisect(z, fx){   // 몸통 절단: 허리 위는 (살아 있으면 기어 오고, 죽었으면 쓰러지고) 하체는 따로 날아가요
+  const av = z.av, pv = av.pivot; if (z.sev && z.sev.bis) return; (z.sev || (z.sev = {})).bis = 1; if (fx === undefined) fx = true;
+  av.hit = av.hit.filter(m => m !== av.parts.legL && m !== av.parts.legR);
   const T = zNodeW(pv), lg = new THREE.Group(), inner = new THREE.Group(); inner.position.y = -.4; lg.add(inner);
-  for (const k of ['legL', 'legR']){ const l = av.limbs[k]; if (!l || z.sev[k]) continue; const c = l.clone(true); inner.add(c); l.visible = false; }
+  for (const k of ['legL', 'legR']){ const l = av.limbs[k]; if (!l || z.sev[k]) continue; const c = l.clone(true); inner.add(c); l.visible = false; z.sev[k] = 1; }
   zPart(inner, ZBOX, 0x6a0c0c, .56, .1, .34, 0, .84, 0);
   for (let i = 0; i < 3; i++) zPart(inner, ZSPH, ZGUT[i], .07, .07, .07, (i - 1) * .12, .8 - i % 2 * .06, 0);
   lg.position.copy(T.wp); lg.position.y += .4 * T.ws.y; lg.quaternion.copy(T.wq); lg.scale.copy(T.ws);
   // 상체 쪽 절단면 + 쏟아지는 내장
   zPart(pv, ZBOX, 0x6a0c0c, .6, .1, .34, 0, .8, 0);
   for (let i = 0; i < 4; i++) zPart(pv, ZSPH, ZGUT[(i + 2) % ZGUT.length], .09, .09, .09, (i - 1.5) * .14, .7 - (i % 2) * .08, -.02 + (i % 2) * .05);
-  if (goreFx){
+  if (fx && goreFx){
     zGibAdd(lg, new THREE.Vector3((Math.random() - .5) * 4, 2.5 + Math.random() * 2, (Math.random() - .5) * 4), .42);
     const c = T.wp.clone(); c.y += .8 * T.ws.y; spawnBlood(c, 50, 5); splat(c.x, c.z); splat(c.x + .8, c.z - .5); splat(c.x - .6, c.z + .7);
     spurts.push({ get: () => c.clone(), until: now() + 1.8, next: 0 }); beep(90, .2, .1);
   }
 }
-function zApplySm(z, mask, fx){ for (const b in ZLIMB) if ((mask & b) && !(z.sm & b)){ z.sm |= +b; zSever(z, ZLIMB[b], fx); } }
+function zApplySm(z, mask, fx){   // 비트: 1 머리 · 2/4 왼/오른팔 · 8/16 왼/오른다리 · 32 몸통 두 동강
+  if ((mask & 32) && !(z.sm & 32)){ z.sm |= 56; zBisect(z, fx); }
+  if ((mask & 1) && !(z.sm & 1)){ z.sm |= 1; zSever(z, 'head', fx); }
+  for (const b in ZLIMB) if ((mask & b) && !(z.sm & b)){ z.sm |= +b; zSever(z, ZLIMB[b], fx); }
+}
 function zKillFx(z, id, w, head){
   const wd = WEAPONS[w], wid = wd ? wd.id : '', hr = ((id * 2654435761) >>> 0) / 4294967296, hr2 = ((id * 40503 + 977) % 1000) / 1000;
   const blade = wid === 'katana' || wid === 'axe' || wid === 'chainsaw', heavy = wid === 's12k' || wid === 'awm' || wid === 'm870' || wid === 'kar98k', expl = !!(wd && wd.rocket);
@@ -6242,7 +6278,7 @@ function onZe(ev, p){
   if (ev === 'zpk'){ if (isHost() && zw.cr && Math.abs(zw.cr[0] - +p.x) < .2){ zw.cr = null; zCrSet(null); } return; }
   if (isHost()) return;
   if (ev === 'zk') zKill(p.id, p.by, p.w, !!p.h);
-  else if (ev === 'zdm'){ const z = zomb[p.id]; if (z && isFinite(+p.b)) zApplySm(z, (+p.b) & 30, true); }
+  else if (ev === 'zdm'){ const z = zomb[p.id]; if (z && isFinite(+p.b)) zApplySm(z, (+p.b) & 63, true); }
   else if (ev === 'zc') zClear(p.w);
   else if (ev === 'zo') showMsg('💀 기지 함락 · 웨이브 ' + p.w, 3000);
   else if (ev === 'zfx') zfxDo(p);
