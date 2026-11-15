@@ -334,7 +334,7 @@ background:radial-gradient(circle,rgba(255,244,220,.78) 0,rgba(255,228,188,.34) 
     <div class="set"><label><span>화면 흔들림 (0%면 안 흔들려요)</span><b id="shakeVal">100%</b></label><input type="range" id="shake" min="0" max="1" step="0.05" value="1"></div>
     <div class="set"><label><span>피 효과 (끄면 더 가벼워요)</span><input type="checkbox" id="gorefx" checked style="width:auto;margin:0;padding:0"></label></div>
     <div class="set"><label><span>그림자 (끄면 더 가벼워요)</span><input type="checkbox" id="shadowfx" checked style="width:auto;margin:0;padding:0"></label></div>
-    <div class="set"><label><span>그래픽 품질 (바꾸면 새로고침)</span><select id="qmode"><option value="auto">자동</option><option value="low">가볍게</option><option value="opt">고화질 최적화 (폰 추천)</option><option value="high">고화질 (PC와 동일)</option><option value="ultra">초고퀄리티 (PC 추천 · 가지·잎 하나하나)</option><option value="ultraopt">초고퀄리티 최적화 (폰 가능 · 보이는 곳만 그려요)</option></select></label></div>
+    <div class="set"><label><span>그래픽 품질 (바꾸면 새로고침)</span><select id="qmode"><option value="auto">자동</option><option value="low">가볍게</option><option value="opt">고화질 최적화 (폰 추천)</option><option value="high">고화질 (PC와 동일)</option><option value="ultra">초고퀄리티 (PC 추천 · 가지·잎 하나하나)</option><option value="ultraopt">초고퀄리티 최적화 (폰 가능 · 보이는 곳만 그려요)</option><option value="ultralite">초고퀄리티 라이트 (폰 · 프레임 우선 · 티 안 나는 곳을 더 줄여요)</option></select></label></div>
     <div class="set"><label><span>텍스처·모델링 (바꾸면 새로고침)</span><select id="detmode"><option value="0">표준</option><option value="1">고퀄리티 (PC·최신 폰, 로딩 조금 느려요)</option></select></label></div>
     <div class="set"><label><span>시네마틱 효과 (비네트·필름 그레인)</span><input type="checkbox" id="cinefx" checked style="width:auto;margin:0;padding:0"></label></div>
     <div class="set"><label><span>빛내림·먼지 (나무 사이 햇빛 기둥)</span><input type="checkbox" id="rayfx" checked style="width:auto;margin:0;padding:0"></label></div>
@@ -390,11 +390,12 @@ document.body.classList.toggle('touch', isTouch);
 
 /* [그래픽 품질] 자동(PC는 고화질·폰은 가볍게) / 가볍게 / 고화질(폰에서도 PC와 같은 설정). 시작 화면에서 바꾸면 새로고침돼요 */
 let QMODE = 'auto';
-try { const q = localStorage.getItem('is_q'); if (q === 'low' || q === 'high' || q === 'opt' || q === 'ultra' || q === 'ultraopt') QMODE = q; } catch(e){}
-const hiQ = QMODE === 'high' || QMODE === 'opt' || QMODE === 'ultra' || QMODE === 'ultraopt' || (QMODE === 'auto' && !isTouch);
-const optQ = QMODE === 'opt' || QMODE === 'ultraopt';   // 초고퀄리티 최적화도 '최적화' 계열 절약(해상도 상한·그림자·반사·풀 수)을 같이 써요
-const ultraQ = QMODE === 'ultra' || QMODE === 'ultraopt';
-const ultraOptQ = QMODE === 'ultraopt';   // 폰용: 나무를 구역(칸)으로 나눠서 '화면에 보이는 칸'만, 가까운 칸만 가지·잎으로, 먼 칸은 덩어리로 그려요
+try { const q = localStorage.getItem('is_q'); if (q === 'low' || q === 'high' || q === 'opt' || q === 'ultra' || q === 'ultraopt' || q === 'ultralite') QMODE = q; } catch(e){}
+const hiQ = QMODE === 'high' || QMODE === 'opt' || QMODE === 'ultra' || QMODE === 'ultraopt' || QMODE === 'ultralite' || (QMODE === 'auto' && !isTouch);
+const optQ = QMODE === 'opt' || QMODE === 'ultraopt' || QMODE === 'ultralite';   // 초고퀄리티 최적화도 '최적화' 계열 절약(해상도 상한·그림자·반사·풀 수)을 같이 써요
+const ultraQ = QMODE === 'ultra' || QMODE === 'ultraopt' || QMODE === 'ultralite';
+const liteQ = QMODE === 'ultralite';   // 초고퀄리티 라이트: 초고퀄리티 최적화에서 '눈에 잘 안 띄는 부분'을 더 줄여 프레임을 올린 모드 (해상도 자동 조절·하늘·그림자·반사·풀·잎 수)
+const ultraOptQ = QMODE === 'ultraopt' || liteQ;   // 폰용: 나무를 구역(칸)으로 나눠서 '화면에 보이는 칸'만, 가까운 칸만 가지·잎으로, 먼 칸은 덩어리로 그려요
 const ultraCells = [];   // 나무 구역 목록 (숲을 다 만든 뒤 채워지고, 매 프레임 ultraCull 이 보이게/안 보이게 바꿔요)   // 초고퀄리티: 고화질 + 고퀄리티 모델링 + 나무 가지·잎 하나하나 + 더 큰 그림자·해상도
 let detQ = ultraQ; try { if (localStorage.getItem('is_det') === '1') detQ = true; } catch(e){}   // 텍스처·모델링 고퀄리티 (표준/고퀄리티, 새로고침 필요)   // 고화질 최적화: 고화질 효과는 그대로 두고 잔디 수·그림자 갱신·반사 갱신 같은 비싼 부분만 줄여서 폰에서도 부드럽게
 
@@ -420,7 +421,7 @@ let kills = 0, deaths = 0;
 
 /* ---------- Three.js 기본 ---------- */
 const renderer = new THREE.WebGLRenderer({ antialias: hiQ, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, ultraQ && !optQ ? 2.5 : hiQ && !optQ ? 2 : 1.5));   // 최적화: 해상도 배율 상한 1.5 (폰은 보통 3배라 픽셀 수가 1/4로 줄어요)
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, liteQ ? 1.3 : ultraQ && !optQ ? 2.5 : hiQ && !optQ ? 2 : 1.5));   // 최적화: 해상도 배율 상한 1.5 (폰은 보통 3배라 픽셀 수가 1/4로 줄어요)
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = hiQ && !optQ ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
@@ -455,7 +456,7 @@ camera.rotation.order = 'YXZ';
 scene.add(camera);
 scene.add(new THREE.HemisphereLight(0xb7c6dc, 0x7a6a4a, 0.66)); // [광원] 하늘 전체에서 오는 푸른 빛(그림자 안쪽) + 풀밭에서 올라오는 따뜻한 반사광
 const sun = new THREE.DirectionalLight(0xffe3b8, 1.75);        // [광원] 낮은 해(33°)에 맞춘 약간 따뜻한 햇빛
-const SHADOW_RES = hiQ ? (optQ ? 2048 : ultraQ ? 4096 : 3072) : 1024, SHADOW_R = hiQ ? (optQ ? 42 : 50) : 30;   // [그림자] 모바일은 범위를 줄여 더 또렷하고 가볍게
+const SHADOW_RES = hiQ ? (liteQ ? 1536 : optQ ? 2048 : ultraQ ? 4096 : 3072) : 1024, SHADOW_R = hiQ ? (liteQ ? 36 : optQ ? 42 : 50) : 30;   // [그림자] 모바일은 범위를 줄여 더 또렷하고 가볍게
 const SUN_DIR = new THREE.Vector3(0.760, 0.454, 0.466).normalize(); // 해 높이 약 27° (오후의 따뜻한 빛) (y를 줄이면 그림자가 길어지고 노을빛에 가까워져요)
 /* [초고퀄리티 최적화] 보이지 않는 나무는 아예 안 그리고, 멀어질수록 잎이 서서히 덩어리로 바뀌어요
    - 나무를 20칸짜리 구역으로 나눠, 시야(화면)에 안 걸리는 구역은 가지·잎·그림자 전부 생략
@@ -464,7 +465,7 @@ const SUN_DIR = new THREE.Vector3(0.760, 0.454, 0.466).normalize(); // 해 높�
      (잎이 비는 픽셀 = 덩어리가 나타나는 픽셀이라 틈도 겹침도 없고, 딱 끊기지 않고 서서히 바뀌어요)
    - 페이드가 끝난 구역은 아예 그리지 않아요: 38칸 밖은 잎을, 22칸 안은 덩어리를 통째로 생략
    - 그림자는 범위 밖 구역은 안 만들고, 잎 그림자와 덩어리 그림자는 30칸에서 바뀌어요 */
-const ultraU = { uCam: { value: new THREE.Vector3() }, uFade: { value: new THREE.Vector3(22, 38, 30) } };   // x=페이드 시작, y=끝, z=그림자 전환 거리
+const ultraU = { uCam: { value: new THREE.Vector3() }, uFade: { value: liteQ ? new THREE.Vector3(18, 30, 24) : new THREE.Vector3(22, 38, 30) } };   // x=페이드 시작, y=끝, z=그림자 전환 거리
 const ultraFade = (sh, near, hard) => {   // 가까운 쪽(near)은 멀수록 성기게, 먼 쪽(덩어리)은 가까울수록 성기게. hard=그림자용(부드러운 페이드 없이 한 거리에서 교체)
   sh.uniforms.uCam = ultraU.uCam; sh.uniforms.uFade = ultraU.uFade;
   sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vFW;')
@@ -577,7 +578,7 @@ ${ATM_GLSL}
 /* ---------- [1단계] 하늘 돔 (대기 산란 + 부드러운 해 + 구름) ---------- */
 const skyU = { uSun: { value: SUN_DIR }, uT: { value: 0 } };
 const sky = new THREE.Mesh(new THREE.SphereGeometry(200, 32, 16), new THREE.ShaderMaterial({
-  uniforms: skyU, side: THREE.BackSide, depthWrite: false, depthTest: false,
+  uniforms: skyU, side: THREE.BackSide, depthWrite: false, depthTest: liteQ,   // 라이트: 하늘을 맨 마지막에 깊이 검사를 켜고 그려서, 땅·나무·건물에 가려진 픽셀은 하늘 계산을 통째로 생략
   vertexShader: `varying vec3 vDir;
 void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
   fragmentShader: `uniform float uT; varying vec3 vDir;
@@ -619,8 +620,11 @@ void main(){
   col += (hash(gl_FragCoord.xy) - .5) / 255.;                       // 하늘 그라데이션의 띠 현상 방지 (디더링)
   gl_FragColor = vec4(col, 1.);
 }`.replace(/@OCT@/g, String(hiQ && !optQ ? 5 : 4))
+  .replace(/\/\/ 얇은 높은 구름\(권운\)[\s\S]*?col = mix\(col, vec3\(1\.\), ci\);/, liteQ ? '' : '$&')   // 라이트: 아주 옅은 높은 구름(알파 .22)은 생략 (노이즈 4번)
+  .replace('float c2 = fbm(uv + aSUN.xz * .10);', liteQ ? 'float c2 = fbm3(uv + aSUN.xz * .10) + .03;' : 'float c2 = fbm(uv + aSUN.xz * .10);')   // 라이트: 구름 명암용 두 번째 계산은 3겹으로
+  .replace('float fbm4(vec2 p)', 'float fbm3(vec2 p){ float v = 0., a = .5; for (int i = 0; i < 3; i++){ v += a * noise(p); p = p * 2.03 + vec2(17.1, 9.7); a *= .5; } return v; }\nfloat fbm4(vec2 p)')
 }));
-sky.renderOrder = -1000; sky.frustumCulled = false;
+sky.renderOrder = liteQ ? 1000 : -1000; sky.frustumCulled = false;
 scene.add(sky);
 
 sun.castShadow = true;
@@ -650,7 +654,7 @@ const _su = new THREE.Vector3().crossVectors(SUN_DIR, _sr), _st = new THREE.Vect
    - 그림자 영역의 중심을 '보는 방향 앞쪽'으로 옮김 → 등 뒤는 줄이고 앞쪽을 넓게 (같은 해상도로 더 또렷)
    - 중심은 시야가 크게 바뀔 때만 옮김 → 그 사이에는 그림자 맵을 새로 그리지 않아도 됨
    - 움직이는 물체(다른 플레이어·봇·내 그림자)는 모바일 30번/초, PC는 매 프레임 갱신 */
-const SH_STEP = SHADOW_R * .16, SH_DYN = hiQ && !optQ ? 0 : 1 / 30;   // 최적화: 움직이는 물체 그림자는 초당 30번만 갱신
+const SH_STEP = SHADOW_R * .16, SH_DYN = hiQ && !optQ ? 0 : liteQ ? 1 / 20 : 1 / 30;   // 최적화: 움직이는 물체 그림자는 초당 30번만 갱신
 let shCx = 1e9, shCz = 1e9, shNext = 0, shOn = null;
 function updateSun(){
   renderer.shadowMap.autoUpdate = false;     // 갱신 시점은 아래에서 직접 정함
@@ -680,7 +684,7 @@ addEventListener('resize', () => {
 });
 
 /* ---------- [땅] 텍스처 도우미 (노이즈 / 이음새 없는 타일 그리기) ---------- */
-const ANISO = Math.min(hiQ ? (optQ ? 8 : 16) : 4, renderer.capabilities.getMaxAnisotropy());   // 멀리 있는 땅이 뭉개지지 않게
+const ANISO = Math.min(hiQ ? (liteQ ? 4 : optQ ? 8 : 16) : 4, renderer.capabilities.getMaxAnisotropy());   // 멀리 있는 땅이 뭉개지지 않게
 const sst = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 const thh = (x, y) => { const n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453; return n - Math.floor(n); };
 const tvn = (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
@@ -726,7 +730,7 @@ outgoingLight += diffuseColor.rgb * ${tint} * (${k.toFixed(3)} * lgD * lgD * lgD
 $&`);
 };
 /* [그래픽] 빛내림(God Ray): 나무 틈으로 쏟아지는 햇빛 기둥 + 떠다니는 먼지. 아래 숲 만드는 곳에서 채워요 */
-let rfTick = 0;   // 물 반사 갱신 간격 (최적화 모드)
+let rfTick = 0, tuftRef = null;   // 물 반사 갱신 간격 (최적화 모드)
 const rayFx = { on: true, obj: [], u: { uT: { value: 0 }, uPx: { value: 800 }, uI: { value: 1 } } };
 /* ================= [고퀄리티] 텍스처·모델링 (설정 → 텍스처·모델링 → 고퀄리티, 새로고침 필요) =================
    표준 모드의 모양·충돌·배치는 그대로 두고, 같은 자리에 더 촘촘한 모델과 고해상도 질감을 씌워요.
@@ -1184,12 +1188,12 @@ transformed.z += cos(uT * 1.5 + swP * 1.3) * ${amp * .8} * position.y;
           const yb = (1.2 + k * 1.2) * s, h = (2.6 - k * .3) * s, R = (1.9 - k * .5) * s;
           for (let q = 0; q < 5; q++){
             if (opt && q === 3) continue;   // 폰: 안쪽 짧은 고리 하나 생략
-            const n = Math.round(N0[k] * RF[q]) + 2, yy = y0 + yb + h * HH[q], off = rr() * 6.2832;
+            const n = Math.round(N0[k] * RF[q] * (liteQ ? .8 : 1)) + (liteQ ? 1 : 2), yy = y0 + yb + h * HH[q], off = rr() * 6.2832;
             for (let i = 0; i < n; i++){
               const a = off + (i + (rr() - .5) * .5) / n * 6.2832, el = EL[q] + (rr() - .5) * .14, ce = Math.cos(el);
               const dx = Math.cos(a) * ce, dy = Math.sin(el), dz = Math.sin(a) * ce, L = R * RF[q] * (.92 + rr() * .14), st = .2 * s;
               if (q < 3) cell.brM.push(mat4(x, yy, z, dx, dy, dz, 1.3 * s, L * .8, 1.3 * s, UP));
-              const fl = L - st + .15 * s, fw = fl * (.80 + rr() * .22);
+              const fl = L - st + .15 * s, fw = fl * (.80 + rr() * .22) * (liteQ ? 1.12 : 1);
               cell.frM.push(mat4(x + dx * st, yy + dy * st, z + dz * st, dx, dy, dz, fw, fl, fl, UP));
               cell.frC.push(col().setHSL(hue + (rr() - .5) * .02, .5, lit * (.98 + .2 * rr()) + .015 * q));
             }
@@ -1211,7 +1215,7 @@ transformed.z += cos(uT * 1.5 + swP * 1.3) * ${amp * .8} * position.y;
           cell.brM.push(mat4(x, ys, z, dx, dy, dz, (lead ? 2.4 : 2.5) * s, Lb, (lead ? 2.4 : 2.5) * s, UP));
           tips.push(clampIn(new THREE.Vector3(x + dx * Lb, ys + dy * Lb, z + dz * Lb)));
           if (lead) continue;
-          for (let m = 0; m < 4; m++){
+          for (let m = 0; m < (liteQ ? 3 : 4); m++){
             const t = .34 + m * .17 + rr() * .05, sx = x + dx * Lb * t, sy = ys + dy * Lb * t, sz = z + dz * Lb * t;
             const sd = rr() < .5 ? -1 : 1, sp = .55 + rr() * .7;
             let ex = dx - dz * sd * sp, ey = dy + .25 + rr() * .45, ez = dz + dx * sd * sp; const el = Math.hypot(ex, ey, ez); ex /= el; ey /= el; ez /= el;
@@ -1220,7 +1224,7 @@ transformed.z += cos(uT * 1.5 + swP * 1.3) * ${amp * .8} * position.y;
             tips.push(clampIn(new THREE.Vector3(sx + ex * Ls, sy + ey * Ls, sz + ez * Ls)));
           }
         }
-        const LN = opt ? 800 : 1400, sp = .7 * s, V = new THREE.Vector3(), rv = new THREE.Vector3();
+        const LN = opt ? (liteQ ? 560 : 800) : 1400, sp = .7 * s, V = new THREE.Vector3(), rv = new THREE.Vector3();
         for (let i = 0; i < LN; i++){
           if (rr() < .62){ const T = tips[(rr() * tips.length) | 0]; V.set(T.x + (rr() + rr() + rr() - 1.5) * sp, T.y + (rr() + rr() + rr() - 1.5) * sp * .8, T.z + (rr() + rr() + rr() - 1.5) * sp); }
           else {
@@ -1229,7 +1233,7 @@ transformed.z += cos(uT * 1.5 + swP * 1.3) * ${amp * .8} * position.y;
           }
           clampIn(V);
           let ox = (V.x - cx) / RX, oy = (V.y - cy) / RY, oz = (V.z - cz) / RX; const ol = Math.hypot(ox, oy, oz) || 1; ox /= ol; oy /= ol; oz /= ol;
-          const dx = ox * .7 + (rr() - .5) * 1.8, dy = oy * .7 + (rr() - .5) * 1.8 - .15, dz = oz * .7 + (rr() - .5) * 1.8, len = (.34 + .16 * rr()) * s;
+          const dx = ox * .7 + (rr() - .5) * 1.8, dy = oy * .7 + (rr() - .5) * 1.8 - .15, dz = oz * .7 + (rr() - .5) * 1.8, len = (.34 + .16 * rr()) * s * (liteQ ? 1.17 : 1);
           cell.lfM.push(mat4(V.x, V.y, V.z, dx, dy, dz, len * .95, len, len, rv.set(rr() - .5, rr() - .5, rr() - .5)));
           cell.lfC.push(col().setHSL(.20 + .07 * rr() + .02 * c, .55, .22 + .16 * rr() + (V.y > cy ? .04 : 0)));
         }
@@ -1239,7 +1243,7 @@ transformed.z += cos(uT * 1.5 + swP * 1.3) * ${amp * .8} * position.y;
           if (!arr.length) return null;
           const m = new THREE.InstancedMesh(geo, mat, arr.length);
           for (let i = 0; i < arr.length; i++){ m.setMatrixAt(i, arr[i]); if (cols) m.setColorAt(i, cols[i]); }
-          m.castShadow = m.receiveShadow = true; m.frustumCulled = false; if (dmat) m.customDepthMaterial = dmat; if (opt && geo === brG) m.receiveShadow = false;
+          m.castShadow = m.receiveShadow = true; m.frustumCulled = false; if (dmat) m.customDepthMaterial = dmat; if (opt && geo === brG) m.receiveShadow = false; if (liteQ && (geo === lfG || geo === frG)) m.receiveShadow = false;   // 라이트: 잎·솔가지가 서로에게 그림자 받는 계산 생략 (잎에 이미 어두운 색이 들어 있어 티가 거의 안 나요)
           scene.add(m);   // 총알 충돌 목록(worldMeshes)에는 넣지 않아요: 잎·가지는 총알이 통과, 기둥은 그대로 막음
           return m;
         };
@@ -1442,14 +1446,14 @@ void main(){ float r = length(gl_PointCoord - .5) * 2.; float a = (1. - smoothst
 float tfS = sin(uT * 1.7 + instanceMatrix[3].x * .6 + instanceMatrix[3].z * .8);
 transformed.x += tfS * .08 * position.y;
 transformed.z += cos(uT * 1.3 + instanceMatrix[3].z * .7) * .05 * position.y;
-${optQ ? 'transformed *= 1. - smoothstep(38., 58., length(instanceMatrix[3].xz - cameraPosition.xz));' : ''}
+${optQ ? (liteQ ? 'transformed *= 1. - smoothstep(30., 46., length(instanceMatrix[3].xz - cameraPosition.xz));' : 'transformed *= 1. - smoothstep(38., 58., length(instanceMatrix[3].xz - cameraPosition.xz));') : ''}
 #endif`);
     };
     tmat.onBeforeCompile = sh => { windPatch(sh); glowPatch(sh, .55, 'vec3(.92,1.,.38)'); };   // 바람 + 역광 투과
     // [그림자] 풀잎 모양 그대로 그림자가 생기도록 알파 테스트하는 전용 깊이 재질
     const tdepth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: ttex, alphaTest: .45, side: THREE.DoubleSide });
     tdepth.onBeforeCompile = windPatch;
-    const TN = hiQ ? (optQ ? 2300 : ultraQ ? 7500 : 5200) : 1100,   // 최적화: 풀 뭉치를 절반 이하로 (대신 뭉치를 크고 풍성하게, 먼 풀은 서서히 사라짐, 풀 그림자 생성 끔)
+    const TN = hiQ ? (liteQ ? 1700 : optQ ? 2300 : ultraQ ? 7500 : 5200) : 1100,   // 최적화: 풀 뭉치를 절반 이하로 (대신 뭉치를 크고 풍성하게, 먼 풀은 서서히 사라짐, 풀 그림자 생성 끔)
        tuft = new THREE.InstancedMesh(tgeo, tmat, TN), pr = mulberry32(4242);
     tuft.frustumCulled = false; tuft.receiveShadow = true;   // 저사양도 나무 그늘에 들어가면 풀도 같이 어두워져요
     tuft.castShadow = !optQ; tuft.customDepthMaterial = tdepth;   // 풀 그림자(알파 깊이 패스)가 가장 비싸서 최적화 모드에선 끔 (풀이 그림자를 '받는' 건 그대로)
@@ -1459,11 +1463,11 @@ ${optQ ? 'transformed *= 1. - smoothstep(38., 58., length(instanceMatrix[3].xz -
       if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 3.6) continue;
       if (tvn(x * .07, z * .07) + q * .4 < .45) continue;   // 풀이 듬성듬성/빽빽한 구역을 나눔
       if (boxes.some(b => x > b.minX - .3 && x < b.maxX + .3 && z > b.minZ - .3 && z < b.maxZ + .3)) continue;
-      const wd = (.7 + pr() * .5) * (hiQ && !optQ ? 1 : optQ ? 1.3 : 1.12), ht = .3 + pr() * .25, cv = pr();   // 저사양은 폭을 살짝 키워 같은 개수로 더 덮어요
+      const wd = (.7 + pr() * .5) * (hiQ && !optQ ? 1 : liteQ ? 1.42 : optQ ? 1.3 : 1.12), ht = .3 + pr() * .25, cv = pr();   // 저사양은 폭을 살짝 키워 같은 개수로 더 덮어요
       dm.position.set(x, hillH(x, z), z); dm.rotation.set(0, pr() * 6.283, 0); dm.scale.set(wd, ht, wd); dm.updateMatrix();
       tuft.setMatrixAt(tn, dm.matrix); tuft.setColorAt(tn, lc.setRGB(.78 + .22 * cv, .84 + .16 * cv, .68 + .22 * cv)); tn++;
     }
-    tuft.count = tn; scene.add(tuft);
+    tuft.count = tn; scene.add(tuft); tuftRef = tuft;
   {   // 잔돌: 바닥에 작은 돌을 흩뿌려 디테일을 더해요 (충돌 없음). 초록 덤불은 둥근 얼룩처럼 보여서 뺐어요
     const br = mulberry32(5150), NP = hiQ ? (optQ ? 120 : 260) : 80;
     const peb = new THREE.InstancedMesh((detQ ? detPebbleGeo() : new THREE.DodecahedronGeometry(1, 0)), new THREE.MeshLambertMaterial({ color: 0xffffff }), NP);
@@ -1564,7 +1568,7 @@ bedMat.onBeforeCompile = sh => {
 const bed = new THREE.Mesh(new THREE.CircleGeometry(LAKE.r + 1, 48), bedMat);
 bed.rotation.x = -Math.PI / 2; bed.position.set(LAKE.x, LAKE_FLOOR - .05, LAKE.z);
 scene.add(bed);
-const reflRT = new THREE.WebGLRenderTarget(hiQ ? (optQ ? 512 : 768) : 384, hiQ ? (optQ ? 288 : 432) : 216);
+const reflRT = new THREE.WebGLRenderTarget(hiQ ? (liteQ ? 384 : optQ ? 512 : 768) : 384, hiQ ? (liteQ ? 216 : optQ ? 288 : 432) : 216);
 const reflCam = new THREE.PerspectiveCamera(75, 1, .05, 300); reflCam.rotation.order = 'YXZ';
 
 /* ---------- [2단계] 물: 다중 파도 + 프레넬 + 수심 색 + 햇빛 반짝임 + 호숫가 물거품 ---------- */
@@ -1633,7 +1637,7 @@ function updateSunGlow(){
     camera.updateMatrixWorld();
     camera.getWorldDirection(_sgf);
     if (_sgf.dot(SUN_DIR) > .05){
-      if ((sgTick++ & 7) === 0){
+      if ((sgTick++ & (liteQ ? 15 : 7)) === 0){
         raycaster.set(camera.position, SUN_DIR); raycaster.far = 300;
         sgOcc = raycaster.intersectObjects(worldMeshes, false).length ? 0 : 1;
       }
@@ -1659,9 +1663,10 @@ function renderFrame(){
     _fr.setFromProjectionMatrix(_fm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     refl = _fr.intersectsSphere(_fs);
   }
-  if (refl && (!optQ || (rfTick++ & 1) === 0)){   // 최적화 모드: 반사 그림은 2프레임에 한 번만 (사이 프레임은 직전 그림 재사용)
+  if (refl && (!optQ || (rfTick++ % (liteQ ? 3 : 2)) === 0)){   // 최적화 모드: 반사 그림은 2프레임에 한 번만 (라이트는 3프레임에 한 번, 사이 프레임은 직전 그림 재사용)
     water.visible = bed.visible = false;
     for (let i = 0; i < rayFx.obj.length; i++) rayFx.obj[i].visible = false;   // 물 반사 그림에는 빛줄기를 생략 (가볍게)
+    if (liteQ && tuftRef) tuftRef.visible = false;   // 라이트: 물결에 일그러지는 반사에는 풀도 생략
     reflCam.position.set(camera.position.x, 2 * WATER_Y - camera.position.y, camera.position.z);   // 수면 아래로 뒤집은 카메라
     reflCam.rotation.set(-camera.rotation.x, camera.rotation.y, 0);
     reflCam.fov = camera.fov; reflCam.aspect = camera.aspect; reflCam.updateProjectionMatrix(); reflCam.updateMatrixWorld();
@@ -1670,6 +1675,7 @@ function renderFrame(){
     renderer.setRenderTarget(reflRT); renderer.render(scene, reflCam); renderer.setRenderTarget(null);
     sky.position.copy(camera.position);
     water.visible = bed.visible = true;
+    if (tuftRef) tuftRef.visible = true;
     if (rayFx.on) for (let i = 0; i < rayFx.obj.length; i++) rayFx.obj[i].visible = true;
   }
   wu.uUse.value = refl ? 1 : 0;
@@ -2003,7 +2009,7 @@ function buildGun(i){
 const AY = .035;                                                    // 레일 윗면 → 조준축 높이
 const RAIL  = { akm: .052, m416: .056, s12k: .056, m249: .068, scar: .05, sks: .048, vector: .06 };   // 총별 레일 윗면 높이 (여기 없는 총은 조준경 장착 불가)
 const RAILZ = { akm: -.05, m416: -.06, s12k: -.05, m249: -.05, scar: -.05, sks: -.05, vector: -.06 };   // 조준경 중심 z
-const pipRT = new THREE.WebGLRenderTarget(hiQ ? (optQ ? 288 : 384) : 224, hiQ ? (optQ ? 288 : 384) : 224);   // 배율 렌즈 화면
+const pipRT = new THREE.WebGLRenderTarget(hiQ ? (liteQ ? 256 : optQ ? 288 : 384) : 224, hiQ ? (liteQ ? 256 : optQ ? 288 : 384) : 224);   // 배율 렌즈 화면
 const pipCam = new THREE.PerspectiveCamera(10, 1, .1, 300);
 const lensOn = new THREE.MeshBasicMaterial({ map: pipRT.texture, toneMapped: false });
 const lensOff = new THREE.MeshBasicMaterial({ color: 0x0b1118, toneMapped: false });
@@ -2080,11 +2086,13 @@ const _buildGun0 = buildGun;
 buildGun = function(i){ const g = _buildGun0(i); decorGun(g, i); decorAttach(g, i); return g; };
 
 /* 배율 스코프 렌즈 화면: 조준 중일 때만 한 번 더 그림 (렌즈 안쪽만 확대) */
+let pipTick = 0;
 function renderPip(){
   const sg = gunGroup && gunGroup.userData.sight; if (!sg) return;
   const on = !!(gunGroup.visible && ads && sg.mag > 1);
   sg.lens.material = on ? lensOn : lensOff; sg.ret.visible = on;
   if (!on) return;
+  if (liteQ && (pipTick++ & 1)) return;   // 라이트: 배율 렌즈 화면은 2프레임에 한 번 갱신 (작은 렌즈라 티가 거의 안 나요)
   pipCam.position.copy(camera.position); pipCam.quaternion.copy(camera.quaternion);
   pipCam.fov = sg.pipFov; pipCam.updateProjectionMatrix(); pipCam.updateMatrixWorld();
   const u = wu.uUse.value; wu.uUse.value = 0;
@@ -4976,10 +4984,28 @@ function updateHud(){
 }
 
 /* ---------- 메인 루프 ---------- */
+/* [초고퀄리티 라이트] 해상도 자동 조절: 프레임이 모자라면 해상도를 0.1씩 낮추고(최저 1.0), 한참 여유로우면 다시 올려요.
+   한 번 느려졌던 단계로 다시 올릴 땐 더 오래 여유로울 때만 올려서, 해상도가 오락가락하지 않게 해요 */
+const liteA = { cap: Math.min(window.devicePixelRatio, 1.3), min: Math.min(window.devicePixelRatio, 1.0), cur: Math.min(window.devicePixelRatio, 1.3), sum: 0, n: 0, good: 0, need: 6, cool: 2 };
+function liteAdapt(rd){
+  if (rd > .25 || document.hidden || !joined) return;
+  liteA.sum += rd; liteA.n++;
+  if (liteA.n < 45) return;
+  const fps = liteA.n / liteA.sum; liteA.sum = 0; liteA.n = 0; liteA.cool--;
+  if (fps < 46 && liteA.cur > liteA.min + .01 && liteA.cool <= 0){
+    liteA.cur = Math.max(liteA.min, +(liteA.cur - .1).toFixed(2)); renderer.setPixelRatio(liteA.cur);
+    liteA.good = 0; liteA.cool = 2; liteA.need = Math.min(liteA.need * 2, 48);
+  } else if (fps > 57){
+    if (++liteA.good >= liteA.need && liteA.cur < liteA.cap - .01 && liteA.cool <= 0){
+      liteA.cur = Math.min(liteA.cap, +(liteA.cur + .1).toFixed(2)); renderer.setPixelRatio(liteA.cur); liteA.good = 0; liteA.cool = 2;
+    }
+  } else liteA.good = 0;
+}
 let lastT = now();
 function loop(){
   requestAnimationFrame(loop);
-  const t = now(); const dt = Math.min(t - lastT, 0.05); lastT = t;
+  const t = now(); const rawDt = t - lastT, dt = Math.min(rawDt, 0.05); lastT = t;
+  if (liteQ) liteAdapt(rawDt);
 
   // 원격 플레이어 보간 / 타임아웃
   for (const id in remotes){
