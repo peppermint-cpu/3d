@@ -588,7 +588,7 @@ if (uMzI > .002){
   vec3 mzR = vec3(dot(viewMatrix[0].xyz, vFogV), dot(viewMatrix[1].xyz, vFogV), dot(viewMatrix[2].xyz, vFogV));
   vec3 mzV = cameraPosition + mzR - uMzP; float mzL = length(mzV) + .001;
   float mzC = smoothstep(.62, .92, dot(mzV / mzL, uMzD));
-  float mzA = min(uMzI * mzC / (1. + mzL * mzL * .018), 1.7);
+  float mzA = min(uMzI * mzC / (1. + mzL * mzL * .25), 1.7) * (1. - smoothstep(6., 13., mzL));   // 총구 바로 앞(약 10m 안)만 밝아지고, 먼 곳은 밝아지지 않아요
   reflectedLight.indirectDiffuse += (diffuseColor.rgb * 1.7 + vec3(.03, .018, .008)) * vec3(1., .68, .36) * mzA;
 }
 #endif
@@ -2113,6 +2113,9 @@ function buildGun(i){
       g.add(a, b); ch.top.push(a); ch.bot.push(b);
     }
     g.userData.chain = ch;
+    const cm = new THREE.MeshPhongMaterial({ color: 0xcfcab8, shininess: 8 }), rope = new THREE.Mesh(new THREE.BoxGeometry(.006, .006, 1), cm), grip = new THREE.Mesh(new THREE.BoxGeometry(.05, .034, .032), new THREE.MeshPhongMaterial({ color: 0x1d1d1d, shininess: 30 }));
+    rope.position.set(0, .005, .19); rope.scale.z = .001; grip.position.set(0, .005, .205); g.add(rope, grip);   // 시동 줄과 손잡이 (몸체 뒤쪽)
+    g.userData.pull = { rope, grip, hand: g.children[spec.parts.length - 2] };
   }
   if (WEAPONS[i].id === 'm249'){
     const B = { ph: 0, tg: 0, r: [] };
@@ -2328,6 +2331,24 @@ function sawAudio(on, rev, grind){
   n.bp.frequency.setTargetAtTime(1700 + rv * 1500 + (grind ? 500 : 0), t, .05);
   n.ng.gain.setTargetAtTime(.05 + rv * .13 + load * .12, t, .05);
   n.mg.gain.setTargetAtTime(.12 + rv * .16 + load * .04, t, .05);
+}
+function playZip(dur){   // 시동 줄이 풀려 나가는 '드르르륵' 소리
+  if (!ac) return;
+  const t = ac.currentTime, src = ac.createBufferSource(), bp = ac.createBiquadFilter(), g = ac.createGain(), lfo = ac.createOscillator(), lg = ac.createGain();
+  src.buffer = noiseBuf; src.loop = true; bp.type = 'bandpass'; bp.Q.value = 2.2; bp.frequency.setValueAtTime(1100, t); bp.frequency.linearRampToValueAtTime(3600, t + dur);
+  g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(.16, t + dur * .25); g.gain.linearRampToValueAtTime(.0001, t + dur);
+  lfo.frequency.value = 62; lg.gain.value = .09; lfo.connect(lg); lg.connect(g.gain);
+  src.connect(bp); bp.connect(g); g.connect(ac.destination); src.start(t); src.stop(t + dur); lfo.start(t); lfo.stop(t + dur);
+}
+function playSputter(){   // 시동이 안 걸리고 '푸드득' 하는 소리
+  if (!ac) return;
+  const t = ac.currentTime;
+  for (let i = 0; i < 3; i++){
+    const o = ac.createOscillator(), g = ac.createGain(), lp = ac.createBiquadFilter(), t0 = t + i * .075;
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(75 + Math.random() * 20, t0); o.frequency.exponentialRampToValueAtTime(38, t0 + .07);
+    lp.type = 'lowpass'; lp.frequency.value = 520; g.gain.setValueAtTime(.0001, t0); g.gain.linearRampToValueAtTime(.2 - i * .05, t0 + .01); g.gain.exponentialRampToValueAtTime(.001, t0 + .08);
+    o.connect(lp); lp.connect(g); g.connect(ac.destination); o.start(t0); o.stop(t0 + .09);
+  }
 }
 function beep(freq, dur, vol){
   if (!ac) return;
@@ -3186,6 +3207,14 @@ const MKEY = [
 const ms = { on: false, t0: 0, idx: -1, type: 0, hit: false, w: 0, h: 0, r: 0, end: 0, combo: 0 };
 const MP = [0, 0, 0, 0, 0, 0];
 let mox = 0, moy = 0, moz = 0, sawT = 0, sawPh = 0, sawHit = 0;
+const sawIg = { idx: -1, t0: 0, done: false, run: false, e: 0 };   // 전기톱 시동 걸기: 줄을 세 번 당겨서 세 번째에 시동이 걸려요
+const SAWP = [[.30, .55], [.85, 1.10], [1.40, 1.65]];
+function sawIgn(ti){   // → [줄이 빠져나온 길이, 손이 줄 손잡이를 잡은 정도]
+  let ext = 0;
+  for (const pr of SAWP){ if (ti >= pr[0] && ti < pr[1]){ const u = (ti - pr[0]) / (pr[1] - pr[0]); ext = .3 * (1 - (1 - u) * (1 - u)); } else if (ti >= pr[1] && ti < pr[1] + .2) ext = .3 * (1 - (ti - pr[1]) / .2); }
+  const grab = ti < .08 ? 0 : ti < .3 ? (ti - .08) / .22 : ti < 1.72 ? 1 : ti < 1.98 ? 1 - (ti - 1.72) / .26 : 0;
+  return [ext, grab];
+}
 const _e1 = f => 1 - (1 - f) * (1 - f) * (1 - f), _e2 = f => f * f * (1.2 - .2 * f), _e3 = f => f * f * (3 - 2 * f);
 function playSwoosh(vol, f0, dur){   // 휘두르는 바람 소리 (잡음 + 훑고 지나가는 필터)
   if (!ac || !noiseBuf) return;
@@ -3235,7 +3264,7 @@ const MOFF = [   // 휘두르기 종류별 판정 방향
   [[0, 0], [0, -.3], [-.35, 0], [.35, 0], [-.35, -.3], [.35, -.3]]  // 4 오함마: 넓게 쾅
 ];
 function meleeAttack(w){
-  if (w.saw){ sawTick(w); return; }
+  if (w.saw){ if (sawIg.done) sawTick(w); return; }   // 시동이 걸린 뒤에만 갈 수 있어요
   const P = MELEE[w.id] || MELEE.knife, t = now();
   lastShot = t;
   ms.combo = t - ms.end < .9 ? (ms.combo + 1) % P.seq.length : 0;
@@ -3266,13 +3295,32 @@ function sawTick(w){   // 전기톱: 꾹 누르는 동안 짧은 간격으로 �
 function meleePose(dt, w){
   MP[0] = MP[1] = MP[2] = MP[3] = MP[4] = MP[5] = 0;
   if (w.saw){   // 전기톱: 누르면 앞으로 내밀며 떨림, 놓으면 시동이 걸린 채 가볍게 떨림
-    const on = firing && locked && !player.dead, k = on ? 1 : .25, tt = now();
-    MP[0] = (Math.random() - .5) * .006 * k + Math.sin(tt * 61) * .002 * k; MP[1] = (Math.random() - .5) * .006 * k; MP[2] = on ? -.07 : 0;
-    MP[3] = (Math.random() - .5) * .014 * k - (on ? .06 : 0); MP[4] = (Math.random() - .5) * .014 * k + (on ? .08 * Math.sin(tt * 3) : 0); MP[5] = (Math.random() - .5) * .02 * k;
+    const tt = now();
+    if (player.dead) sawIg.idx = -1;
+    if (sawIg.idx !== cur){ sawIg.idx = cur; sawIg.t0 = tt; sawIg.done = false; sawIg.run = false; sawIg.e = 0; }
+    let ext = 0, grab = 0;
+    if (!sawIg.done){
+      const ti = tt - sawIg.t0; [ext, grab] = sawIgn(ti);
+      for (let i = 0; i < 3; i++){
+        if (ti >= SAWP[i][0] && !(sawIg.e & (1 << (i * 2)))){ sawIg.e |= 1 << (i * 2); playZip(.26); camShake = Math.max(camShake, .05); }
+        if (ti >= SAWP[i][0] + .2 && i < 2 && !(sawIg.e & (2 << (i * 2)))){ sawIg.e |= 2 << (i * 2); playSputter(); }
+      }
+      if (!sawIg.run && ti >= 1.6){ sawIg.run = true; camShake = Math.max(camShake, .12); }
+      if (ti >= 1.98) sawIg.done = true;
+    }
+    const on = firing && locked && !player.dead && sawIg.run, k = on ? 1 : sawIg.run ? .25 : .02;
+    const pl = gunGroup.userData.pull;
+    if (pl){
+      pl.rope.scale.z = ext + .01; pl.rope.position.z = .19 + (ext + .01) / 2; pl.grip.position.z = .205 + ext;
+      pl.hand.position.set(0, .17 + (.045 - .17) * grab, .08 + (.215 + ext - .08) * grab);
+    }
+    MP[2] += ext * .3; MP[3] += -ext * .55; MP[5] += Math.sin(ext * 20) * ext * .1;   // 줄을 당길 때 몸이 뒤로 끌려와요
+    MP[0] += (Math.random() - .5) * .006 * k + Math.sin(tt * 61) * .002 * k; MP[1] += (Math.random() - .5) * .006 * k; MP[2] += on ? -.07 : 0;
+    MP[3] += (Math.random() - .5) * .014 * k - (on ? .06 : 0); MP[4] += (Math.random() - .5) * .014 * k + (on ? .08 * Math.sin(tt * 3) : 0); MP[5] += (Math.random() - .5) * .02 * k;
     if (sawHit > 0){ sawHit -= dt; MP[0] += (Math.random() - .5) * .012; MP[1] += (Math.random() - .5) * .012; }
-    sawAudio(!!(ac && locked && !player.dead), on ? 1 : 0, sawHit > 0);   // 엔진 소리 (공회전 ↔ 풀 가동 ↔ 자르는 중)
+    sawAudio(!!(ac && locked && !player.dead && sawIg.run), on ? 1 : 0, sawHit > 0);   // 엔진 소리 (공회전 ↔ 풀 가동 ↔ 자르는 중)
     const ch = gunGroup.userData.chain;   // 체인: 위쪽은 앞으로, 아래쪽은 뒤로 돌아요
-    if (ch){ sawPh = (sawPh + dt * (on ? 9 : 2.2)) % 1; const L = ch.L, sp = ch.sp; ch.top.forEach((m, i) => { m.position.z = ch.z0 - (((i * sp + sawPh * sp * 2) % L)); }); ch.bot.forEach((m, i) => { m.position.z = ch.z0 - L + (((i * sp + sawPh * sp * 2) % L)); }); }
+    if (ch){ sawPh = (sawPh + dt * (on ? 9 : sawIg.run ? 2.2 : 0)) % 1; const L = ch.L, sp = ch.sp; ch.top.forEach((m, i) => { m.position.z = ch.z0 - (((i * sp + sawPh * sp * 2) % L)); }); ch.bot.forEach((m, i) => { m.position.z = ch.z0 - L + (((i * sp + sawPh * sp * 2) % L)); }); }
     return;
   }
   if (!ms.on) return;
@@ -5859,7 +5907,7 @@ function zAdd(id, t, x, z, hp, mhp){
   av.group.scale.setScalar(T.sc);
   av.group.position.set(x, zy(x, z), z);
   const tn = now();
-  const o = (zomb[id] = { id, t, x, z, yaw: 0, hp, mhp, av, ph: Math.random() * 6, atk: 0, batk: 0, sm: 0, ar: 0, ax: x, az: z, sc: tn + .6, sx: x, sz: z, esc: 0, ed: 1, want: false,
+  const o = (zomb[id] = { id, t, x, z, yaw: 0, hp, mhp, av, ph: Math.random() * 6, atk: 0, batk: 0, sm: 0, as: 0, asT: 0, aa: null, al: 0, ar: 0, ax: x, az: z, sc: tn + .6, sx: x, sz: z, esc: 0, ed: 1, want: false,
     cdn: tn + 1.5 + Math.random() * 2.5, cdn2: tn + 6, ratk: tn + 1, dsh: 0, st: 0, stT: 0, stun: 0, rg: 0, warn: 0, scr: 0, chase: false, dx: 0, dz: 0, wp: 0, ign: 0, fxu: null });
   const u1 = zDecor(av, t, id), u2 = zGore(av, t, id);
   o.fxu = u1 ? (z, tn, dt) => { u1(z, tn, dt); u2(z, tn, dt); } : u2;
@@ -6152,10 +6200,13 @@ function animZ(z, dt, sp){
   let ar = s.arm == null ? 1.45 : s.arm;
   if (z.warn > tn) ar = 2.7;                                   // 공격 준비: 팔을 번쩍
   else if (z.scr > tn) ar = 2.9 + Math.sin(tn * 30) * .2;      // 비명
+  if (z.as === 1) ar = 2.95; else if (z.as === 2) ar = .15;      // 공격: 번쩍 치켜들었다가 내려침
+  z.aa = z.aa == null ? ar : z.aa + (ar - z.aa) * Math.min(1, dt * (z.as === 2 ? 45 : 12)); ar = z.aa;
   L.legL.rotation.x = sw; L.legR.rotation.x = -sw;
   L.armL.rotation.set(ar + w, 0, .1 + (s.spr || 0)); L.armR.rotation.set(ar - w, 0, -.1 - (s.spr || 0));
   z.av.pivot.rotation.z = Math.sin(z.ph) * .06;
   z.av.pivot.rotation.x = s.lean || 0;
+  z.al = (z.al || 0) + ((z.as === 1 ? -.28 : z.as === 2 ? .5 : 0) - (z.al || 0)) * Math.min(1, dt * (z.as === 2 ? 30 : 10)); z.av.pivot.rotation.x += z.al;   // 공격할 때 상체를 젖혔다가 숙임
   const lgm = z.sm & 24;
   if (lgm === 24){ z.av.pivot.rotation.x = -1.35; z.av.pivot.position.set(0, .22, .95); }   // 두 다리가 없으면 엎드려 기어요
   else if (lgm){ z.av.pivot.rotation.z += lgm === 8 ? .3 : -.3; z.av.pivot.position.y = -.18; }   // 한 다리면 절뚝
@@ -6174,17 +6225,29 @@ function zRender(dt){
     if (z.fxu) z.fxu(z, tn, dt);
   }
 }
-function zAttackMe(){
-  if (player.dead || !locked || zBuf.god > now()) return;
-  const t = now();
+function zAttackMe(){   // 좀비 공격: 가까워지면 팔을 치켜들고(예고) → 내려치는 순간에만 피해를 줘요 (그 사이에 멀어지면 피할 수 있어요)
+  const tn = now(), T = zTargets(), canHit = !player.dead && locked && zBuf.god <= tn;
   for (const id in zomb){
     const z = zomb[id], s = ZT[z.t], p = z.av.group.position;
-    if (s.boom || !s.dmg || t - z.atk < (s.cd || 1)) continue;
-    const d = Math.hypot(p.x - player.pos.x, p.z - player.pos.z);
-    if (d < s.reach && Math.abs(p.y - player.pos.y) < 1.8){
-      z.atk = t; beep(120 + Math.random() * 40, .2, .05);
-      takeDamage(Math.round(s.dmg * (1 + Math.min(zw.n, 15) * .04) * ((z.sm & 2) ? .75 : 1) * ((z.sm & 4) ? .75 : 1) * ((z.sm & 64) ? .4 : 1)), 'zombie', s.nm, 0, false, null);
-      if (player.dead) return;
+    if (s.boom || !s.dmg || (z.sm & 64)){ z.as = 0; continue; }
+    if (z.as === 1){ if (tn >= z.asT){ z.as = 2; z.asT = tn + .14; z.hitDone = false; } }
+    else if (z.as === 2){
+      if (!z.hitDone){
+        z.hitDone = true; beep(140 + Math.random() * 40, .12, .05);
+        if (canHit){
+          const d = Math.hypot(p.x - player.pos.x, p.z - player.pos.z);
+          if (d < s.reach + .35 && Math.abs(p.y - player.pos.y) < 1.8){
+            beep(110 + Math.random() * 40, .2, .06);
+            takeDamage(Math.round(s.dmg * (1 + Math.min(zw.n, 15) * .04) * ((z.sm & 2) ? .75 : 1) * ((z.sm & 4) ? .75 : 1)), 'zombie', s.nm, 0, false, null);
+          }
+        }
+      }
+      if (tn >= z.asT){ z.as = 3; z.asT = tn + .25; }
+    } else if (z.as === 3){ if (tn >= z.asT){ z.as = 0; z.atk = tn; } }
+    else if (tn - z.atk >= Math.max(.3, (s.cd || 1) - .55) && !(z.stun > tn)){
+      let near = false;
+      for (const q of T) if (Math.hypot(p.x - q.x, p.z - q.z) < s.reach + .15 && Math.abs(p.y - q.y) < 1.8){ near = true; break; }
+      if (near){ z.as = 1; z.asT = tn + (s.boss ? .6 : s.wreck ? .55 : s.lunge ? .27 : .4); if (Math.hypot(p.x - camera.position.x, p.z - camera.position.z) < 25) beep(85 + Math.random() * 25, .22, .04); }
     }
   }
 }
