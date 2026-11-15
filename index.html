@@ -1110,18 +1110,18 @@ transformed.z += cos(uT * 1.5 + swP * 1.3) * ${amp * .8} * position.y;
     return {
       // 소나무: 3단 × 둘레 가지 고리(아래 단일수록 길게 처짐) + 가지 위 솔잎 가지 + 맨 위 줄기
       addPine(x, y0, z, s, c){
-        const hue = .33 + .03 * c, lit = .17 + .08 * c, CNT = [[12, 9], [10, 8], [8, 6]];
+        const hue = .33 + .03 * c, lit = .17 + .08 * c, N0 = [12, 10, 8], HH = [.08, .30, .52, .74, .90], RF = [1, .8, .6, .42, .22], EL = [-.30, -.20, -.10, .02, .16];
         for (let k = 0; k < 3; k++){
           const yb = (1.2 + k * 1.2) * s, h = (2.6 - k * .3) * s, R = (1.9 - k * .5) * s;
-          for (let q = 0; q < (k === 2 ? 3 : 2); q++){
-            const n = q === 2 ? 5 : CNT[k][q], yy = y0 + yb + h * [.10, .50, .86][q], rf = [1, .66, .30][q], off = rr() * 6.2832;
+          for (let q = 0; q < 5; q++){
+            const n = Math.round(N0[k] * RF[q]) + 2, yy = y0 + yb + h * HH[q], off = rr() * 6.2832;
             for (let i = 0; i < n; i++){
-              const a = off + (i + (rr() - .5) * .5) / n * 6.2832, el = [-.26, -.10, .16][q] + (rr() - .5) * .14, ce = Math.cos(el);
-              const dx = Math.cos(a) * ce, dy = Math.sin(el), dz = Math.sin(a) * ce, L = R * rf * (.92 + rr() * .14), st = .2 * s;
-              brM.push(mat4(x, yy, z, dx, dy, dz, 1.3 * s, L * .8, 1.3 * s, UP));
-              const fl = L - st + .15 * s, fw = fl * (.62 + rr() * .18);
+              const a = off + (i + (rr() - .5) * .5) / n * 6.2832, el = EL[q] + (rr() - .5) * .14, ce = Math.cos(el);
+              const dx = Math.cos(a) * ce, dy = Math.sin(el), dz = Math.sin(a) * ce, L = R * RF[q] * (.92 + rr() * .14), st = .2 * s;
+              if (q < 3) brM.push(mat4(x, yy, z, dx, dy, dz, 1.3 * s, L * .8, 1.3 * s, UP));
+              const fl = L - st + .15 * s, fw = fl * (.80 + rr() * .22);
               frM.push(mat4(x + dx * st, yy + dy * st, z + dz * st, dx, dy, dz, fw, fl, fl, UP));
-              frC.push(col().setHSL(hue + (rr() - .5) * .02, .5, lit * (.98 + .2 * rr()) + .02 * q));
+              frC.push(col().setHSL(hue + (rr() - .5) * .02, .5, lit * (.98 + .2 * rr()) + .015 * q));
             }
           }
         }
@@ -1139,8 +1139,8 @@ transformed.z += cos(uT * 1.5 + swP * 1.3) * ${amp * .8} * position.y;
           brM.push(mat4(x, ys, z, dx, dy, dz, (lead ? 2.4 : 2.5) * s, Lb, (lead ? 2.4 : 2.5) * s, UP));
           tips.push(clampIn(new THREE.Vector3(x + dx * Lb, ys + dy * Lb, z + dz * Lb)));
           if (lead) continue;
-          for (let m = 0; m < 3; m++){
-            const t = .42 + m * .22 + rr() * .06, sx = x + dx * Lb * t, sy = ys + dy * Lb * t, sz = z + dz * Lb * t;
+          for (let m = 0; m < 4; m++){
+            const t = .34 + m * .17 + rr() * .05, sx = x + dx * Lb * t, sy = ys + dy * Lb * t, sz = z + dz * Lb * t;
             const sd = rr() < .5 ? -1 : 1, sp = .55 + rr() * .7;
             let ex = dx - dz * sd * sp, ey = dy + .25 + rr() * .45, ez = dz + dx * sd * sp; const el = Math.hypot(ex, ey, ez); ex /= el; ey /= el; ez /= el;
             const Ls = (.55 + rr() * .55) * s * (1.1 - t * .5);
@@ -1148,16 +1148,16 @@ transformed.z += cos(uT * 1.5 + swP * 1.3) * ${amp * .8} * position.y;
             tips.push(clampIn(new THREE.Vector3(sx + ex * Ls, sy + ey * Ls, sz + ez * Ls)));
           }
         }
-        const LN = 820, sp = .62 * s, V = new THREE.Vector3(), rv = new THREE.Vector3();
+        const LN = 1400, sp = .7 * s, V = new THREE.Vector3(), rv = new THREE.Vector3();
         for (let i = 0; i < LN; i++){
-          if (rr() < .8){ const T = tips[(rr() * tips.length) | 0]; V.set(T.x + (rr() + rr() + rr() - 1.5) * sp, T.y + (rr() + rr() + rr() - 1.5) * sp * .8, T.z + (rr() + rr() + rr() - 1.5) * sp); }
+          if (rr() < .62){ const T = tips[(rr() * tips.length) | 0]; V.set(T.x + (rr() + rr() + rr() - 1.5) * sp, T.y + (rr() + rr() + rr() - 1.5) * sp * .8, T.z + (rr() + rr() + rr() - 1.5) * sp); }
           else {
             let ux, uy, uz; do { ux = rr() * 2 - 1; uy = rr() * 2 - 1; uz = rr() * 2 - 1; } while (ux * ux + uy * uy + uz * uz > 1 || ux * ux + uy * uy + uz * uz < .05);
-            const ul = Math.hypot(ux, uy, uz), rad = .55 + .45 * rr(); V.set(cx + ux / ul * RX * rad, cy + uy / ul * RY * rad, cz + uz / ul * RX * rad);
+            const ul = Math.hypot(ux, uy, uz), rad = .15 + .85 * rr(); V.set(cx + ux / ul * RX * rad, cy + uy / ul * RY * rad, cz + uz / ul * RX * rad);
           }
           clampIn(V);
           let ox = (V.x - cx) / RX, oy = (V.y - cy) / RY, oz = (V.z - cz) / RX; const ol = Math.hypot(ox, oy, oz) || 1; ox /= ol; oy /= ol; oz /= ol;
-          const dx = ox * .7 + (rr() - .5) * 1.8, dy = oy * .7 + (rr() - .5) * 1.8 - .15, dz = oz * .7 + (rr() - .5) * 1.8, len = (.30 + .14 * rr()) * s;
+          const dx = ox * .7 + (rr() - .5) * 1.8, dy = oy * .7 + (rr() - .5) * 1.8 - .15, dz = oz * .7 + (rr() - .5) * 1.8, len = (.34 + .16 * rr()) * s;
           lfM.push(mat4(V.x, V.y, V.z, dx, dy, dz, len * .95, len, len, rv.set(rr() - .5, rr() - .5, rr() - .5)));
           lfC.push(col().setHSL(.20 + .07 * rr() + .02 * c, .55, .22 + .16 * rr() + (V.y > cy ? .04 : 0)));
         }
@@ -1175,22 +1175,21 @@ transformed.z += cos(uT * 1.5 + swP * 1.3) * ${amp * .8} * position.y;
     };
   };
   const U1 = ultraQ ? ultra() : null;
+  if (U1){ cones.forEach(m => m.count = 0); blobs.count = 0; }   // 초고퀄리티: 잎 덩어리·원뿔은 아예 안 그려요 (가지·잎·솔가지만)
   let pi = 0, oi = 0;
   spots.forEach((p, i) => {
     const s = p.s;
     put(trunks, i, p.x, 0, p.z, s, (p.t ? 2.4 : 2.6) * s, s); aoList.push([p.x, p.z, 1.5 * s]);
     if (!p.t){
       for (let k = 0; k < 3; k++){
-        const cs = U1 ? .58 : 1;   // 초고퀄리티: 원뿔은 안쪽 어두운 '속'으로만 남기고 겉은 솔가지가 덮어요
-        put(cones[k], pi, p.x, (1.2 + k*1.2) * s, p.z, (1.9 - k*.5) * s * cs, (2.6 - k*.3) * s * (U1 ? .92 : 1), (1.9 - k*.5) * s * cs);
-        cones[k].setColorAt(pi, lc.setHSL(.33 + .03*p.c, .5, (.17 + .08*p.c) * (U1 ? .62 : 1)));
+        put(cones[k], pi, p.x, (1.2 + k*1.2) * s, p.z, (1.9 - k*.5) * s, (2.6 - k*.3) * s, (1.9 - k*.5) * s);
+        cones[k].setColorAt(pi, lc.setHSL(.33 + .03*p.c, .5, .17 + .08*p.c));
       }
       if (U1) U1.addPine(p.x, 0, p.z, s, p.c);
       pi++;
     } else {
-      const bs = U1 ? .64 : 1;   // 초고퀄리티: 잎 덩어리는 작고 어둡게 (가지 사이로 보이는 속)
-      put(blobs, oi, p.x, 3.3 * s, p.z, 2.1 * s * bs, 1.7 * s * bs, 2.1 * s * bs);
-      blobs.setColorAt(oi, lc.setHSL(.24 + .05*p.c, .5, (.26 + .08*p.c) * (U1 ? .55 : 1))); oi++;
+      put(blobs, oi, p.x, 3.3 * s, p.z, 2.1 * s, 1.7 * s, 2.1 * s);
+      blobs.setColorAt(oi, lc.setHSL(.24 + .05*p.c, .5, .26 + .08*p.c)); oi++;
       if (U1) U1.addOak(p.x, p.z, s, p.c);
     }
     boxes.push({ minX: p.x - .35*s, maxX: p.x + .35*s, minZ: p.z - .35*s, maxZ: p.z + .35*s, top: 4 });   // 나무 기둥 충돌
@@ -1437,12 +1436,12 @@ ${optQ ? 'transformed *= 1. - smoothstep(38., 58., length(instanceMatrix[3].xz -
     const tr = mkInst(trunkG, sp.length, trunkMat());
     const cn = [0, 1, 2].map(() => mkInst(coneG, sp.length, leafMat));
     const U2 = ultraQ ? ultra() : null;
+    if (U2) cn.forEach(m => m.count = 0);
     sp.forEach((p, i) => {
       put(tr, i, p.x, p.y - .15, p.z, p.s, 2.4 * p.s, p.s);
       for (let k = 0; k < 3; k++){
-        const cs = U2 ? .58 : 1;
-        put(cn[k], i, p.x, p.y + (1.2 + k * 1.2) * p.s, p.z, (1.9 - k * .5) * p.s * cs, (2.6 - k * .3) * p.s * (U2 ? .92 : 1), (1.9 - k * .5) * p.s * cs);
-        cn[k].setColorAt(i, lc.setHSL(.33 + .03 * p.c, .5, (.17 + .08 * p.c) * (U2 ? .62 : 1)));
+        put(cn[k], i, p.x, p.y + (1.2 + k * 1.2) * p.s, p.z, (1.9 - k * .5) * p.s, (2.6 - k * .3) * p.s, (1.9 - k * .5) * p.s);
+        cn[k].setColorAt(i, lc.setHSL(.33 + .03 * p.c, .5, .17 + .08 * p.c));
       }
       if (U2) U2.addPine(p.x, p.y, p.z, p.s, p.c);
       boxes.push({ minX: p.x - .35 * p.s, maxX: p.x + .35 * p.s, minZ: p.z - .35 * p.s, maxZ: p.z + .35 * p.s, top: p.y + 4 });
