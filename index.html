@@ -806,7 +806,7 @@ const trunkMat = () => detQ ? new THREE.MeshLambertMaterial({ color: new THREE.C
 
 /* ---- 나무 기둥: 12→16각 + 세로 10단, 뿌리가 땅을 움켜쥐듯 넓어지고 결이 울퉁불퉁 ---- */
 function detTrunkGeo(){
-  const g = new THREE.CylinderGeometry(.2, .32, 1, ultraOptQ ? 10 : 16, ultraOptQ ? 6 : 10, false)   // 폰용은 기둥도 가볍게 (320→60면), p = g.attributes.position;
+  const g = new THREE.CylinderGeometry(.2, .32, 1, ultraOptQ ? 10 : 16, ultraOptQ ? 6 : 10, false), p = g.attributes.position;   // 폰용은 기둥도 가볍게 (면 수 320→60)
   for (let i = 0; i < p.count; i++){
     let x = p.getX(i), y = p.getY(i), z = p.getZ(i); const y01 = y + .5, rad = Math.hypot(x, z);
     if (rad > 1e-4){
