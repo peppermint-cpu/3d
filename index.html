@@ -304,7 +304,7 @@ background:radial-gradient(circle,rgba(255,244,220,.78) 0,rgba(255,228,188,.34) 
 </style>
 </head>
 <body>
-<div id="buildTag" style="position:fixed;left:6px;bottom:3px;font:10px monospace;color:rgba(255,255,255,.55);z-index:99999;pointer-events:none">build 62</div>
+<div id="buildTag" style="position:fixed;left:6px;bottom:3px;font:10px monospace;color:rgba(255,255,255,.55);z-index:99999;pointer-events:none">build 63</div>
 <div id="game"></div>
 <div id="sunGlow"></div>
 <div id="cine"></div><div id="grain"></div>
@@ -539,7 +539,7 @@ ${ATM_GLSL}
   float fgA = atmAmt(fgL, cameraPosition.y + fgR.y * .5);
   gl_FragColor.rgb = mix(gl_FragColor.rgb, atmHaze(dot(fgR / fgL, aSUN)), fgA);
 }
-#endif`}const skyU={uSun:{value:SUN_DIR},uT:{value:0}};const sky=new THREE.Mesh(new THREE.SphereGeometry(200,32,16),new THREE.ShaderMaterial({uniforms:skyU,side:THREE.BackSide,depthWrite:false,depthTest:liteQ,vertexShader:`varying vec3 vDir;
+#endif`}const skyU={uSun:{value:SUN_DIR},uT:{value:0}};const sky=new THREE.Mesh(new THREE.SphereGeometry(200,32,16),new THREE.ShaderMaterial({uniforms:skyU,side:THREE.BackSide,depthWrite:false,depthTest:true,vertexShader:`varying vec3 vDir;
 void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,fragmentShader:`uniform float uT; varying vec3 vDir;
 `+ATM_GLSL+`
 float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
@@ -579,7 +579,7 @@ void main(){
   col += (hash(gl_FragCoord.xy) - .5) / 255.;                       // \uD558\uB298 \uADF8\uB77C\uB370\uC774\uC158\uC758 \uB760 \uD604\uC0C1 \uBC29\uC9C0 (\uB514\uB354\uB9C1)
   gl_FragColor = vec4(col, 1.);
 }`.replace(/@OCT@/g,String(QX?6:hiQ&&!optQ?5:QXL?5:4)).replace(/\/\/ 얇은 높은 구름\(권운\)[\s\S]*?col = mix\(col, vec3\(1\.\), ci\);/,ulQ?"":"$&").replace("float c2 = fbm(uv + aSUN.xz * .10);",ulQ?"float c2 = fbm3(uv + aSUN.xz * .10) + .03;":"float c2 = fbm(uv + aSUN.xz * .10);").replace("float fbm4(vec2 p)","float fbm3(vec2 p){ float v = 0., a = .5; for (int i = 0; i < 3; i++){ v += a * noise(p); p = p * 2.03 + vec2(17.1, 9.7); a *= .5; } return v; }\nfloat fbm4(vec2 p)").replace(/smoothstep\((\.20, \.46|\.40, \.66), c\)/,TOON?ZLOOK?"smoothstep(.30, .35, c)":"smoothstep(.50, .555, c)":"$&").replace("float light = clamp(.55 + (c - c2) * 3.5, 0., 1.);",TOON?"float light = smoothstep(.45, .55, .55 + (c - c2) * 3.5);":"float light = clamp(.55 + (c - c2) * 3.5, 0., 1.);")}));
-sky.renderOrder=liteQ?1e3:-1e3;sky.frustumCulled=false;scene.add(sky);sun.castShadow=true;sun.shadow.mapSize.set(SHADOW_RES,SHADOW_RES);{const c=sun.shadow.camera;
+sky.renderOrder=1e3;sky.frustumCulled=false;scene.add(sky);sun.castShadow=true;sun.shadow.mapSize.set(SHADOW_RES,SHADOW_RES);{const c=sun.shadow.camera;
 c.near=1;c.far=220;c.left=c.bottom=-SHADOW_R;c.right=c.top=SHADOW_R;c.updateProjectionMatrix()}sun.shadow.bias=-4e-4;sun.shadow.normalBias=.06;
 sun.shadow.radius=2;scene.add(sun,sun.target);const fill=new THREE.DirectionalLight(ZLOOK?9067082:12890256,ZLOOK?.07:.1);fill.position.set(-.62,.35,-.38);
 scene.add(fill);const gunScene=new THREE.Scene;const gunCam=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.02,6);gunCam.rotation.order="YXZ";
@@ -698,9 +698,9 @@ if(t2<-.03||t2>1)continue;const tt=clamp(t2,0,1),k=SS/1024;const shade=.86+.14*t
 const wet=(1-sst(0,.45,tt))*.75,gr=sst(.62,1,tt)*.55;let r=(217+(140-217)*wet)*shade,gg=(196+(118-196)*wet)*shade,b=(143+(84-143)*wet)*shade;
 r+=(96-r)*gr;gg+=(140-gg)*gr;b+=(64-b)*gr;const i=(y*SS+x)*4;d[i]=clamp(r,0,255);d[i+1]=clamp(gg,0,255);d[i+2]=clamp(b,0,255);d[i+3]=255*(1-sst(.7,1,tt))}g.putImageData(im,0,0);
 const t=new THREE.CanvasTexture(cv);t.anisotropy=ANISO;return t})();const sand=new THREE.Mesh(new THREE.RingGeometry(LAKE.r,LAKE.r+3,64),new THREE.MeshLambertMaterial({map:sandTex,transparent:true,alphaTest:.02,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));
-sand.rotation.x=-Math.PI/2;sand.position.set(LAKE.x,.015,LAKE.z);sand.receiveShadow=true;scene.add(sand);function addBox(cx,cz,w,h,d,color){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color}));
-m.position.set(cx,h/2,cz);m.castShadow=m.receiveShadow=true;m.userData={kind:"world"};scene.add(m);worldMeshes.push(m);boxes.push({minX:cx-w/2,maxX:cx+w/2,minZ:cz-d/2,maxZ:cz+d/2,top:h})}if(detQ){[[0,-62,128,10,2,0,1],[0,62,128,10,2,0,-1],[-62,0,2,10,128,1,0],[62,0,2,10,128,-1,0]].forEach(([cx,cz,w,h,d,ix,iz])=>{const m=detCliffMesh(cx,cz,w,h,d,ix,iz);
-m.position.set(cx,h/2,cz);m.castShadow=m.receiveShadow=true;m.userData={kind:"world"};scene.add(m);worldMeshes.push(m);boxes.push({minX:cx-w/2,maxX:cx+w/2,minZ:cz-d/2,maxZ:cz+d/2,top:h})})}else{addBox(0,-62,128,10,2,7301728);
+sand.rotation.x=-Math.PI/2;sand.position.set(LAKE.x,.015,LAKE.z);sand.receiveShadow=true;scene.add(sand);const staticVis=[];function addBox(cx,cz,w,h,d,color){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color}));
+m.position.set(cx,h/2,cz);m.castShadow=m.receiveShadow=true;m.userData={kind:"world"};scene.add(m);worldMeshes.push(m);staticVis.push(m);boxes.push({minX:cx-w/2,maxX:cx+w/2,minZ:cz-d/2,maxZ:cz+d/2,top:h})}if(detQ){[[0,-62,128,10,2,0,1],[0,62,128,10,2,0,-1],[-62,0,2,10,128,1,0],[62,0,2,10,128,-1,0]].forEach(([cx,cz,w,h,d,ix,iz])=>{const m=detCliffMesh(cx,cz,w,h,d,ix,iz);
+m.position.set(cx,h/2,cz);m.castShadow=m.receiveShadow=true;m.userData={kind:"world"};scene.add(m);worldMeshes.push(m);staticVis.push(m);boxes.push({minX:cx-w/2,maxX:cx+w/2,minZ:cz-d/2,maxZ:cz+d/2,top:h})})}else{addBox(0,-62,128,10,2,7301728);
 addBox(0,62,128,10,2,7301728);addBox(-62,0,2,10,128,7301728);addBox(62,0,2,10,128,7301728)}const rng=mulberry32(20240607);const aoList=[];const rockGeo=(col,seed)=>{const g=new THREE.IcosahedronGeometry(1,QX?8:detQ?7:2),pos=g.attributes.position,n=pos.count,o=seed*7.31,base=new THREE.Color(col);
 for(let i=0;i<n;i++){let x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);const l=Math.hypot(x,y,z)||1;x/=l;y/=l;z/=l;const dd=1+(tvn3(x*1.5+o,y*1.5+o*.7,z*1.5)-.5)*.5+(tvn3(x*4+o,y*4,z*4+o)-.5)*.16+(detQ?(tvn3(x*9+o,y*9,z*9)-.5)*.06+(tvn3(x*22,y*22+o,z*22)-.5)*.022:0)+(QXM?(tvn3(x*46+o,y*46,z*46+o*.5)-.5)*.014:0);
 pos.setXYZ(i,x*dd,y*dd,z*dd)}g.computeVertexNormals();const nr=g.attributes.normal,cols=new Float32Array(n*3);for(let i=0;i<n;i++){const px=pos.getX(i),py=pos.getY(i),pz=pos.getZ(i),rl=Math.hypot(px,py,pz)||1;
@@ -711,10 +711,10 @@ cols[i*3+1]=clamp(base.g*b+(.4*mb-base.g*b)*moss,0,1);cols[i*3+2]=clamp(base.b*b
 return g};const rockCol=[8091503,9078137,6973538];for(let i=0;i<22;i++){const w=1.6+rng()*3,d=1.6+rng()*3,h=.9+rng()*1.4;const cx=(rng()-.5)*108,cz=(rng()-.5)*108,col=rockCol[Math.floor(rng()*3)],ry=rng()*6.28;
 if(Math.hypot(cx,cz)<8||hillH(cx,cz)>.05||Math.hypot(cx-LAKE.x,cz-LAKE.z)<LAKE.r+2)continue;const m=new THREE.Mesh(rockGeo(col,i),new THREE.MeshLambertMaterial({vertexColors:true}));
 m.scale.set(w*.62,h*.78,d*.62);m.position.set(cx,h*.42,cz);m.rotation.y=ry;m.castShadow=m.receiveShadow=true;m.userData={kind:"world"};aoList.push([cx,cz,Math.max(w,d)*.85]);
-scene.add(m);worldMeshes.push(m);boxes.push({minX:cx-w/2,maxX:cx+w/2,minZ:cz-d/2,maxZ:cz+d/2,top:h})}const spots=[];const okSpot=(x,z)=>Math.hypot(x-LAKE.x,z-LAKE.z)>LAKE.r+4&&Math.hypot(x,z)>7&&hillH(x,z)<.05;
-const treeSize=r=>.95+r()*.45+(r()<.25?r()*.55:0);for(let i=0;i<380&&spots.length<140;i++){const x=(rng()-.5)*112,z=(rng()-.5)*112,s=treeSize(rng),t=rng()<.65?0:1,cc=rng();
-if(okSpot(x,z)&&spots.every(q=>Math.hypot(q.x-x,q.z-z)>(q.s+s)*1.25))spots.push({x,z,s,t,c:cc})}for(let i=0;i<64;i++){const e=(rng()*2-1)*57,k=i%4,j=(rng()-.5)*3;
-spots.push({x:k<2?e:(k===2?-57:57)+j,z:k<2?(k===0?-57:57)+j:e,s:1.1+rng()*.6+(rng()<.25?rng()*.4:0),t:rng()<.7?0:1,c:rng()})}const pines=spots.filter(p=>!p.t).length,oaks=spots.length-pines;
+scene.add(m);worldMeshes.push(m);staticVis.push(m);boxes.push({minX:cx-w/2,maxX:cx+w/2,minZ:cz-d/2,maxZ:cz+d/2,top:h})}mergeWorldVisuals(staticVis);
+const spots=[];const okSpot=(x,z)=>Math.hypot(x-LAKE.x,z-LAKE.z)>LAKE.r+4&&Math.hypot(x,z)>7&&hillH(x,z)<.05;const treeSize=r=>.95+r()*.45+(r()<.25?r()*.55:0);
+for(let i=0;i<380&&spots.length<140;i++){const x=(rng()-.5)*112,z=(rng()-.5)*112,s=treeSize(rng),t=rng()<.65?0:1,cc=rng();if(okSpot(x,z)&&spots.every(q=>Math.hypot(q.x-x,q.z-z)>(q.s+s)*1.25))spots.push({x,z,s,t,c:cc})}for(let i=0;
+i<64;i++){const e=(rng()*2-1)*57,k=i%4,j=(rng()-.5)*3;spots.push({x:k<2?e:(k===2?-57:57)+j,z:k<2?(k===0?-57:57)+j:e,s:1.1+rng()*.6+(rng()<.25?rng()*.4:0),t:rng()<.7?0:1,c:rng()})}const pines=spots.filter(p=>!p.t).length,oaks=spots.length-pines;
 const mkInst=(geo,n,mat)=>{const m=new THREE.InstancedMesh(geo,mat,n);m.castShadow=m.receiveShadow=true;m.frustumCulled=false;m.userData={kind:"world"};
 scene.add(m);worldMeshes.push(m);return m};const trunkG=detQ?detTrunkGeo():new THREE.CylinderGeometry(.2,.32,1,7);if(!detQ)trunkG.translate(0,.5,0);
 const coneG=detQ?detConeGeo():new THREE.ConeGeometry(1,1,8);if(!detQ)coneG.translate(0,.5,0);const leafMat=detQ?new THREE.MeshLambertMaterial({color:new THREE.Color(1.4,1.4,1.4),map:detLeafTex(),vertexColors:true}):new THREE.MeshLambertMaterial({color:16777215});
@@ -1260,12 +1260,22 @@ g.clearRect(0,0,256,64);g.textAlign="center";g.textBaseline="middle";g.strokeSty
 g.strokeText(text,128,20);g.fillStyle="#fff";g.fillText(text,128,20);g.font="bold 22px sans-serif";g.lineWidth=5;g.strokeText(sub,128,47);g.fillStyle="#fde047";
 g.fillText(sub,128,47)}else{g.font="bold 34px sans-serif";g.strokeText(text,128,32);g.fillStyle="#fff";g.fillText(text,128,32)}spr2.material.map.needsUpdate=true}function makeLabel(text){const c=document.createElement("canvas");
 c.width=256;c.height=64;const spr2=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true}));spr2.scale.set(2.2,.55,1);
-spr2.position.y=2.25;spr2.userData.cv=c;drawLabel(spr2,text,"");return spr2}const _avGun={};function avGunTemplate(wid){if(_avGun[wid])return _avGun[wid];
-const spec=GUNS[wid],g=new THREE.Group;const add=(p,parent)=>{const fl=p[7]||"",m=new THREE.Mesh(gunGeo(p,fl),gunMat(p[6],fl));m.position.set(p[3],p[4],p[5]);
-parent.add(m);return m};(QXG?qxParts(wid):spec.parts).forEach(p=>{if(p[6]!==SKIN)add(p,g)});const mi=MAGIDX[wid],mg=mi!=null?g.children[mi]:null;
+spr2.position.y=2.25;spr2.userData.cv=c;drawLabel(spr2,text,"");return spr2}function matKey(m){return[m.type,m.color?m.color.getHex():0,m.emissive?m.emissive.getHex():0,m.specular?m.specular.getHex():0,m.shininess,m.map?m.map.uuid:0,m.bumpMap?m.bumpMap.uuid:0,m.bumpScale,m.envMap?1:0,m.reflectivity,m.combine,m.transparent?1:0,m.opacity,m.depthWrite?1:0,m.depthTest?1:0,m.side,m.vertexColors?1:0,m.flatShading?1:0,m.alphaTest,m.polygonOffset?1:0,m.fog?1:0,m.onBeforeCompile===THREE.Material.prototype.onBeforeCompile?0:1].join("|")}function mergeMeshGroups(list,inv){const by=new Map,rel=new THREE.Matrix4,out=[];
+for(const o of list){const A=o.geometry.attributes;if(Array.isArray(o.material)||!A.position||!A.normal||o.isInstancedMesh||o.geometry.morphAttributes.position)continue;
+const names=Object.keys(A).sort();if(names.some(n=>A[n].isInterleavedBufferAttribute||A[n].normalized))continue;const k=matKey(o.material)+"|"+names.map(n=>n+A[n].itemSize).join(",")+"|"+(o.castShadow?1:0)+(o.receiveShadow?1:0)+"|"+(o.renderOrder|0)+"|"+o.frustumCulled;
+let g=by.get(k);if(!g){g={names,list:[]};by.set(k,g)}g.list.push(o)}by.forEach(g=>{if(g.list.length<2)return;const geos=g.list.map(o=>{const q=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();
+rel.copy(o.matrixWorld);if(inv)rel.premultiply(inv);q.applyMatrix4(rel);return q});let n=0;geos.forEach(q=>n+=q.attributes.position.count);const mg=new THREE.BufferGeometry;
+g.names.forEach(nm=>{const sz=geos[0].attributes[nm].itemSize,arr=new Float32Array(n*sz);let at=0;geos.forEach(q=>{arr.set(q.attributes[nm].array,at*sz);
+at+=q.attributes.position.count});mg.setAttribute(nm,new THREE.BufferAttribute(arr,sz))});geos.forEach(q=>q.dispose());const f=g.list[0],m=new THREE.Mesh(mg,f.material);
+m.castShadow=f.castShadow;m.receiveShadow=f.receiveShadow;m.renderOrder=f.renderOrder;m.frustumCulled=f.frustumCulled;out.push({mesh:m,from:g.list})});
+return out}function mergeStaticMeshes(root){let res;try{root.updateMatrixWorld(true);const all=[];root.traverse(o=>{if(o.isMesh&&!o.isInstancedMesh&&o!==root&&o.visible)all.push(o)});
+const ok=new Set(all);for(let ch=true;ch;){ch=false;for(const o of all)if(ok.has(o)&&o.children.some(c=>!ok.has(c))){ok.delete(o);ch=true}}res=mergeMeshGroups(all.filter(o=>ok.has(o)),new THREE.Matrix4().copy(root.matrixWorld).invert())}catch(e){return}res.forEach(r=>{r.from.forEach(o=>{if(o.parent)o.parent.remove(o)});
+root.add(r.mesh)})}function mergeWorldVisuals(list){let res;try{scene.updateMatrixWorld(true);res=mergeMeshGroups(list.filter(o=>o.visible),null)}catch(e){return}res.forEach(r=>{r.from.forEach(o=>{o.visible=false});
+scene.add(r.mesh)})}const _avGun={};function avGunTemplate(wid){if(_avGun[wid])return _avGun[wid];const spec=GUNS[wid],g=new THREE.Group;const add=(p,parent)=>{const fl=p[7]||"",m=new THREE.Mesh(gunGeo(p,fl),gunMat(p[6],fl));
+m.position.set(p[3],p[4],p[5]);parent.add(m);return m};(QXG?qxParts(wid):spec.parts).forEach(p=>{if(p[6]!==SKIN)add(p,g)});const mi=MAGIDX[wid],mg=mi!=null?g.children[mi]:null;
 (spec.d||[]).forEach(p=>{if(p[6]!==SKIN)add(p,(p[7]||"").indexOf("M")>=0&&mg?mg:g)});if(QXG&&!(WEAPONS.find(w=>w.id===wid)||{}).melee){qxMag(mg,wid);
 if(QX)gunXtra(wid).forEach(p=>add(p,g))}const tip=new THREE.Object3D;tip.name="tip";tip.position.set(0,.015,spec.tip);g.add(tip);g.position.set(0,-.21,-.46);
-return _avGun[wid]=g}function setAvatarGun(av,wi){wi=clamp(wi|0,0,WEAPONS.length-1);if(av.gunW===wi)return;av.gunW=wi;const holder=av.parts.gun;
+mergeStaticMeshes(g);return _avGun[wid]=g}function setAvatarGun(av,wi){wi=clamp(wi|0,0,WEAPONS.length-1);if(av.gunW===wi)return;av.gunW=wi;const holder=av.parts.gun;
 while(holder.children.length)holder.remove(holder.children[0]);const c=avGunTemplate(WEAPONS[wi].id).clone();holder.add(c);av.gunTip=c.getObjectByName("tip")}function makeAvatar(name,color,userData){const grp=new THREE.Group,pivot=new THREE.Group;
 grp.add(pivot);const skin=new THREE.MeshLambertMaterial({color:14725264});const cloth=new THREE.MeshLambertMaterial({color});const pants=new THREE.MeshLambertMaterial({color:2963272});
 const limbs={};const mk=(geo,mat,x,y,z,part)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.userData=Object.assign({part},userData);
@@ -1378,9 +1388,8 @@ function showMsg(text,ms2){const m=$("msg");m.textContent=text;m.style.opacity=1
 d.className="fi";const a=document.createElement("b");a.className="k";a.textContent=killer;const m=document.createElement("span");m.className="w";
 m.textContent="["+WEAPONS[clamp(w|0,0,WEAPONS.length-1)].short+(head?" \u2605HS":"")+"]";const v=document.createElement("b");v.className="v";
 v.textContent=victim;d.append(a,m,v);const f=$("feed");f.appendChild(d);setTimeout(()=>d.remove(),5e3);while(f.children.length>6)f.removeChild(f.firstChild)}function hitMarker(head){const h=$("hitm");
-h.className="hud"+(head?" head":"");h.style.opacity=1;clearTimeout(hitMarker.t);hitMarker.t=setTimeout(()=>h.style.opacity=0,120);beep(head?1400:900,.06,.06)}let TREASURE=null;
-function collectTargets(){const t=worldMeshes.slice();if(zmode){for(const id in zomb)for(const m of zomb[id].av.hit)t.push(m);if(TREASURE)t.push(TREASURE.hit);
-return t}for(const id in remotes){const r=remotes[id];if(!r.dead){for(const m of r.hit)if(!m.userData.gone)t.push(m)}}for(const b of bots)if(!b.dead){for(const m of b.hit)if(!m.userData.gone)t.push(m)}return t}function dropMag(mg){const pos=mg.getWorldPosition(new THREE.Vector3),q=mg.getWorldQuaternion(new THREE.Quaternion);
+h.className="hud"+(head?" head":"");h.style.opacity=1;clearTimeout(hitMarker.t);hitMarker.t=setTimeout(()=>h.style.opacity=0,120);beep(head?1400:900,.06,.06)}function collectTargets(){const t=worldMeshes.slice();
+if(zmode){for(const id in zomb)for(const m of zomb[id].av.hit)t.push(m);return t}for(const id in remotes){const r=remotes[id];if(!r.dead){for(const m of r.hit)if(!m.userData.gone)t.push(m)}}for(const b of bots)if(!b.dead){for(const m of b.hit)if(!m.userData.gone)t.push(m)}return t}function dropMag(mg){const pos=mg.getWorldPosition(new THREE.Vector3),q=mg.getWorldQuaternion(new THREE.Quaternion);
 spawnGib(mg.geometry,new THREE.MeshLambertMaterial({color:mg.material.color}),pos,q,new THREE.Vector3((Math.random()-.5)*1.5,-1,(Math.random()-.5)*1.5));
 beep(260,.05,.04)}const corpses=[],_cq=new THREE.Quaternion,_cu=new THREE.Vector3,_cUp=new THREE.Vector3(0,1,0);function spawnCorpse(av,x,y,z,yaw,dx,dz){const root=new THREE.Group,inner=new THREE.Group;
 const saved=[];av.pivot.traverse(o=>{saved.push([o,o.userData]);o.userData={}});const cl=av.pivot.clone(true);saved.forEach(s=>{s[0].userData=s[1]});
@@ -1407,13 +1416,13 @@ g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);o.c
 const src=ac.createBufferSource();src.buffer=noiseBuf;const f=ac.createBiquadFilter();f.type="lowpass";f.frequency.value=1400;const g2=ac.createGain();
 g2.gain.setValueAtTime(vol*.8,t);g2.gain.exponentialRampToValueAtTime(.001,t+dur*.6);src.connect(f);f.connect(g2);g2.connect(ac.destination);
 src.start(t,Math.random()*.5);src.stop(t+dur)}function meleeCast(w,offs,max,bc){scene.updateMatrixWorld(true);const origin=camera.getWorldPosition(new THREE.Vector3);
-const targets=collectTargets(),done=new Set,agg={};let hit=false,head=false,wall=null,n=0,tPt=null;for(const o of offs){if(n>=max)break;const dir=new THREE.Vector3(o[0],o[1],-1).applyQuaternion(camera.quaternion).normalize();
+const targets=collectTargets(),done=new Set,agg={};let hit=false,head=false,wall=null,n=0;for(const o of offs){if(n>=max)break;const dir=new THREE.Vector3(o[0],o[1],-1).applyQuaternion(camera.quaternion).normalize();
 raycaster.set(origin,dir);raycaster.far=w.range;const h=raycaster.intersectObjects(targets,false)[0];if(!h)continue;const ud=h.object.userData;
-if(ud.kind==="treasure"){if(!tPt)tPt=h.point.clone();continue}if(ud.kind!=="player"&&ud.kind!=="bot"&&ud.kind!=="zombie"){if(!wall)wall=h.point.clone();
-continue}const key=ud.kind==="bot"?ud.bot:ud.kind==="zombie"?ud.zid:ud.id;if(done.has(key))continue;done.add(key);n++;const part=ud.part,d=w.dmg*(PART_MUL[part]||1);
-hit=true;head=head||part==="head";spawnBlood(h.point,bc||bloodCount(part),3.2,dir);if(ud.kind==="player"){agg[ud.id]={dmg:d,head:part==="head",parts:{[part]:d}}}else if(ud.kind==="zombie")zShoot(ud.zid,d,part==="head",part);
-else if(!ud.bot.dead)damageBot(ud.bot,d,part)}if(tPt&&!w.saw){treasureHit(tPt);hit=true}if(hit)hitMarker(head);for(const id in agg){const e=agg[id],pr={};
-for(const k in e.parts)pr[k]=Math.round(e.parts[k]);send("hit",{to:id,dmg:Math.round(e.dmg),parts:pr,from:myId,fromName:myName,w:cur,head:e.head})}return{hit,head,wall,n}}const MOFF=[[[0,0],[-.3,0],[.3,0],[-.6,0],[.6,0]],[[0,0],[-.3,0],[.3,0],[-.6,0],[.6,0]],[[0,0],[0,-.25],[-.3,0],[.3,0],[0,.2]],[[0,0]],[[0,0],[0,-.3],[-.35,0],[.35,0],[-.35,-.3],[.35,-.3]]];
+if(ud.kind!=="player"&&ud.kind!=="bot"&&ud.kind!=="zombie"){if(!wall)wall=h.point.clone();continue}const key=ud.kind==="bot"?ud.bot:ud.kind==="zombie"?ud.zid:ud.id;
+if(done.has(key))continue;done.add(key);n++;const part=ud.part,d=w.dmg*(PART_MUL[part]||1);hit=true;head=head||part==="head";spawnBlood(h.point,bc||bloodCount(part),3.2,dir);
+if(ud.kind==="player"){agg[ud.id]={dmg:d,head:part==="head",parts:{[part]:d}}}else if(ud.kind==="zombie")zShoot(ud.zid,d,part==="head",part);
+else if(!ud.bot.dead)damageBot(ud.bot,d,part)}if(hit)hitMarker(head);for(const id in agg){const e=agg[id],pr={};for(const k in e.parts)pr[k]=Math.round(e.parts[k]);
+send("hit",{to:id,dmg:Math.round(e.dmg),parts:pr,from:myId,fromName:myName,w:cur,head:e.head})}return{hit,head,wall,n}}const MOFF=[[[0,0],[-.3,0],[.3,0],[-.6,0],[.6,0]],[[0,0],[-.3,0],[.3,0],[-.6,0],[.6,0]],[[0,0],[0,-.25],[-.3,0],[.3,0],[0,.2]],[[0,0]],[[0,0],[0,-.3],[-.35,0],[.35,0],[-.35,-.3],[.35,-.3]]];
 function meleeAttack(w){if(w.saw){if(sawIg.done)sawTick(w);return}const P=MELEE[w.id]||MELEE.knife,t=now();lastShot=t;protUntil=0;ms.combo=t-ms.end<.9?(ms.combo+1)%P.seq.length:0;
 ms.on=true;ms.t0=t;ms.idx=cur;ms.type=P.seq[ms.combo];ms.w=P.w;ms.h=P.h;ms.r=P.r;ms.hit=false;ms.end=t+P.w+P.h+P.r;playSwoosh(w.id==="hammer"?.5:.32,w.id==="hammer"?260:520,P.w+P.h*1.2)}function meleeStrike(w){const P=MELEE[w.id]||MELEE.knife;
 const r=meleeCast(w,MOFF[ms.type],P.max,w.id==="hammer"?22:null);const hv=w.id==="hammer";if(r.hit){camShake=Math.max(camShake,P.shk);kick=Math.max(kick,hv?1.4:.7);
@@ -1480,10 +1489,10 @@ const g=b.avatar.group.position;_bc.set(g.x,g.y+1,g.z);const d=blastDmg(w,pos,_b
 const d=blastDmg(w,pos,_bc)*.5;if(d>=1)takeDamage(Math.round(d),myId,myName,wi,false,null)}if(any)hitMarker(false)}function updateRockets(dt){for(let i=rockets.length-1;
 i>=0;i--){const r=rockets[i],w=WEAPONS[r.wi];r.t+=dt;if(r.gr){r.p.addScaledVector(r.v,dt);r.p.y-=.5*r.gr*dt*dt;r.v.y-=r.gr*dt;r.d.copy(r.v).normalize()}else r.p.addScaledVector(r.d,(26+44*Math.min(1,r.t/.9))*dt);
 if(r.own){_rkV.copy(r.p).sub(r.prev);const L=_rkV.length();let ex=null;if(L>1e-4){_rkV.divideScalar(L);raycaster.set(r.prev,_rkV);raycaster.far=L+.12;
-const h=raycaster.intersectObjects(collectTargets(),false)[0];if(h){if(h.object.userData&&h.object.userData.kind==="treasure")treasureHit(h.point);
-const n=h.face?h.face.normal.clone().transformDirection(h.object.matrixWorld):_rkV.clone().negate();if(n.dot(_rkV)>0)n.negate();ex=h.point.clone().addScaledVector(n,.18)}}if(!ex){const gy=groundAt(r.p.x,r.p.z,r.p.y+.6);
-if(r.p.y<=gy+.05)ex=new THREE.Vector3(r.p.x,gy+.15,r.p.z);else if(Math.abs(r.p.x)>60||Math.abs(r.p.z)>60||r.t>(r.gr?9:5)||r.p.distanceTo(r.org)>w.range)ex=r.p.clone()}if(ex){rmRocket(i);
-explodeMine(ex,r.k,r.wi);continue}r.prev.copy(r.p)}else if(r.t>(r.gr?10:6)){rmRocket(i);continue}r.m.position.copy(r.p);if(r.gr){r.m.quaternion.setFromUnitVectors(_rkF,r.d);
+const h=raycaster.intersectObjects(collectTargets(),false)[0];if(h){const n=h.face?h.face.normal.clone().transformDirection(h.object.matrixWorld):_rkV.clone().negate();
+if(n.dot(_rkV)>0)n.negate();ex=h.point.clone().addScaledVector(n,.18)}}if(!ex){const gy=groundAt(r.p.x,r.p.z,r.p.y+.6);if(r.p.y<=gy+.05)ex=new THREE.Vector3(r.p.x,gy+.15,r.p.z);
+else if(Math.abs(r.p.x)>60||Math.abs(r.p.z)>60||r.t>(r.gr?9:5)||r.p.distanceTo(r.org)>w.range)ex=r.p.clone()}if(ex){rmRocket(i);explodeMine(ex,r.k,r.wi);
+continue}r.prev.copy(r.p)}else if(r.t>(r.gr?10:6)){rmRocket(i);continue}r.m.position.copy(r.p);if(r.gr){r.m.quaternion.setFromUnitVectors(_rkF,r.d);
 r.tr-=dt;if(r.tr<=0){r.tr=liteQ?.07:.04;_rkW.copy(r.p).addScaledVector(r.d,-.2);smokePuff(_rkW,.07,.38,.6,13816530,.38,null)}continue}r.m.userData.flame.scale.z=.7+Math.random()*.7;
 r.tr-=dt;if(r.tr<=0){r.tr=liteQ?.05:.028;_rkW.copy(r.p).addScaledVector(r.d,-.55);smokePuff(_rkW,.16,.75,.75,12434877,.5,null)}}}function lobDir(muzzle,aim,v,g,d0){const dx=aim.x-muzzle.x,dz=aim.z-muzzle.z,x=Math.hypot(dx,dz),y=aim.y-muzzle.y;
 if(x<.6)return null;const v2=v*v,disc=v2*v2-g*(g*x*x+2*y*v2);if(disc<0)return null;const ta=(v2-Math.sqrt(disc))/(g*x),c=1/Math.sqrt(1+ta*ta);
@@ -1587,16 +1596,14 @@ else if(++gxMort[id].miss>8)rmMortar(id)}}}function fire(){const w=WEAPONS[cur],
 return}if(w.gear){useGear(w);return}if(w.mortar){fireMortar(w);return}a.mag--;lastShot=now();protUntil=0;const moving=Math.hypot(player.vel.x,player.vel.z)>1;
 const sp=armPen()*w.spread*(crouch?.7:1)*(ads?.35:1)*(moving?1.8:1)*(player.onGround?1:2.5)*attMul(cur,"spr")*(moving?attMul(cur,"mv"):1);const origin=camera.getWorldPosition(new THREE.Vector3);
 const muzzle=gunGroup.userData.tip.getWorldPosition(new THREE.Vector3);if(spr>.05)muzzle.copy(new THREE.Vector3(.24,-.18,-.8).applyQuaternion(camera.quaternion).add(origin));
-spr=0;const targets=collectTargets();const agg={};let firstEnd=null,anyHit=false,anyHead=false,firstPart="",tPt=null;for(let i=0;i<w.pellets;
-i++){const dir=new THREE.Vector3((Math.random()-.5)*2*sp,(Math.random()-.5)*2*sp,-1).applyQuaternion(camera.quaternion).normalize();raycaster.set(origin,dir);
-raycaster.far=w.range;const hits=raycaster.intersectObjects(targets,false);let end=origin.clone().addScaledVector(dir,w.range);if(hits.length){const h=hits[0];
-end=h.point.clone();const ud=h.object.userData;if(ud.kind==="player"||ud.kind==="bot"||ud.kind==="zombie"){const part=ud.part;let d=w.dmg*attMul(cur,"dmg");
-if(w.range<100)d*=Math.max(.25,1-h.distance/w.range);d*=PART_MUL[part]||1;const head=part==="head";anyHit=true;anyHead=anyHead||head;if(i===0)firstPart=part;
-spawnBlood(h.point,bloodCount(part),3.2,dir);if(ud.kind==="player"){const e=agg[ud.id]||(agg[ud.id]={dmg:0,head:false,parts:{}});e.dmg+=d;e.head=e.head||head;
-e.parts[part]=(e.parts[part]||0)+d}else if(ud.kind==="zombie"){zShoot(ud.zid,d,head,part)}else if(!ud.bot.dead){damageBot(ud.bot,d,part)}}else if(ud.kind==="treasure"){if(!tPt)tPt=h.point.clone()}else if(i<3)impact(end)}if(i===0)firstEnd=end}tracer(muzzle,firstEnd,16771488);
+spr=0;const targets=collectTargets();const agg={};let firstEnd=null,anyHit=false,anyHead=false,firstPart="";for(let i=0;i<w.pellets;i++){const dir=new THREE.Vector3((Math.random()-.5)*2*sp,(Math.random()-.5)*2*sp,-1).applyQuaternion(camera.quaternion).normalize();
+raycaster.set(origin,dir);raycaster.far=w.range;const hits=raycaster.intersectObjects(targets,false);let end=origin.clone().addScaledVector(dir,w.range);
+if(hits.length){const h=hits[0];end=h.point.clone();const ud=h.object.userData;if(ud.kind==="player"||ud.kind==="bot"||ud.kind==="zombie"){const part=ud.part;
+let d=w.dmg*attMul(cur,"dmg");if(w.range<100)d*=Math.max(.25,1-h.distance/w.range);d*=PART_MUL[part]||1;const head=part==="head";anyHit=true;
+anyHead=anyHead||head;if(i===0)firstPart=part;spawnBlood(h.point,bloodCount(part),3.2,dir);if(ud.kind==="player"){const e=agg[ud.id]||(agg[ud.id]={dmg:0,head:false,parts:{}});
+e.dmg+=d;e.head=e.head||head;e.parts[part]=(e.parts[part]||0)+d}else if(ud.kind==="zombie"){zShoot(ud.zid,d,head,part)}else if(!ud.bot.dead){damageBot(ud.bot,d,part)}}else if(i<3)impact(end)}if(i===0)firstEnd=end}tracer(muzzle,firstEnd,16771488);
 playShot(cur,.7*attMul(cur,"snd"));if(!w.quiet){gunGroup.userData.flash.visible=true;{const fl=gunGroup.userData.flash;if(fl.userData.sp)fl.userData.sp.material.rotation=Math.random()*6.28}setTimeout(()=>{if(gunGroup)gunGroup.userData.flash.visible=false},65)}muzzleLight(muzzle,clamp(attMul(cur,"flash"),.15,1.2)*(WEAPONS[cur].id==="awm"||WEAPONS[cur].id==="s12k"||WEAPONS[cur].id==="m82"||WEAPONS[cur].id==="aa12"?1.5:1),true,null,origin.distanceTo(firstEnd));
-if(tPt){treasureHit(tPt);anyHit=true}if(anyHit)hitMarker(anyHead);for(const id in agg){const pr={};for(const k in agg[id].parts)pr[k]=Math.round(agg[id].parts[k]);
-send("hit",{to:id,dmg:Math.round(agg[id].dmg),parts:pr,from:myId,fromName:myName,w:cur,head:agg[id].head})}if(now()-lastShotSend>Math.max(.09,netN()*netN()/80)*netSlow){lastShotSend=now();
+if(anyHit)hitMarker(anyHead);for(const id in agg){const pr={};for(const k in agg[id].parts)pr[k]=Math.round(agg[id].parts[k]);send("hit",{to:id,dmg:Math.round(agg[id].dmg),parts:pr,from:myId,fromName:myName,w:cur,head:agg[id].head})}if(now()-lastShotSend>Math.max(.09,netN()*netN()/80)*netSlow){lastShotSend=now();
 send("shot",{id:myId,f:muzzle.toArray(),t:firstEnd.toArray(),w:cur,h:firstPart?1:0,hp:firstPart,q:attMul(cur,"snd")<.5?1:0})}const rc=w.recoil*RECOIL_K*(ads?.6:1)*attMul(cur,"rec");
 player.pitch=clamp(player.pitch+rc,-1.5,1.5);player.yaw+=(Math.random()-.5)*rc*.7;kick=1;if(gunGroup.userData.belt)gunGroup.userData.belt.tg++;
 ejectCasing(w.id);if(a.mag===0)startReload()}function damageBot(b,d,part){b.hp-=d;const bit=limbHit(b,part,d);if(b.hp<=0){b.dead=true;b.respawnAt=now()+4;
@@ -2496,12 +2503,12 @@ if(!joined){camera.position.set(0,14,0);camera.rotation.set(-.25,camera.rotation
 return}const w=WEAPONS[cur],a=ammo[cur];ads=mouseR&&locked&&!player.dead&&!reloading&&!w.melee&&!w.mortar&&!w.gear&&drawT<=0;if(locked&&!player.dead){if(noLock)edgeLook(dt);
 updatePlayer(dt);if(!player.onGround)fallV=Math.min(fallV,player.vel.y);else{if(fallV<-5)camLand=Math.min(.2,-fallV*.011)*shake;fallV=0}if(reloading&&t>=reloadEnd){const need=magCap(cur)-a.mag,take=Math.min(need,a.res);
 a.mag+=take;a.res-=take;reloading=false}if(firing&&!reloading&&drawT<=0&&t-lastShot>=w.delay){if(a.mag>0){if(w.auto||semiReady){fire();semiReady=false}}else startReload()}}updateBots(dt);
-if(zmode)zTick(dt);if(TREASURE)treasureTick(dt);updateEffects();updateRockets(dt);updateBooms(dt);updateGear(dt);updateGore(dt);updateCorpses(dt);
-updateCasings(dt);selfAv.group.visible=!player.dead&&shadowFx;selfAv.group.position.copy(player.pos);selfAv.group.rotation.y=player.yaw;selfAv.crouch=crouch;
-setLimbs(selfAv,lm.mask,false);animateAvatar(selfAv,dt,Math.hypot(player.vel.x,player.vel.z),player.vel.y,player.pitch);checkRound();updateRoundHud(dt);
-const crawling=(lm.mask&24)===24;eyeH+=((player.dead?.4:crawling?.55:crouch?1.05:1.6)-eyeH)*clamp(10*dt,0,1);const eye=eyeH;const cs=Math.hypot(player.vel.x,player.vel.z),cm=player.onGround&&!player.dead&&cs>1;
-camBob+=dt*(cm?cs>7?13:9.5:0);camBobA+=((cm?ads?.004:cs>7?.04:.022:0)*shake-camBobA)*clamp(8*dt,0,1);camLand*=Math.exp(-7*dt);const lat2=player.vel.x*Math.cos(player.yaw)-player.vel.z*Math.sin(player.yaw);
-camRoll+=(clamp(-lat2*.0035,-.03,.03)*shake-camRoll)*clamp(7*dt,0,1);aimPos.set(player.pos.x,player.pos.y+eye,player.pos.z);camera.position.set(player.pos.x,player.pos.y+eye+Math.sin(camBob)*camBobA-camLand,player.pos.z);
+if(zmode)zTick(dt);updateEffects();updateRockets(dt);updateBooms(dt);updateGear(dt);updateGore(dt);updateCorpses(dt);updateCasings(dt);selfAv.group.visible=!player.dead&&shadowFx;
+selfAv.group.position.copy(player.pos);selfAv.group.rotation.y=player.yaw;selfAv.crouch=crouch;setLimbs(selfAv,lm.mask,false);animateAvatar(selfAv,dt,Math.hypot(player.vel.x,player.vel.z),player.vel.y,player.pitch);
+checkRound();updateRoundHud(dt);const crawling=(lm.mask&24)===24;eyeH+=((player.dead?.4:crawling?.55:crouch?1.05:1.6)-eyeH)*clamp(10*dt,0,1);
+const eye=eyeH;const cs=Math.hypot(player.vel.x,player.vel.z),cm=player.onGround&&!player.dead&&cs>1;camBob+=dt*(cm?cs>7?13:9.5:0);camBobA+=((cm?ads?.004:cs>7?.04:.022:0)*shake-camBobA)*clamp(8*dt,0,1);
+camLand*=Math.exp(-7*dt);const lat2=player.vel.x*Math.cos(player.yaw)-player.vel.z*Math.sin(player.yaw);camRoll+=(clamp(-lat2*.0035,-.03,.03)*shake-camRoll)*clamp(7*dt,0,1);
+aimPos.set(player.pos.x,player.pos.y+eye,player.pos.z);camera.position.set(player.pos.x,player.pos.y+eye+Math.sin(camBob)*camBobA-camLand,player.pos.z);
 camShake*=Math.exp(-4.5*dt);const csk=camShake*.03*shake;camera.rotation.set(player.pitch+(Math.random()-.5)*csk,player.yaw+(Math.random()-.5)*csk,player.dead?.9:camRoll+Math.cos(camBob*.5)*camBobA*.12);
 const sgt=sightOf(cur);const targetFov=ads?75/(sgt?sgt.zoom:w.zoom):75+spr*6;if(Math.abs(camera.fov-targetFov)>.05){camera.fov+=(targetFov-camera.fov)*clamp(14*dt,0,1);
 camera.updateProjectionMatrix()}const scoped=ads&&w.scope&&camera.fov<30;hCss("scope","display",scoped?"block":"none");hCss("cross","display",scoped||player.dead||ads&&sightOf(cur)?"none":"block");
@@ -2524,31 +2531,10 @@ mg.position.copy(mp)}else if(pr<.3){mg.visible=true;mg.position.set(mp.x,mp.y-pr
 dropMag(mg)}}else{mg.visible=true;mg.position.set(mp.x,mp.y-(.8-pr)/.3*.35,mp.z)}}}const spread=armPen()*w.spread*(ads?.35:1)*(Math.hypot(player.vel.x,player.vel.z)>1?1.8:1)*(player.onGround?1:2.5);
 {const gp=Math.round((5+spread*900)*4)/4;if(_hc.gap!==gp){_hc.gap=gp;hEl("cross").style.setProperty("--g",gp+"px")}}sendT+=dt;if(sendT>=posGap()){sendT=0;
 sendPos()}updateHud();renderFrame()}equip(0);const selfAv=makeAvatar("",3900150,{});selfAv.label.visible=false;selfAv.group.visible=false;selfAv.group.traverse(o=>{if(o.material){o.material.colorWrite=false;
-o.material.depthWrite=false}});if(gunGroup)gunGroup.visible=false;const TREASURE_COIN=1e4;function treasureSpot(){const clear=(x,z,R2)=>boxes.every(b=>x+R2<b.minX||x-R2>b.maxX||z+R2<b.minZ||z-R2>b.maxZ);
-for(const c of[[1,1],[-1,1],[-1,-1],[1,-1]]){for(let r=56.5;r>=50;r-=.5){const x=c[0]*r,z=c[1]*r;if(clear(x,z,2)&&hillH(x,z)<.05&&!inLake(x,z))return{x,z}}}return null}function glowTex(){const cv=document.createElement("canvas");
-cv.width=cv.height=64;const c=cv.getContext("2d");const g=c.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,"rgba(255,244,200,1)");g.addColorStop(.25,"rgba(255,205,80,.75)");
-g.addColorStop(.6,"rgba(255,160,30,.22)");g.addColorStop(1,"rgba(255,140,0,0)");c.fillStyle=g;c.fillRect(0,0,64,64);return new THREE.CanvasTexture(cv)}function coinFaceTex(){const cv=document.createElement("canvas");
-cv.width=cv.height=128;const c=cv.getContext("2d");const g=c.createRadialGradient(64,56,6,64,64,64);g.addColorStop(0,"#fff0a8");g.addColorStop(.7,"#ffcf3a");
-g.addColorStop(1,"#e0961a");c.fillStyle=g;c.beginPath();c.arc(64,64,63,0,6.2832);c.fill();c.strokeStyle="#b8780f";c.lineWidth=6;c.beginPath();
-c.arc(64,64,52,0,6.2832);c.stroke();c.fillStyle="#a86a0a";c.font="bold 44px sans-serif";c.textAlign="center";c.textBaseline="middle";c.fillText("10K",64,68);
-const t=new THREE.CanvasTexture(cv);return t}function buildTreasure(){const sp=treasureSpot();if(!sp)return;const grp=new THREE.Group;grp.position.set(sp.x,0,sp.z);
-const ped=new THREE.Mesh(new THREE.CylinderGeometry(.26,.34,.5,10),new THREE.MeshLambertMaterial({color:5919304}));ped.position.y=.25;grp.add(ped);
-const face=new THREE.MeshBasicMaterial({map:coinFaceTex(),toneMapped:false,fog:false}),edge=new THREE.MeshBasicMaterial({color:16758812,toneMapped:false,fog:false});
-const coin=new THREE.Mesh(new THREE.CylinderGeometry(.2,.2,.05,28).rotateX(Math.PI/2),[edge,face,face]);coin.position.y=1.2;grp.add(coin);const gt=glowTex();
-const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:gt,color:16761914,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,fog:false,toneMapped:false}));
-glow.scale.setScalar(2.2);glow.position.y=1.2;grp.add(glow);const beam=new THREE.Mesh(new THREE.CylinderGeometry(.06,.11,14,10,1,true),new THREE.MeshBasicMaterial({color:16761914,transparent:true,opacity:.13,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false,toneMapped:false}));
-beam.position.y=7.3;grp.add(beam);const pool=new THREE.Mesh(new THREE.PlaneGeometry(2.8,2.8).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({map:gt,color:16761914,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,opacity:.8,fog:false,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
-pool.position.y=.05;grp.add(pool);const hit=new THREE.Mesh(new THREE.SphereGeometry(.5,8,6),new THREE.MeshBasicMaterial({visible:false}));hit.position.y=1.2;
-hit.userData={kind:"treasure"};grp.add(hit);scene.add(grp);TREASURE={grp,coin,glow,beam,hit,x:sp.x,z:sp.z,pulse:0,last:-9,st:0}}function treasureFx(pt){const t=now(),n=ulQ?6:14;
-for(let i=0;i<n;i++){const m=new THREE.Mesh(RKG.spark,fxMat("p",i%2?16765514:16773536,1));m.position.copy(pt);m.scale.setScalar(.35+Math.random()*.5);
-scene.add(m);boomFx.push({k:"p",m,t0:t,life:.5+Math.random()*.5,gy:0,v:new THREE.Vector3((Math.random()-.5)*2,Math.random()*1.2+.3,(Math.random()-.5)*2).normalize().multiplyScalar(2.5+Math.random()*4)})}}function treasureHit(pt){const T=TREASURE,t=now();
-if(!T||t-T.last<.05)return;T.last=t;T.pulse=1;prof.coins+=TREASURE_COIN;saveLocalProf();updateWallet();if(shopOpen)renderShop();clearTimeout(T.st);
-T.st=setTimeout(()=>saveScore(),1200);showMsg("\u{1F4B0} +"+TREASURE_COIN.toLocaleString()+"\u{1FA99}",700);beep(1568,.06,.08);setTimeout(()=>beep(2093,.08,.07),60);
-treasureFx(pt)}function treasureTick(dt){const T=TREASURE,t=now();T.pulse=Math.max(0,T.pulse-dt*3);T.coin.rotation.y+=dt*(2+T.pulse*14);const y=1.2+Math.sin(t*2.2)*.07;
-T.coin.position.y=y;T.glow.position.y=y;T.hit.position.y=y;T.glow.scale.setScalar(2.1+Math.sin(t*3)*.22+T.pulse*1.6);T.beam.material.opacity=.13+Math.sin(t*1.7)*.03+T.pulse*.25}if(zmode)buildTreasure();
-try{if(renderer.compile){const wg=new THREE.Group,keep=[],put=(geo,mat)=>{const m=new THREE.Mesh(geo,mat);m.frustumCulled=false;wg.add(m)};for(const k of["s","f","p","d"]){const mt=fxMat(k,16777215,1);
-keep.push([k,mt]);put(RKG.puff,mt)}put(RKG.puff,SPLAT_MAT);put(RKG.puff,zWetMat());put(RKG.puff,zMat(8421504));put(RKG.puff,zMat(8421504,true));
-wg.position.y=-500;scene.add(wg);renderer.compile(scene,camera);scene.remove(wg);for(const kv of keep)FXPOOL[kv[0]].push(kv[1])}}catch(e){}loop()})();
+o.material.depthWrite=false}});if(gunGroup)gunGroup.visible=false;try{if(renderer.compile){const wg=new THREE.Group,keep=[],put=(geo,mat)=>{const m=new THREE.Mesh(geo,mat);
+m.frustumCulled=false;wg.add(m)};for(const k of["s","f","p","d"]){const mt=fxMat(k,16777215,1);keep.push([k,mt]);put(RKG.puff,mt)}put(RKG.puff,SPLAT_MAT);
+put(RKG.puff,zWetMat());put(RKG.puff,zMat(8421504));put(RKG.puff,zMat(8421504,true));wg.position.y=-500;scene.add(wg);renderer.compile(scene,camera);
+scene.remove(wg);for(const kv of keep)FXPOOL[kv[0]].push(kv[1])}}catch(e){}loop()})();
 </script>
 </body>
 </html>
