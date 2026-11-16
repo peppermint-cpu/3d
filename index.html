@@ -304,7 +304,7 @@ background:radial-gradient(circle,rgba(255,244,220,.78) 0,rgba(255,228,188,.34) 
 </style>
 </head>
 <body>
-<div id="buildTag" style="position:fixed;left:6px;bottom:3px;font:10px monospace;color:rgba(255,255,255,.55);z-index:99999;pointer-events:none">build 46</div>
+<div id="buildTag" style="position:fixed;left:6px;bottom:3px;font:10px monospace;color:rgba(255,255,255,.55);z-index:99999;pointer-events:none">build 47</div>
 <div id="game"></div>
 <div id="sunGlow"></div>
 <div id="cine"></div><div id="grain"></div>
@@ -501,13 +501,13 @@ MP2.customProgramCacheKey=function(){return this._obc?this._obc.toString():""}}{
 #ifdef USE_FOG
 if (uMzI > .002){
   vec3 mzQ = vec3(vFogV.x, vFogV.y * uMzD.y - vFogV.z * uMzD.x, vFogV.y * uMzD.x + vFogV.z * uMzD.y);   // 눈 기준 좌표를 땅과 나란히 돌려요 (x 옆 · y 위 · z 뒤) : 월드 좌표 계산 없이 카메라 각도만 써요
-  float mzSs = -mzQ.z - uMzP.z;                                      // 총구에서 앞으로 몇 m (수평)
-  float mzLt = abs(mzQ.x - uMzP.x);                                  // 총구 정면선에서 옆으로 몇 m
-  float mzDh = mzQ.y - uMzP.y;                                       // 총구보다 얼마나 위·아래
-  float mzHw = .12 + .55 * max(mzSs, 0.);                            // 부채꼴: 총구에서 시작해 멀어질수록 옆으로 넓어져요
-  float mzM = smoothstep(-.1, .3, mzSs) * (1. - smoothstep(uMzD.z * .3, uMzD.z + .9, mzSs)) * (1. - smoothstep(mzHw * .1, mzHw * 1.15, mzLt)) * smoothstep(-3.2, -2.6, mzDh) * (1. - smoothstep(.8, 1.4, mzDh));   // 가장자리가 칼같이 끊기지 않고 길게 서서히 옅어져요
-  float mzX = uMzI / (1. + (mzSs * mzSs + mzLt * mzLt + mzDh * mzDh) * .08);
-  float mzA = 1.6 * mzX / (1. + .4 * mzX) * mzM * uMzR * smoothstep(.1, .3, -vFogV.z);   // 총구 앞에서 에임점 쪽 바닥까지, 가까운 부채꼴 안의 땅·물체만 부드럽게 밝아져요 (하늘을 볼 땐 꺼짐)
+  vec3 mzRl = mzQ - vec3(uMzP.x, uMzP.y, -uMzP.z);                    // 총구에서 이 픽셀까지 (총구 기준 상대 위치)
+  float mzAl = mzRl.y * uMzD.x - mzRl.z * uMzD.y;                    // 에임 방향으로 총구에서 몇 m 앞인지 (에임선 위 거리)
+  float mzPp = sqrt(max(dot(mzRl, mzRl) - mzAl * mzAl, 0.));         // 에임선에서 옆으로 몇 m 벗어났는지
+  float mzHw = .1 + .55 * max(mzAl, 0.);                             // 부채꼴: 총구에서 시작해 멀어질수록 넓어져요
+  float mzM = smoothstep(0., .25, mzAl) * (1. - smoothstep(1.3, 2.8, mzAl)) * (1. - smoothstep(mzHw * .15, mzHw * 1.1, mzPp));   // 에임선을 따라 총구 앞 0.3m~1.3m(뒤로 길게 옅어짐) 부채꼴 안만
+  float mzX = uMzI / (1. + dot(mzRl, mzRl) * .06);
+  float mzA = 1.6 * mzX / (1. + .4 * mzX) * mzM * uMzR * smoothstep(.1, .3, -vFogV.z);   // 바닥·벽·물체가 부채꼴에 닿는 곳만 부드럽게 밝아져요 (시선을 올리면 바닥에서 벗어나 자연히 꺼짐)
   ${TOON?"mzA = floor(mzA * 2.5 + .5) / 2.5;":""}
   reflectedLight.indirectDiffuse += (diffuseColor.rgb * 1.7 + vec3(.07, .04, .016)) * vec3(1., .68, .36) * mzA;
 }
@@ -585,7 +585,7 @@ gunScene.add(gunCam);gunScene.add(ZLOOK?new THREE.HemisphereLight(6973044,276098
 gunSun.position.copy(SUN_DIR);gunScene.add(gunSun,gunSun.target);const gunFill=new THREE.DirectionalLight(12890256,.12);gunFill.position.set(-.62,.35,-.38);
 gunScene.add(gunFill);const mzGun=new THREE.PointLight(16756838,0,2.6,1.4);gunScene.add(mzGun);let mzI=0,mzGI=0,mzPk=0,mzGPk=0,mzT0=-9,mzMine=true;
 const _mzD=new THREE.Vector3;let mzGo=0;const mzGlowEl=document.getElementById("mzGlow");let mzFw0=.7;function mzAim(){const p=camera.rotation.x;
-const ha=p<-.03?eyeH/Math.tan(-p):99;MZU.d.value.set(Math.sin(p),Math.cos(p),clamp(ha-mzFw0+.5,1.3,4.2));MZU.r.value=clamp(1-(p-.05)/.4,0,1)}function muzzleLight(pos,k,mine,dir,aimD){if(dir)_mzD.copy(dir);
+MZU.d.value.set(Math.sin(p),Math.cos(p),0);MZU.r.value=clamp(1-(p-.05)/.4,0,1)}function muzzleLight(pos,k,mine,dir,aimD){if(dir)_mzD.copy(dir);
 else _mzD.set(0,0,-1).applyQuaternion(camera.quaternion);_mzD.normalize();const nI=6*k*(ZLOOK?1:.85);if(mine){const o=pos||camera.position,dx=o.x-camera.position.x,dz=o.z-camera.position.z,sy=Math.sin(camera.rotation.y),cy=Math.cos(camera.rotation.y);
 mzFw0=-dx*sy-dz*cy;MZU.p.value.set(dx*cy-dz*sy,o.y-camera.position.y,mzFw0);mzAim();mzPk=nI;mzI=nI;mzT0=performance.now()/1e3}if(mine){mzGun.position.copy(pos).addScaledVector(_mzD,.1);
 mzGPk=4.2*k;mzGI=mzGPk}}function muzzleLightUpd(){const a=performance.now()/1e3-mzT0;const e=a<.045?1:Math.max(0,1-(a-.045)/.03);mzI=mzPk*e;mzGI=mzGPk*e;
