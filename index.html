@@ -304,7 +304,7 @@ background:radial-gradient(circle,rgba(255,244,220,.78) 0,rgba(255,228,188,.34) 
 </style>
 </head>
 <body>
-<div id="buildTag" style="position:fixed;left:6px;bottom:3px;font:10px monospace;color:rgba(255,255,255,.55);z-index:99999;pointer-events:none">build 44</div>
+<div id="buildTag" style="position:fixed;left:6px;bottom:3px;font:10px monospace;color:rgba(255,255,255,.55);z-index:99999;pointer-events:none">build 45</div>
 <div id="game"></div>
 <div id="sunGlow"></div>
 <div id="cine"></div><div id="grain"></div>
@@ -487,8 +487,9 @@ if (uMzI > .002){
   float mzLt = abs(mzQ.x - uMzP.x);                                  // 총구 정면선에서 옆으로 몇 m
   float mzDh = mzQ.y - uMzP.y;                                       // 총구보다 얼마나 위·아래
   float mzHw = .12 + .55 * max(mzSs, 0.);                            // 부채꼴: 총구에서 시작해 멀어질수록 옆으로 넓어져요
-  float mzM = smoothstep(-.05, .15, mzSs) * (1. - smoothstep(uMzD.z - .5, uMzD.z, mzSs)) * (1. - smoothstep(mzHw * .5, mzHw, mzLt)) * smoothstep(-3.2, -2.6, mzDh) * (1. - smoothstep(.8, 1.4, mzDh));
-  float mzA = min(uMzI / (1. + (mzSs * mzSs + mzLt * mzLt + mzDh * mzDh) * .08), 2.2) * mzM * uMzR * smoothstep(.1, .3, -vFogV.z);   // 총구 앞에서 에임점 쪽 바닥까지, 가까운 부채꼴 안의 땅·물체만 밝아져요 (하늘을 볼 땐 꺼짐)
+  float mzM = smoothstep(-.1, .3, mzSs) * (1. - smoothstep(uMzD.z * .3, uMzD.z + .9, mzSs)) * (1. - smoothstep(mzHw * .1, mzHw * 1.15, mzLt)) * smoothstep(-3.2, -2.6, mzDh) * (1. - smoothstep(.8, 1.4, mzDh));   // 가장자리가 칼같이 끊기지 않고 길게 서서히 옅어져요
+  float mzX = uMzI / (1. + (mzSs * mzSs + mzLt * mzLt + mzDh * mzDh) * .08);
+  float mzA = 1.6 * mzX / (1. + .4 * mzX) * mzM * uMzR * smoothstep(.1, .3, -vFogV.z);   // 총구 앞에서 에임점 쪽 바닥까지, 가까운 부채꼴 안의 땅·물체만 부드럽게 밝아져요 (하늘을 볼 땐 꺼짐)
   reflectedLight.indirectDiffuse += (diffuseColor.rgb * 1.7 + vec3(.07, .04, .016)) * vec3(1., .68, .36) * mzA;
 }
 #endif
