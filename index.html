@@ -304,7 +304,7 @@ background:radial-gradient(circle,rgba(255,244,220,.78) 0,rgba(255,228,188,.34) 
 </style>
 </head>
 <body>
-<div id="buildTag" style="position:fixed;left:6px;bottom:3px;font:10px monospace;color:rgba(255,255,255,.55);z-index:99999;pointer-events:none">build 40</div>
+<div id="buildTag" style="position:fixed;left:6px;bottom:3px;font:10px monospace;color:rgba(255,255,255,.55);z-index:99999;pointer-events:none">build 41</div>
 <div id="game"></div>
 <div id="sunGlow"></div>
 <div id="cine"></div><div id="grain"></div>
@@ -486,8 +486,8 @@ if (uMzI > .002){
   vec3 mzV = cameraPosition + mzR - uMzP; float mzL = length(mzV);   // 쏜 사람에서 이 픽셀까지 (월드 좌표 차이)
   float mzU = dot(mzV.xz, uMzD.xz);                                   // 바라보는 방향(수평)으로 앞쪽 몇 m
   float mzS = abs(mzV.x * uMzD.z - mzV.z * uMzD.x);                   // 그 방향선에서 옆으로 몇 m
-  float mzW = .9 + .5 * max(mzU, 0.);                                // 멀어질수록 조금씩 넓어지는 폭 (부채꼴)
-  float mzA = min(uMzI / (1. + mzL * mzL * .08), 2.2) * smoothstep(.05, .35, mzU) * (1. - smoothstep(uMzR * .4, uMzR, mzU)) * (1. - smoothstep(mzW * .5, mzW, mzS)) * smoothstep(.1, .3, -vFogV.z);   // 앞 0.1m 부터 ~6m, 바라보는 쪽 부채꼴 안의 땅·벽·물체만 밝아져요 (옆·뒤·먼 곳은 그대로)
+  float mzW = .7 + .4 * max(mzU, 0.);                                // 멀어질수록 조금씩 넓어지는 폭 (부채꼴)
+  float mzA = min(uMzI / (1. + mzL * mzL * .08), 2.2) * smoothstep(.05, .15, mzU) * (1. - smoothstep(uMzR * .75, uMzR, mzU)) * (1. - smoothstep(mzW * .5, mzW, mzS)) * smoothstep(.1, .3, -vFogV.z);   // 앞 0.1m 부터 1m 까지, 바라보는 쪽 좁은 구간의 땅·벽·물체만 밝아져요 (옆·뒤·그보다 먼 곳은 그대로)
   reflectedLight.indirectDiffuse += (diffuseColor.rgb * 1.7 + vec3(.07, .04, .016)) * vec3(1., .68, .36) * mzA;
 }
 #endif
@@ -565,7 +565,7 @@ gunSun.position.copy(SUN_DIR);gunScene.add(gunSun,gunSun.target);const gunFill=n
 gunScene.add(gunFill);const mzGun=new THREE.PointLight(16756838,0,2.6,1.4);gunScene.add(mzGun);let mzI=0,mzGI=0,mzT=0,mzMine=false,mzHold=0;const _mzD=new THREE.Vector3;
 let mzGo=0;const mzGlowEl=document.getElementById("mzGlow");function muzzleLight(pos,k,mine,dir,aimD){if(dir)_mzD.copy(dir);else _mzD.set(0,0,-1).applyQuaternion(camera.quaternion);
 _mzD.normalize();const nI=6*k*(ZLOOK?1:.85);if(nI>=mzI*.9&&(mine||mzI<.3)){if(mine){MZU.p.value.copy(camera.position);MZU.d.value.set(-Math.sin(camera.rotation.y),0,-Math.cos(camera.rotation.y));
-MZU.r.value=6}else{const hl=Math.hypot(_mzD.x,_mzD.z)||1;MZU.p.value.copy(pos);MZU.d.value.set(_mzD.x/hl,0,_mzD.z/hl);MZU.r.value=5}mzMine=!!mine;
+MZU.r.value=1}else{const hl=Math.hypot(_mzD.x,_mzD.z)||1;MZU.p.value.copy(pos);MZU.d.value.set(_mzD.x/hl,0,_mzD.z/hl);MZU.r.value=5}mzMine=!!mine;
 mzI=Math.max(mzI,nI);mzHold=performance.now()/1e3+.06}if(mine){mzGun.position.copy(pos).addScaledVector(_mzD,.1);mzGI=Math.max(mzGI,4.2*k)}}function muzzleLightUpd(){const t=performance.now()/1e3,dt=Math.min(.1,t-mzT);
 mzT=t;const d=t<mzHold?1:Math.exp(-dt*14);mzI*=d;mzGI*=d;if(mzI<.03)mzI=0;if(mzGI<.03)mzGI=0;if(mzMine&&mzI>0){MZU.d.value.set(-Math.sin(camera.rotation.y),0,-Math.cos(camera.rotation.y));
 MZU.p.value.copy(camera.position)}MZU.i.value=mzI;mzGun.intensity=mzGI;const go=mzMine?Math.min(1,mzI/6)*(ZLOOK?.7:.55):0;if(Math.abs(go-mzGo)>.01||go===0&&mzGo!==0){mzGo=go;
