@@ -327,7 +327,7 @@ body.znight #sunGlow{width:76vmin;height:76vmin;margin:-38vmin 0 0 -38vmin;backg
 </style>
 </head>
 <body>
-<div id="buildTag" style="position:fixed;left:6px;bottom:3px;font:10px monospace;color:rgba(255,255,255,.55);z-index:99999;pointer-events:none">build 76</div>
+<div id="buildTag" style="position:fixed;left:6px;bottom:3px;font:10px monospace;color:rgba(255,255,255,.55);z-index:99999;pointer-events:none">build 77</div>
 <div id="game"></div>
 <div id="sunGlow"></div>
 <div id="cine"></div><div id="grain"></div>
@@ -385,6 +385,7 @@ body.znight #sunGlow{width:76vmin;height:76vmin;margin:-38vmin 0 0 -38vmin;backg
     <div class="set"><label><span>화면 흔들림 (0%면 안 흔들려요)</span><b id="shakeVal">100%</b></label><input type="range" id="shake" min="0" max="1" step="0.05" value="1"></div>
     <div class="set"><label><span>피 효과 (끄면 더 가벼워요)</span><input type="checkbox" id="gorefx" checked style="width:auto;margin:0;padding:0"></label></div>
     <div class="set"><label><span>그림자 (끄면 더 가벼워요)</span><input type="checkbox" id="shadowfx" checked style="width:auto;margin:0;padding:0"></label></div>
+    <div class="set"><label><span>라이트 그림자 (손전등·총구 불빛 뒤 그림자, 끄면 더 가벼워요)</span><input type="checkbox" id="lshadowfx" checked style="width:auto;margin:0;padding:0"></label></div>
     <div class="set"><label><span>그래픽 품질 (바꾸면 새로고침)</span><select id="qmode"><option value="auto">자동</option><option value="low">가볍게</option><option value="opt">고화질 최적화 (폰 추천)</option><option value="high">고화질 (PC와 동일)</option><option value="ultra">초고퀄리티 (PC 추천 · 가지·잎 하나하나)</option><option value="ultraopt">초고퀄리티 최적화 (폰 가능 · 보이는 곳만 그려요)</option><option value="ultralite">초고퀄리티 라이트 (폰 · 프레임 우선 · 티 안 나는 곳을 더 줄여요)</option><option value="extreme">극한 초고퀄리티 (PC 전용 · 가장 무거워요 · 그림자·해상도·잎·풀 최대 · 총기·캐릭터·소품 모델링 정밀)</option><option value="extremelite">극한 초고퀄리티 라이트 (폰 · 초고퀄리티 라이트보다 한 단계 더 선명 · 총기·캐릭터 모델링 정밀)</option></select></label></div>
     <div class="set"><label><span>툰 쉐이딩 (바꾸면 새로고침)</span><select id="toonmode"><option value="0">끄기</option><option value="1">켜기 (초고퀄리티 라이트 디테일 + 만화 같은 음영)</option></select></label></div>
     <div class="set"><label><span>텍스처·모델링 (바꾸면 새로고침)</span><select id="detmode"><option value="0">표준</option><option value="1">고퀄리티 (PC·최신 폰, 로딩 조금 느려요)</option></select></label></div>
@@ -538,7 +539,7 @@ float atmAmt(float dist, float h){   // \uAC70\uB9AC \uC548\uAC1C\uB7C9: \uAC00\
 `})();const MZU={p:{value:new THREE.Vector3},d:{value:new THREE.Vector3(0,0,-1)},i:{value:0},r:{value:3}};const FLS={on:true,res:liteQ?384:optQ?512:hiQ?QX?1536:1024:512,every:hiQ&&!optQ?1:liteQ?3:2,tick:0,defer:0,ready:false};
 try{if(localStorage.getItem("is_flshadow")==="0")FLS.on=false}catch(e){}const FL_ANG=.74,FL_N=.3,FL_F=50;const FL_HQ=hiQ&&!optQ,FL_TAPS=FL_HQ?4:1,FL_SKIP_G=[],FL_SKIP_L=[];
 const flDummy=new THREE.DataTexture(new Uint8Array([255,255,255,255]),1,1,THREE.RGBAFormat);flDummy.needsUpdate=true;const FLU={p:{value:new THREE.Vector3(.2,-.2,-.8)},d:{value:new THREE.Vector3(0,0,-1)},i:{value:0},m:{value:new THREE.Matrix4},s:{value:flDummy},t:{value:new THREE.Vector2(0,1/FLS.res)}};
-const MZS_ON=ZNIGHT||ZLOOK;const MZ_ANG=.85,MZ_N=.15,MZ_F=16;const MZS={on:MZS_ON,res:liteQ?256:optQ?384:hiQ?QX?1024:768:384,ready:false,req:false,fr:0,last:-99,wp:new THREE.Vector3};
+const MZS_ON=ZNIGHT||ZLOOK;const MZ_ANG=.85,MZ_N=.15,MZ_F=16;const MZS={on:MZS_ON,res:liteQ?192:optQ?256:hiQ?QX?512:384:256,ready:false,req:false,fr:0,last:-99,lt:-1e9,wp:new THREE.Vector3};
 try{if(localStorage.getItem("is_flshadow")==="0")MZS.on=false}catch(e){}const MZSU={m:{value:new THREE.Matrix4},s:{value:flDummy},t:{value:new THREE.Vector2(0,1/MZS.res)}};
 const FL_CONE=".76, .955, flC";const FL_K=ZNIGHT?1:ZLOOK?.55:.3;const HZ_N=256,HZU={s:{value:null}};let HZ_OK=false;try{const rt=new THREE.WebGLRenderTarget(HZ_N,1,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,format:THREE.RGBAFormat,type:THREE.UnsignedByteType,depthBuffer:false,stencilBuffer:false});
 rt.texture.generateMipmaps=false;const sc=new THREE.Scene,cm=new THREE.Camera;sc.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({depthTest:false,depthWrite:false,vertexShader:"varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }",fragmentShader:ATM_GLSL+"varying vec2 vUv; void main(){ float s = clamp((vUv.x * "+HZ_N.toFixed(1)+" - .5) / "+(HZ_N-1).toFixed(1)+", 0., 1.); gl_FragColor = vec4(atmHaze(1. - 2. * s * s), 1.); }"})));
@@ -762,24 +763,23 @@ if(b)b.classList.toggle("show",has)}const want=has&&flOn&&!player.dead?1:0;if(fl
 if(flI>0&&lt){gunGroup.updateMatrix();_flP.copy(lt).applyMatrix4(gunGroup.matrix);FLU.p.value.copy(_flP);FLU.d.value.copy(_flAim).sub(_flP).normalize()}}const flLight=new THREE.SpotLight(16777215,1,FL_F,FL_ANG,0,1);
 flLight.castShadow=true;flLight.shadow.mapSize.set(FLS.res,FLS.res);flLight.shadow.camera.near=FL_N;const _flW=new THREE.Vector3,_flA2=new THREE.Vector3,_flLW=new THREE.Vector3(1e9,0,0),_flLA=new THREE.Vector3,_flSv=[];
 let flPend=false,mzPend=false;const mzLight=new THREE.SpotLight(16777215,1,MZ_F,MZ_ANG,0,1),_mzLts=[],_mzW=new THREE.Vector3;mzLight.castShadow=true;
-mzLight.shadow.mapSize.set(MZS.res,MZS.res);mzLight.shadow.camera.near=MZ_N;const flHook=new THREE.Mesh(new THREE.BufferGeometry().setAttribute("position",new THREE.BufferAttribute(new Float32Array(9),3)),new THREE.MeshBasicMaterial({colorWrite:false,depthWrite:false,depthTest:false,fog:false}));
-flHook.frustumCulled=false;flHook.renderOrder=-1e9;flHook.matrixAutoUpdate=false;flHook.visible=false;flHook.onBeforeRender=function(){if(!flPend&&!mzPend)return;
-const doFl=flPend,doMz=mzPend;flPend=false;mzPend=false;const sm=renderer.shadowMap,nu=sm.needsUpdate,en=sm.enabled,au=sm.autoUpdate,sv=selfAv.group.visible;
+mzLight.shadow.mapSize.set(MZS.res,MZS.res);mzLight.shadow.camera.near=MZ_N;let bfDue=false,bfSun=false;const smOrig=renderer.shadowMap.render;
+renderer.shadowMap.render=function(lights,sc,cam){if(!bfDue)return smOrig.call(this,lights,sc,cam);bfDue=false;const sm=this;if(bfSun)smOrig.call(sm,lights,sc,cam);
+if(!flPend&&!mzPend)return;const doFl=flPend,doMz=mzPend;flPend=false;mzPend=false;const en=sm.enabled,au=sm.autoUpdate,sv=selfAv.group.visible;
 sm.enabled=true;sm.autoUpdate=false;sm.needsUpdate=true;selfAv.group.visible=false;_flSv.length=0;for(let i=0;i<FL_SKIP_G.length;i++){const m=FL_SKIP_G[i];
 _flSv.push(m,m.castShadow);m.castShadow=false}if(!FL_HQ)for(let i=0;i<FL_SKIP_L.length;i++){const m=FL_SKIP_L[i];_flSv.push(m,m.castShadow);m.castShadow=false}_mzLts.length=0;
-if(doFl)_mzLts.push(flLight);if(doMz)_mzLts.push(mzLight);try{sm.render(_mzLts,scene,camera)}finally{for(let i=0;i<_flSv.length;i+=2)_flSv[i].castShadow=_flSv[i+1];
-sm.needsUpdate=nu;sm.enabled=en;sm.autoUpdate=au;selfAv.group.visible=sv}if(doFl&&flLight.shadow.map){if(!FLS.ready){FLS.ready=true;FLU.s.value=flLight.shadow.map.texture}FLU.m.value.multiplyMatrices(flLight.shadow.matrix,camera.matrixWorld);
+if(doFl)_mzLts.push(flLight);if(doMz)_mzLts.push(mzLight);try{smOrig.call(sm,_mzLts,scene,camera)}finally{for(let i=0;i<_flSv.length;i+=2)_flSv[i].castShadow=_flSv[i+1];
+sm.needsUpdate=false;sm.enabled=en;sm.autoUpdate=au;selfAv.group.visible=sv}if(doFl&&flLight.shadow.map){if(!FLS.ready){FLS.ready=true;FLU.s.value=flLight.shadow.map.texture}FLU.m.value.multiplyMatrices(flLight.shadow.matrix,camera.matrixWorld);
 FLU.t.value.x=1}if(doMz&&mzLight.shadow.map){if(!MZS.ready){MZS.ready=true;MZSU.s.value=mzLight.shadow.map.texture}MZSU.m.value.multiplyMatrices(mzLight.shadow.matrix,camera.matrixWorld);
-MZSU.t.value.x=1}};scene.add(flHook);function flashShadow(){const lt=gunGroup&&gunGroup.userData.light;if(!FLS.on||!lt||flI<.05||!shadowFx||perfG.lvl>=3){FLU.t.value.x=0;
-FLS.tick=99;flPend=false;flHook.visible=false;return}const sm=renderer.shadowMap,lv=perfG.lvl;let every=FLS.every+(lv>=1?1:0)+(lv>=2?1:0);camera.updateMatrixWorld();
+MZSU.t.value.x=1}};function flashShadow(){const lt=gunGroup&&gunGroup.userData.light;if(!FLS.on||!lt||flI<.05||!shadowFx||perfG.lvl>=3){FLU.t.value.x=0;
+FLS.tick=99;flPend=false;return}const sm=renderer.shadowMap,lv=perfG.lvl;let every=FLS.every+(lv>=1?1:0)+(lv>=2?1:0);camera.updateMatrixWorld();
 _flW.copy(FLU.p.value).applyMatrix4(camera.matrixWorld);_flA2.copy(_flAim).applyMatrix4(camera.matrixWorld);if(FLS.ready&&_flW.distanceToSquared(_flLW)<9e-4&&_flA2.distanceToSquared(_flLA)<.016)every++;
 if(!FLS.ready||++FLS.tick>=every){if(FLS.ready&&sm.needsUpdate&&FLS.defer<2)FLS.defer++;else{FLS.tick=0;FLS.defer=0;flPend=true;_flLW.copy(_flW);
-_flLA.copy(_flA2);flLight.position.copy(_flW);flLight.target.position.copy(_flA2);flLight.updateMatrixWorld();flLight.target.updateMatrixWorld()}}flHook.visible=flPend;
-if(FLS.ready&&!flPend){FLU.m.value.multiplyMatrices(flLight.shadow.matrix,camera.matrixWorld);FLU.t.value.x=1}}function muzzleShadow(){if(!MZS.on||!shadowFx||perfG.lvl>=3){MZSU.t.value.x=0;
-MZS.req=false;mzPend=false;return}MZS.fr++;if(MZS.req&&mzI>.3){const gap=2+perfG.lvl*2;if(MZS.fr-MZS.last>=gap){MZS.last=MZS.fr;MZS.req=false;
-mzPend=true;camera.updateMatrixWorld();camera.getWorldDirection(_mzW);mzLight.position.copy(MZS.wp);mzLight.target.position.copy(MZS.wp).addScaledVector(_mzW,10);
-mzLight.updateMatrixWorld();mzLight.target.updateMatrixWorld()}}else if(mzI<=.3)MZS.req=false;if(mzPend)flHook.visible=true;else if(MZS.ready){camera.updateMatrixWorld();
-MZSU.m.value.multiplyMatrices(mzLight.shadow.matrix,camera.matrixWorld);MZSU.t.value.x=1}}function toggleLight(){if(!gunGroup||!gunGroup.userData.light)return;
+_flLA.copy(_flA2);flLight.position.copy(_flW);flLight.target.position.copy(_flA2);flLight.updateMatrixWorld();flLight.target.updateMatrixWorld()}}if(FLS.ready&&!flPend){FLU.m.value.multiplyMatrices(flLight.shadow.matrix,camera.matrixWorld);
+FLU.t.value.x=1}}function muzzleShadow(){if(!MZS.on||!shadowFx||perfG.lvl>=3){MZSU.t.value.x=0;MZS.req=false;mzPend=false;return}MZS.fr++;if(MZS.req&&mzI>.3){const gap=3+perfG.lvl*2,tn=performance.now();
+if(MZS.fr-MZS.last>=gap&&tn-MZS.lt>=140+perfG.lvl*60){MZS.last=MZS.fr;MZS.lt=tn;MZS.req=false;mzPend=true;camera.updateMatrixWorld();camera.getWorldDirection(_mzW);
+mzLight.position.copy(MZS.wp);mzLight.target.position.copy(MZS.wp).addScaledVector(_mzW,10);mzLight.updateMatrixWorld();mzLight.target.updateMatrixWorld()}}else if(mzI<=.3)MZS.req=false;
+if(!mzPend&&MZS.ready){camera.updateMatrixWorld();MZSU.m.value.multiplyMatrices(mzLight.shadow.matrix,camera.matrixWorld);MZSU.t.value.x=1}}function toggleLight(){if(!gunGroup||!gunGroup.userData.light)return;
 flOn=!flOn;beep(flOn?1700:1e3,.025,.05);const b=document.getElementById("bLight");if(b)b.classList.toggle("on",flOn)}const _sr=new THREE.Vector3(0,1,0).cross(SUN_DIR).normalize();
 const _su=new THREE.Vector3().crossVectors(SUN_DIR,_sr),_st=new THREE.Vector3;const SH_STEP=SHADOW_R*.16,SH_DYN=hiQ&&!optQ?0:liteQ?1/20:1/30;
 let shCx=1e9,shCz=1e9,shNext=0,shOn=null;function updateSun(){renderer.shadowMap.autoUpdate=false;if(!shadowFx){shOn=false;return}let need=false;
@@ -1142,10 +1142,11 @@ reflCam.fov=camera.fov;reflCam.aspect=camera.aspect;reflCam.updateProjectionMatr
 sky.position.copy(reflCam.position);reflHide(true);const shNU=renderer.shadowMap.needsUpdate;renderer.shadowMap.needsUpdate=false;renderer.setRenderTarget(reflRT);
 renderer.render(scene,reflCam);renderer.setRenderTarget(null);renderer.shadowMap.needsUpdate=shNU;reflHide(false);sky.position.copy(camera.position);
 water.visible=bed.visible=true;if(tuftRef)tuftRef.visible=true;if(rayFx.on&&!ZNIGHT)for(let i=0;i<rayFx.obj.length;i++)rayFx.obj[i].visible=true}wu.uUse.value=refl?1:0;
-renderPip();flashShadow();muzzleShadow();renderer.render(scene,camera);if(gunGroup){gunCam.position.copy(camera.position);gunCam.quaternion.copy(camera.quaternion);
-gunCam.fov=camera.fov;gunCam.aspect=camera.aspect;gunCam.updateProjectionMatrix();if(gunGroup.visible){renderer.autoClear=false;renderer.clearDepth();
-renderer.render(gunScene,gunCam);renderer.autoClear=true}}}const R=.4;const BXG={cs:6,m:new Map,n:-1,v:0,bv:0,none:[]};{const _bp=boxes.push,_bs=boxes.splice;
-boxes.push=function(){BXG.bv++;return _bp.apply(this,arguments)};boxes.splice=function(){BXG.bv++;return _bs.apply(this,arguments)}}function bxBuild(){const m=BXG.m,cs=BXG.cs,pad=R+.02;
+renderPip();flashShadow();muzzleShadow();{const sm0=renderer.shadowMap;bfSun=sm0.needsUpdate;bfDue=flPend||mzPend;if(bfDue&&!bfSun)sm0.needsUpdate=true}renderer.render(scene,camera);
+if(bfDue){bfDue=false;flPend=mzPend=false}if(gunGroup){gunCam.position.copy(camera.position);gunCam.quaternion.copy(camera.quaternion);gunCam.fov=camera.fov;
+gunCam.aspect=camera.aspect;gunCam.updateProjectionMatrix();if(gunGroup.visible){renderer.autoClear=false;renderer.clearDepth();renderer.render(gunScene,gunCam);
+renderer.autoClear=true}}}const R=.4;const BXG={cs:6,m:new Map,n:-1,v:0,bv:0,none:[]};{const _bp=boxes.push,_bs=boxes.splice;boxes.push=function(){BXG.bv++;
+return _bp.apply(this,arguments)};boxes.splice=function(){BXG.bv++;return _bs.apply(this,arguments)}}function bxBuild(){const m=BXG.m,cs=BXG.cs,pad=R+.02;
 m.clear();for(let i=0;i<boxes.length;i++){const b=boxes[i],x0=Math.floor((b.minX-pad)/cs),x1=Math.floor((b.maxX+pad)/cs),z0=Math.floor((b.minZ-pad)/cs),z1=Math.floor((b.maxZ+pad)/cs);
 for(let ix=x0;ix<=x1;ix++)for(let iz=z0;iz<=z1;iz++){const k=ix*65536+iz;let a=m.get(k);if(!a)m.set(k,a=[]);a.push(b)}}BXG.n=boxes.length;BXG.v=BXG.bv}function bxAt(x,z){if(BXG.n!==boxes.length||BXG.v!==BXG.bv)bxBuild();
 return BXG.m.get(Math.floor(x/BXG.cs)*65536+Math.floor(z/BXG.cs))||BXG.none}function collides(x,y,z){const L=bxAt(x,z);for(let i=0;i<L.length;
@@ -2187,8 +2188,10 @@ try{const v=parseFloat(localStorage.getItem("is_shake"));if(v>=0&&v<=1)shake=v}c
 $("shake").addEventListener("input",()=>{const v=parseFloat($("shake").value);shake=v>=0?v:1;$("shakeVal").textContent=Math.round(shake*100)+"%";
 try{localStorage.setItem("is_shake",String(shake))}catch(e){}});{let on=false;try{on=localStorage.getItem("is_runbtn")==="1"}catch(e){}const ap=()=>{document.body.classList.toggle("runbtn",on);
 if(!on){runHeld=false;$("bRun").classList.remove("on")}};$("runbtn").checked=on;ap();$("runbtn").addEventListener("change",()=>{on=$("runbtn").checked;
-ap();try{localStorage.setItem("is_runbtn",on?"1":"0")}catch(e){}})}let shadowFx=true;try{if(localStorage.getItem("is_shadow")==="0")shadowFx=false}catch(e){}function applyShadow(){renderer.shadowMap.enabled=shadowFx;
-sun.castShadow=shadowFx;scene.traverse(o=>{if(o.material)o.material.needsUpdate=true})}$("shadowfx").checked=shadowFx;applyShadow();$("shadowfx").addEventListener("change",()=>{shadowFx=$("shadowfx").checked;
+ap();try{localStorage.setItem("is_runbtn",on?"1":"0")}catch(e){}})}{let on=true;try{on=localStorage.getItem("is_flshadow")!=="0"}catch(e){}$("lshadowfx").checked=on;
+$("lshadowfx").addEventListener("change",()=>{on=$("lshadowfx").checked;FLS.on=on;MZS.on=MZS_ON&&on;try{localStorage.setItem("is_flshadow",on?"1":"0")}catch(e){}})}let shadowFx=true;
+try{if(localStorage.getItem("is_shadow")==="0")shadowFx=false}catch(e){}function applyShadow(){renderer.shadowMap.enabled=shadowFx;sun.castShadow=shadowFx;
+scene.traverse(o=>{if(o.material)o.material.needsUpdate=true})}$("shadowfx").checked=shadowFx;applyShadow();$("shadowfx").addEventListener("change",()=>{shadowFx=$("shadowfx").checked;
 applyShadow();try{localStorage.setItem("is_shadow",shadowFx?"1":"0")}catch(e){}});let cineFx=true;try{if(localStorage.getItem("is_cine")==="0")cineFx=false}catch(e){}{const nc=document.createElement("canvas");
 nc.width=nc.height=128;const ng=nc.getContext("2d"),im=ng.createImageData(128,128);for(let i=0;i<im.data.length;i+=4){const v=Math.random()*255|0;
 im.data[i]=im.data[i+1]=im.data[i+2]=v;im.data[i+3]=255}ng.putImageData(im,0,0);$("grain").style.backgroundImage="url("+nc.toDataURL()+")"}function applyCine(){$("cine").style.display=cineFx?"block":"none";
@@ -2227,11 +2230,11 @@ document.addEventListener("pointerlockchange",()=>{if(isTouch)return;locked=docu
 if(!locked){firing=false;mouseR=false;for(const k in keys)keys[k]=false;closeChat()}if(joined){$("play").textContent="\uACC4\uC18D\uD558\uAE30"}});
 const looks={};let fireId=null;const joy=$("joy"),knob=$("knob");function moveStick(t){const r=joy.getBoundingClientRect();const max=r.width/2;
 let dx=t.clientX-(r.left+max),dy=t.clientY-(r.top+max);const d=Math.hypot(dx,dy);if(d>max){dx*=max/d;dy*=max/d}const sc=r.width/joy.offsetWidth||1;
-knob.style.transform="translate("+dx/sc+"px,"+dy/sc+"px)";stick.x=dx/max;stick.y=-dy/max;const up=stick.y,ax=Math.abs(stick.x);const sr=stickRun?!(up<.62||ax>up*.75):up>=.88&&ax<=up*.5;
-if(sr!==stickRun){stickRun=sr;joy.classList.toggle("run",sr)}}function resetStick(){stick.id=null;stick.x=0;stick.y=0;knob.style.transform="translate(0,0)";
-if(stickRun){stickRun=false;joy.classList.remove("run")}}function lookDelta(dx,dy){if(!locked||player.dead)return;const s=.0042*lookK()*sens;
-player.yaw-=dx*s;player.pitch=clamp(player.pitch-dy*s,-1.5,1.5)}function enterTouch(){locked=true;$("overlay").style.display="none";$("touchui").style.display="block";
-$("play").textContent="\uACC4\uC18D\uD558\uAE30";try{const el=document.documentElement;const fn=el.requestFullscreen||el.webkitRequestFullscreen;
+knob.style.transform="translate("+dx/sc+"px,"+dy/sc+"px)";stick.x=dx/max;stick.y=-dy/max;const up=stick.y,ax=Math.abs(stick.x),mg=Math.hypot(up,ax);
+const sr=stickRun?up>0&&mg>=.6&&ax<=up*1.73:up>0&&mg>=.85&&ax<=up*1.19;if(sr!==stickRun){stickRun=sr;joy.classList.toggle("run",sr)}}function resetStick(){stick.id=null;
+stick.x=0;stick.y=0;knob.style.transform="translate(0,0)";if(stickRun){stickRun=false;joy.classList.remove("run")}}function lookDelta(dx,dy){if(!locked||player.dead)return;
+const s=.0042*lookK()*sens;player.yaw-=dx*s;player.pitch=clamp(player.pitch-dy*s,-1.5,1.5)}function enterTouch(){locked=true;$("overlay").style.display="none";
+$("touchui").style.display="block";$("play").textContent="\uACC4\uC18D\uD558\uAE30";try{const el=document.documentElement;const fn=el.requestFullscreen||el.webkitRequestFullscreen;
 if(fn){const p=fn.call(el);if(p&&p.catch)p.catch(()=>{})}}catch(e){}try{if(screen.orientation&&screen.orientation.lock){const p=screen.orientation.lock("landscape");
 if(p&&p.catch)p.catch(()=>{})}}catch(e){}}function pauseTouch(){closeChat();locked=false;firing=false;mouseR=false;fireId=null;keys.Space=false;
 runHeld=false;resetStick();$("bRun").classList.remove("on");for(const k in looks)delete looks[k];$("bFire").classList.remove("on");$("bJump").classList.remove("on");
